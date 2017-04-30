@@ -6,7 +6,9 @@ python:
   - 3.5
 install:
   - sudo apt-get update
-  - pip install tensorflow==1.0.1 numpy scipy nose pandas
+  - pip install tensorflow==1.0.1 numpy scipy nose pandas codecov coverage
   - python setup.py install
 script:
-  - nosetests --nologcapture testing
+  - nosetests --nologcapture --with-coverage --cover-package=testing testing
+after_success:
+  - codecov
