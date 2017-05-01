@@ -129,7 +129,8 @@ class SciPyOptimizer(Optimizer):
                            options=options)
 
     def _optimize(self, objective):
-        result = minimize(fun=objective,
+        objective1d = lambda X: tuple(map(lambda arr: arr.ravel(), objective(X)))
+        result = minimize(fun=objective1d,
                           x0=self.get_initial(),
                           jac=self.gradient_enabled(),
                           bounds=list(zip(self.domain.lower, self.domain.upper)),
