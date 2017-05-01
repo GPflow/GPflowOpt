@@ -6,3 +6,5 @@ If you're interested in helping shape GPflowOpt, let us know via an issue on thi
 
 # GPflowOpt
 Bayesian Optimization using GPflow
+
+[![Build Status](https://travis-ci.org/GPflow/GPflowOpt.svg?branch=master)](https://travis-ci.org/GPflow/GPflowOpt)
