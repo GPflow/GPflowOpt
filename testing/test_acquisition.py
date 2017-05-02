@@ -13,13 +13,17 @@ def plane(X):
     return X[:, [0]] - 0.5
 
 
-class _AcquisitionTests(unittest.TestCase):
+class _TestAcquisition(object):
     """
     Defines some basic verifications for all acquisition functions. Test classes can derive from this
     """
 
+    @property
+    def domain(self):
+        return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+
     def setUp(self):
-        self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+        self.acquisition = None
 
     def test_result_shape(self):
         # Verify the returned shape of evaluate
@@ -66,7 +70,7 @@ class _AcquisitionTests(unittest.TestCase):
         np.testing.assert_allclose(self.acquisition.data[1], Y, err_msg="Values not updated")
 
 
-class TestExpectedImprovement(_AcquisitionTests):
+class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
     def setUp(self):
         super(TestExpectedImprovement, self).setUp()
         design = GPflowOpt.design.FactorialDesign(4, self.domain)
@@ -102,7 +106,7 @@ class TestExpectedImprovement(_AcquisitionTests):
         self.assertGreater(np.min(ei2), np.max(ei1))
 
 
-class TestProbabilityOfFeasibility(_AcquisitionTests):
+class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
     def setUp(self):
         super(TestProbabilityOfFeasibility, self).setUp()
         design = GPflowOpt.design.FactorialDesign(5, self.domain)
@@ -123,9 +127,7 @@ class TestProbabilityOfFeasibility(_AcquisitionTests):
         self.assertTrue(np.allclose(self.acquisition.evaluate(X2), 0), msg="Right half of plane is not feasible")
 
 
-class _AcquisitionBinaryOperatorTest(_AcquisitionTests):
-    def setUp(self):
-        super(_AcquisitionBinaryOperatorTest, self).setUp()
+class _TestAcquisitionBinaryOperator(_TestAcquisition):
 
     def test_object_integrity(self):
         self.assertTrue(isinstance(self.acquisition.lhs, GPflowOpt.acquisition.Acquisition),
@@ -134,7 +136,7 @@ class _AcquisitionBinaryOperatorTest(_AcquisitionTests):
                         msg="Right hand operand should be an acquisition object")
 
     def test_data(self):
-        super(_AcquisitionBinaryOperatorTest, self).test_data()
+        super(_TestAcquisitionBinaryOperator, self).test_data()
         np.testing.assert_allclose(self.acquisition.data[0], self.acquisition.lhs.data[0],
                                    err_msg="Samples should be equal for all operands")
         np.testing.assert_allclose(self.acquisition.data[0], self.acquisition.rhs.data[0],
@@ -145,7 +147,7 @@ class _AcquisitionBinaryOperatorTest(_AcquisitionTests):
                                    err_msg="Value should be horizontally concatenated")
 
 
-class TestAcquisitionSum(_AcquisitionBinaryOperatorTest):
+class TestAcquisitionSum(_TestAcquisitionBinaryOperator, unittest.TestCase):
     def setUp(self):
         super(TestAcquisitionSum, self).setUp()
         design = GPflowOpt.design.FactorialDesign(4, self.domain)
@@ -173,7 +175,7 @@ class TestAcquisitionSum(_AcquisitionBinaryOperatorTest):
                                    err_msg="Sum of two EI should return no constraints")
 
 
-class TestAcquisitionProduct(_AcquisitionBinaryOperatorTest):
+class TestAcquisitionProduct(_TestAcquisitionBinaryOperator, unittest.TestCase):
     def setUp(self):
         super(TestAcquisitionProduct, self).setUp()
         design = GPflowOpt.design.FactorialDesign(4, self.domain)
@@ -204,8 +206,10 @@ class TestAcquisitionProduct(_AcquisitionBinaryOperatorTest):
 
 
 class TestJointAcquisition(unittest.TestCase):
-    def setUp(self):
-        self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+
+    @property
+    def domain(self):
+        return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
 
     def test_constrained_EI(self):
         design = GPflowOpt.design.FactorialDesign(4, self.domain)

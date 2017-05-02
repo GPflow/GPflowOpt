@@ -46,7 +46,7 @@ class Acquisition(Parameterized):
         for model in self.models:
             # If likelihood variance is close to zero, updating data may result in non-invertible K
             # Increase likelihood variance a bit.
-            model.likelihood.variance = 2.0
+            model.likelihood.variance = 4.0
             model.optimize()
 
     def _build_acquisition_wrapper(self, Xcand, gradients=True):

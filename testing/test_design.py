@@ -3,7 +3,11 @@ import unittest
 import numpy as np
 
 
-class _DesignTests(unittest.TestCase):
+class _TestDesign(object):
+    @property
+    def design(self):
+        raise NotImplementedError()
+
     def setUp(self):
         self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -i, 2 * i) for i in range(1, 4)])
 
@@ -14,22 +18,22 @@ class _DesignTests(unittest.TestCase):
         self.assertIn(points, self.design.domain, "Not all generated points are generated within the domain")
 
 
-class TestRandomDesign(_DesignTests):
-    def setUp(self):
-        super(TestRandomDesign, self).setUp()
-        self.design = GPflowOpt.design.RandomDesign(200, self.domain)
+class TestRandomDesign(_TestDesign, unittest.TestCase):
+    @_TestDesign.design.getter
+    def design(self):
+        return GPflowOpt.design.RandomDesign(200, self.domain)
 
 
-class TestEmptyDesign(_DesignTests):
-    def setUp(self):
-        super(TestEmptyDesign, self).setUp()
-        self.design = GPflowOpt.design.EmptyDesign(self.domain)
+class TestEmptyDesign(_TestDesign, unittest.TestCase):
+    @_TestDesign.design.getter
+    def design(self):
+        return GPflowOpt.design.EmptyDesign(self.domain)
 
 
-class TestFactorialDesign(_DesignTests):
-    def setUp(self):
-        super(TestFactorialDesign, self).setUp()
-        self.design = GPflowOpt.design.FactorialDesign(4, self.domain)
+class TestFactorialDesign(_TestDesign, unittest.TestCase):
+    @_TestDesign.design.getter
+    def design(self):
+        return GPflowOpt.design.FactorialDesign(4, self.domain)
 
     def test_validity(self):
         A = self.design.generate()
