@@ -27,7 +27,7 @@ class _TestAcquisition(object):
             design = GPflowOpt.design.FactorialDesign(4, self.domain)
         X, Y = design.generate(), parabola2d(design.generate())
         m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.var(axis=0)))
-        m.kern.variance.prior = GPflow.priors.Gamma(3.0,1.0/3.0)
+        m.kern.variance.prior = GPflow.priors.Gamma(3.0, 1.0 / 3.0)
         return m
 
     def create_plane_model(self, design=None):
