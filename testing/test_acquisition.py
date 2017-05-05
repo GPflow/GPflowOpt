@@ -27,8 +27,7 @@ class _TestAcquisition(object):
             design = GPflowOpt.design.FactorialDesign(4, self.domain)
         X, Y = design.generate(), parabola2d(design.generate())
         m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.var(axis=0)))
-        m.kern.variance.prior = GPflow.priors.Gamma(3,1/3)
-        print(m)
+        m.kern.variance.prior = GPflow.priors.Gamma(3.0,1.0/3.0)
         return m
 
     def create_plane_model(self, design=None):
@@ -107,7 +106,7 @@ class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
         p = np.array([[0.0, 0.0]])
         self.acquisition.set_data(np.vstack((self.model.X.value, p)),
                                   np.vstack((self.model.Y.value, parabola2d(p))))
-        self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-2), msg="fmin not updated")
+        self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-1), msg="fmin not updated")
 
     def test_EI_validity(self):
         Xcenter = np.random.rand(20, 2) * 0.25 - 0.125

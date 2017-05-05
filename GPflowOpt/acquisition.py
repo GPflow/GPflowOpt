@@ -37,21 +37,30 @@ class Acquisition(Parameterized):
     optimization)
     """
 
-    def __init__(self, models=[]):
+    def __init__(self, models=[], optimize_restarts=5):
         super(Acquisition, self).__init__()
         self.models = ParamList(np.atleast_1d(models).tolist())
         self._default_params = map(lambda m: m.get_free_state(), self.models)
+
+        assert(optimize_restarts >= 0)
+        self._optimize_restarts = optimize_restarts
         self._optimize_all()
 
     def _optimize_all(self):
         for model, hypers in zip(self.models, self._default_params):
-            try:
-                model.optimize()
-            except:
-                # After data update, the starting point for the hypers may result in non-invertible K
-                # Reset the hypers to the values when the acquisition function was initialized.
-                model.set_state(hypers)
-                model.optimize()
+            runs = []
+            # Start from supplied hyperparameters
+            model.set_state(hypers)
+            for i in range(self._optimize_restarts):
+                if i > 0:
+                    model.randomize()
+                try:
+                    result = model.optimize()
+                    runs.append(result)
+                except tf.errors.InvalidArgumentError:
+                    print("Warning - optimization restart {0}/{1} failed".format(i + 1, self._optimize_restarts))
+            best_idx = np.argmin(map(lambda r: r.fun, runs))
+            model.set_state(runs[best_idx].x)
 
     def _build_acquisition_wrapper(self, Xcand, gradients=True):
         acq = self.build_acquisition(Xcand)
