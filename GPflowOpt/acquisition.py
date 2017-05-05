@@ -40,14 +40,18 @@ class Acquisition(Parameterized):
     def __init__(self, models=[]):
         super(Acquisition, self).__init__()
         self.models = ParamList(np.atleast_1d(models).tolist())
+        self._default_params = map(lambda m: m.get_free_state(), self.models)
         self._optimize_all()
 
     def _optimize_all(self):
-        for model in self.models:
-            # If likelihood variance is close to zero, updating data may result in non-invertible K
-            # Increase likelihood variance a bit.
-            model.likelihood.variance = 4.0
-            model.optimize()
+        for model, hypers in zip(self.models, self._default_params):
+            try:
+                model.optimize()
+            except:
+                # After data update, the starting point for the hypers may result in non-invertible K
+                # Reset the hypers to the values when the acquisition function was initialized.
+                model.set_state(hypers)
+                model.optimize()
 
     def _build_acquisition_wrapper(self, Xcand, gradients=True):
         acq = self.build_acquisition(Xcand)
