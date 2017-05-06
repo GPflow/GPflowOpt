@@ -9,6 +9,6 @@ install:
   - pip install tensorflow==1.0.1 numpy scipy nose pandas codecov coverage
   - python setup.py install
 script:
-  - nosetests --nologcapture --with-coverage --cover-package=testing testing
+  - nosetests --nologcapture --with-coverage --cover-package=GPflowOpt testing
 after_success:
   - codecov
