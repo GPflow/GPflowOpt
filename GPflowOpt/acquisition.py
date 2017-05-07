@@ -26,27 +26,35 @@ stability = settings.numerics.jitter_level
 
 class Acquisition(Parameterized):
     """
-    Class representing acquisition functions which map the predictive distribution of a Bayesian model into a score. In
-    Bayesian Optimization this function is typically optimized over the optimization domain to determine the next
-    point for evaluation.
+    This class represents an acquisition functions which maps the predictive distribution of a Bayesian model into a 
+    score indicating how promising the point is for evaluation. In Bayesian Optimization this function is typically 
+    optimized over the optimization domain to determine the next point for evaluation. 
 
-    The acquisition function object maintains a list of models. Subclasses should implement a build_acquisition
-    function which computes the acquisition function using tensorflow.
+    An object of this class a list of GPflow models. For single objective optimization this typically a single model.
+    Subclasses implement a build_acquisition function which computes the acquisition function using Tensorflow.
 
-    Acquisition functions can be added or multiplied to construct joint criteria (for instance for constrained
-    optimization)
+    Acquisition functions can be combined through addition or multiplication to construct joint criteria 
+    (for instance for constrained optimization, basic multi-objective optimization using ParEGO, etc.)
     """
 
     def __init__(self, models=[], optimize_restarts=5):
         super(Acquisition, self).__init__()
         self.models = ParamList(np.atleast_1d(models).tolist())
-        self._default_params = map(lambda m: m.get_free_state(), self.models)
+        self._default_params = list(map(lambda m: m.get_free_state(), self.models))
 
-        assert(optimize_restarts >= 0)
+        assert (optimize_restarts >= 0)
         self._optimize_restarts = optimize_restarts
         self._optimize_all()
 
     def _optimize_all(self):
+        """
+        Optimizes all contained models. Called after initialization and set_data(). 
+        For each model the hyperparameters of the model at the time it was passed to __init__() are used as initial
+        point and optimized. If optimize_restarts was configured to values larger than one additional randomization 
+        steps are performed. 
+        
+        Exceptionally, if optimize_restarts is set to zero, the hyperparameters of the models are not optimized. 
+        """
         for model, hypers in zip(self.models, self._default_params):
             runs = []
             # Start from supplied hyperparameters
@@ -63,6 +71,13 @@ class Acquisition(Parameterized):
             model.set_state(runs[best_idx].x)
 
     def _build_acquisition_wrapper(self, Xcand, gradients=True):
+        """
+        Wrapper to build the graph to compute the acquisition function with or without the gradient.
+        
+        :param Xcand: candidate points to compute the acquisition function for
+        :param gradients: (True/False) should the wrapper return only the score, or also the gradient?
+        :return: acquisition function evaluated on Xcand, gradient of the acquisition function (if gradients=True)
+        """
         acq = self.build_acquisition(Xcand)
         if gradients:
             return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
@@ -70,6 +85,17 @@ class Acquisition(Parameterized):
             return acq
 
     def set_data(self, X, Y):
+        """
+        Method to update the data of the contained models. Automatically triggers a hyperparameter optimization
+        step by calling _optimize_all() and an update of pre-computed quantities by calling setup().
+        
+        Consider Q to be the the sum of the output dimensions of the contained models, Y should have a minimum of 
+        Q columns. The method will only the first Q columns of Y and return the scalar Q
+
+        :param X: input data N x D
+        :param Y: Responses N x M (M >= Q)
+        :return: Q (sum of output dimensions of contained models)
+        """
         num_outputs_sum = 0
         for model in self.models:
             num_outputs = model.Y.shape[1]
@@ -85,15 +111,28 @@ class Acquisition(Parameterized):
 
     @property
     def data(self):
+        """
+        Property for accessing the data of the models. Corresponds to the input data X, and column-wise concatenation 
+        of the Y properties. 
+        :return: X, Y tensors (if in tf_mode) or X, Y numpy arrays.
+        """
         if self._tf_mode:
             return self.models[0].X, tf.concat(list(map(lambda model: model.Y, self.models)), 1)
         else:
             return self.models[0].X.value, np.hstack(map(lambda model: model.Y.value, self.models))
 
     def constraint_indices(self):
+        """
+        Method returning the indices of the model outputs which are constraints. 
+        By default: no constraint outputs
+        """
         return np.empty((0,), dtype=int)
 
     def objective_indices(self):
+        """
+        Method returning the indices of the model outputs which are objectives
+        By default: all outputs are objectives
+        """
         return np.setdiff1d(np.arange(self.data[1].shape[1]), self.constraint_indices())
 
     def setup(self):
@@ -105,23 +144,67 @@ class Acquisition(Parameterized):
 
     @AutoFlow((float_type, [None, None]))
     def evaluate_with_gradients(self, Xcand):
+        """
+        AutoFlow method to compute the acquisition scores for candidates, also returns the gradients. 
+        """
         return self._build_acquisition_wrapper(Xcand, gradients=True)
 
     @AutoFlow((float_type, [None, None]))
     def evaluate(self, Xcand):
+        """
+        AutoFlow method to compute the acquisition scores for candidates, without returning the gradients. 
+        """
         return self._build_acquisition_wrapper(Xcand, gradients=False)
 
     def __add__(self, other):
+        """
+        Operator for adding acquisition functions. Example:
+        
+        >>> a1 = GPflowOpt.acquisition.ExpectedImprovement(m1)
+        >>> a2 = GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
+        >>> type(a1 + a2)
+        <type 'GPflowOpt.acquisition.AcquisitionSum'>
+        
+        """
         return AcquisitionSum(self, other)
 
     def __mul__(self, other):
+        """
+        Operator for multiplying acquisition functions. Example:
+
+        >>> a1 = GPflowOpt.acquisition.ExpectedImprovement(m1)
+        >>> a2 = GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
+        >>> type(a1 * a2)
+        <type 'GPflowOpt.acquisition.AcquisitionProduct'>
+
+        """
         return AcquisitionProduct(self, other)
 
 
 class ExpectedImprovement(Acquisition):
     """
-    Implementation of the Expected Improvement acquisition function for single-objective global optimization
-    (Mockus et al, 1975)
+    Expected Improvement acquisition function for single-objective global optimization. 
+    Introduced by (Mockus et al, 1975)
+    Key reference:
+    
+    ::
+    
+       @article{Jones:1998,
+            title={Efficient global optimization of expensive black-box functions},
+            author={Jones, Donald R and Schonlau, Matthias and Welch, William J},
+            journal={Journal of Global optimization},
+            volume={13},
+            number={4},
+            pages={455--492},
+            year={1998},
+            publisher={Springer}
+       }
+       
+    This acquisition function is related to the Probability of Improvement, but adds a multiplication with the 
+    improvement w.r.t the current best observation to the integral. 
+    
+    .. math::
+       \\alpha(\\mathbf x_{\\star}) = \\int (f_{\\min} - f_{\\star}) \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
     """
 
     def __init__(self, model):
@@ -152,7 +235,27 @@ class ExpectedImprovement(Acquisition):
 
 class ProbabilityOfFeasibility(Acquisition):
     """
-    Probability of Feasibility acquisition function for learning  feasible regions
+    Probability of Feasibility acquisition function for sampling feasible regions. Standard acquisition function for
+    Bayesian Optimization with black-box expensive constraints. 
+    Key reference:
+    
+    ::
+    
+       @article{parr2012infill,
+            title={Infill sampling criteria for surrogate-based optimization with constraint handling},
+            author={Parr, JM and Keane, AJ and Forrester, Alexander IJ and Holden, CME},
+            journal={Engineering Optimization},
+            volume={44},
+            number={10},
+            pages={1147--1166},
+            year={2012},
+            publisher={Taylor & Francis}
+       }
+    
+    The acquisition function measures the probability of the latent function being smaller than 0 for a candidate point.
+    
+    .. math::
+       \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{0} \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
     """
 
     def __init__(self, model):
@@ -170,7 +273,7 @@ class ProbabilityOfFeasibility(Acquisition):
 
 class AcquisitionBinaryOperator(Acquisition):
     """
-    Base class for implementing binary operators for acquisition functions, for defining joint acquisition functions
+    Base class for implementing binary operators for acquisition functions, for defining joint acquisition functions.
     """
 
     def __init__(self, lhs, rhs, oper):
@@ -205,10 +308,16 @@ class AcquisitionBinaryOperator(Acquisition):
 
 
 class AcquisitionSum(AcquisitionBinaryOperator):
+    """
+    Sum of two acquisition functions
+    """
     def __init__(self, lhs, rhs):
         super(AcquisitionSum, self).__init__(lhs, rhs, tf.add)
 
 
 class AcquisitionProduct(AcquisitionBinaryOperator):
+    """
+    Product of two acquisition functions
+    """
     def __init__(self, lhs, rhs):
         super(AcquisitionProduct, self).__init__(lhs, rhs, tf.multiply)

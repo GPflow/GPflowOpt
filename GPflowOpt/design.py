@@ -17,15 +17,24 @@ import numpy as np
 
 class Design(object):
     """
-    Space-filling designs generated within a domain.
+    Class for implementation of space-filling designs generated within a domain. Subclasses represent classes of designs
+    and should override the generate() method.
     """
 
     def __init__(self, size, domain):
+        """
+        Constructor
+        :param size: number of data points to generate
+        :param domain: domain to generate data points in.
+        """
         super(Design, self).__init__()
         self.size = size
         self.domain = domain
 
     def generate(self):
+        """
+        Method for generating the design, to be overwritten in subclasses.
+        """
         pass
 
 
@@ -44,7 +53,8 @@ class RandomDesign(Design):
 
 class FactorialDesign(Design):
     """
-    Grid-based design
+    k-level grid-based design. Design with optimal maximin properties, however it risks collapsing points when 
+    removing parameters. Also its size is not arbitrary but a power of the domain dimensionality.
     """
 
     def __init__(self, levels, domain):

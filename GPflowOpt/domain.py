@@ -20,7 +20,7 @@ from GPflow.param import Parentable
 
 class Domain(Parentable):
     """
-    Basic class, representing an optimization domain by aggregating several parameters.
+    Basic class, representing an optimization domain by aggregating several parameters to be optimized.
     """
 
     def __init__(self, parameters):
@@ -29,10 +29,16 @@ class Domain(Parentable):
 
     @property
     def lower(self):
+        """
+        Lower bound of the domain, corresponding to a numpy array with the lower value of each parameter
+        """
         return np.array(list(map(lambda param: param.lower, self._parameters))).flatten()
 
     @property
     def upper(self):
+        """
+        Upper bound of the domain, corresponding to a numpy array with the upper value of each parameter
+        """
         return np.array(list(map(lambda param: param.upper, self._parameters))).flatten()
 
     # def optimize(self, optimizer, objectivefx):
@@ -45,6 +51,9 @@ class Domain(Parentable):
 
     @property
     def size(self):
+        """
+        Returns the dimensionality of the domain
+        """
         return sum(map(lambda param: param.size, self._parameters))
 
     def __setattr__(self, key, value):
@@ -100,6 +109,10 @@ class Parameter(Domain):
 
     @Domain.size.getter
     def size(self):
+        """
+        One parameter has a dimensionality of 1
+        :return: 1
+        """
         return 1
 
     def __iter__(self):
