@@ -89,11 +89,16 @@ class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
     def setUp(self):
         super(TestExpectedImprovement, self).setUp()
         self.model = self.create_parabola_model()
+        print(self.model)
         self.acquisition = GPflowOpt.acquisition.ExpectedImprovement(self.model)
 
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
+        self.assertEqual(len(self.acquisition._default_params), 1)
+        print(self.acquisition._default_params[0])
+        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413, -0.2918, -0.2918, 0.5413])), atol=1e-2),
+                        msg="Initial hypers improperly stored")
         self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
                          msg="ExpectedImprovement returns all objectives")
 
@@ -128,6 +133,9 @@ class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in PoF")
+        self.assertEqual(len(self.acquisition._default_params), 1)
+        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413, 0.0277,  0.0277,  0.5413])), atol=1e-2),
+                        msg="Initial hypers improperly stored")
         self.assertEqual(self.acquisition.constraint_indices(), np.arange(1, dtype=int),
                          msg="PoF returns all constraints")
 
@@ -144,6 +152,7 @@ class _TestAcquisitionBinaryOperator(_TestAcquisition):
                         msg="Left hand operand should be an acquisition object")
         self.assertTrue(isinstance(self.acquisition.rhs, GPflowOpt.acquisition.Acquisition),
                         msg="Right hand operand should be an acquisition object")
+        self.assertEqual(len(self.acquisition._default_params), 0)
 
     def test_data(self):
         super(_TestAcquisitionBinaryOperator, self).test_data()

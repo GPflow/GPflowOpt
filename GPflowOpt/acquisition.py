@@ -40,7 +40,7 @@ class Acquisition(Parameterized):
     def __init__(self, models=[], optimize_restarts=5):
         super(Acquisition, self).__init__()
         self.models = ParamList(np.atleast_1d(models).tolist())
-        self._default_params = map(lambda m: m.get_free_state(), self.models)
+        self._default_params = list(map(lambda m: m.get_free_state(), self.models))
 
         assert(optimize_restarts >= 0)
         self._optimize_restarts = optimize_restarts
