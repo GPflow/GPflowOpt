@@ -9,6 +9,24 @@ float_type = settings.dtypes.float_type
 np_float_type = np.float32 if float_type is tf.float32 else np.float64
 
 
+class DummyTransform(GPflowOpt.transforms.DataTransform):
+
+    def __init__(self, c):
+        self.value = c
+
+    def forward(self, X):
+        return X * self.value
+
+    def tf_forward(self, X):
+        return X * self.value
+
+    def __invert__(self):
+        return DummyTransform(1/self.value)
+
+    def __str__(self):
+        return '(dummy)'
+
+
 class LinearTransformTests(unittest.TestCase):
     """
     Tests are inspired on GPflow transform tests.
@@ -21,7 +39,7 @@ class LinearTransformTests(unittest.TestCase):
 
         self.x_np = np.random.rand(10, 2).astype(np_float_type)
         self.session = tf.Session()
-        self.transforms = [GPflowOpt.transforms.LinearTransform([2.0, 3.5], [1.2, 0.7])]
+        self.transforms = [DummyTransform(2.0), GPflowOpt.transforms.LinearTransform([2.0, 3.5], [1.2, 0.7])]
 
     def test_tf_np_forward(self):
         ys = [t.tf_forward(self.x) for t in self.transforms]

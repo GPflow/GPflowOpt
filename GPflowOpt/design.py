@@ -26,7 +26,7 @@ class Design(object):
         self.domain = domain
 
     def generate(self):
-        pass
+        raise NotImplementedError
 
 
 class RandomDesign(Design):
