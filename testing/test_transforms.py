@@ -17,7 +17,7 @@ class DummyTransform(GPflowOpt.transforms.DataTransform):
     def forward(self, X):
         return X * self.value
 
-    def tf_forward(self, X):
+    def build_forward(self, X):
         return X * self.value
 
     def __invert__(self):
@@ -42,7 +42,7 @@ class LinearTransformTests(unittest.TestCase):
         self.transforms = [DummyTransform(2.0), GPflowOpt.transforms.LinearTransform([2.0, 3.5], [1.2, 0.7])]
 
     def test_tf_np_forward(self):
-        ys = [t.tf_forward(self.x) for t in self.transforms]
+        ys = [t.build_forward(self.x) for t in self.transforms]
         ys_tf = [self.session.run(y, feed_dict={self.x: self.x_np}) for y in ys]
         ys_np = [t.forward(self.x_np) for t in self.transforms]
         for y1, y2 in zip(ys_tf, ys_np):
@@ -55,8 +55,8 @@ class LinearTransformTests(unittest.TestCase):
             self.assertTrue(np.allclose(x, self.x_np))
 
     def test_tf_forward_backward(self):
-        ys = [t.tf_forward(self.x) for t in self.transforms]
-        xs = [t.tf_backward(y) for t, y in zip(self.transforms, ys)]
+        ys = [t.build_forward(self.x) for t in self.transforms]
+        xs = [t.build_backward(y) for t, y in zip(self.transforms, ys)]
         xs_tf = [self.session.run(x, feed_dict={self.x: self.x_np}) for x in xs]
         for x in xs_tf:
             self.assertTrue(np.allclose(x, self.x_np))
@@ -72,9 +72,9 @@ class LinearTransformTests(unittest.TestCase):
             self.assertTrue(np.allclose(x[0], x[1]))
 
     def test_invert_tf(self):
-        ys = [t.tf_forward(self.x) for t in self.transforms]
-        xs = [t.tf_backward(y) for t, y in zip(self.transforms, ys)]
-        xsi = [(~t).tf_forward(y) for t, y in zip(self.transforms, ys)]
+        ys = [t.build_forward(self.x) for t in self.transforms]
+        xs = [t.build_backward(y) for t, y in zip(self.transforms, ys)]
+        xsi = [(~t).build_forward(y) for t, y in zip(self.transforms, ys)]
         xs_tf = [self.session.run(x, feed_dict={self.x: self.x_np}) for x in zip(xs, xsi)]
 
         for x in xs_tf:

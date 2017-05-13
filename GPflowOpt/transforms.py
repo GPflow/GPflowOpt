@@ -33,7 +33,7 @@ class DataTransform(object):
         """
         raise NotImplementedError
 
-    def tf_forward(self, X):
+    def build_forward(self, X):
         """
         Performs Tensorflow transformation of U -> V
         :param X: N x P tensor
@@ -44,20 +44,22 @@ class DataTransform(object):
     def backward(self, Y):
         """
         Performs numpy transformation of V -> U. By default, calls forward on the inverted transform object which 
-        requires implementation of __invert__
+        requires implementation of __invert__. The method can be overwritten in subclasses if more efficient 
+        implementation is available.
         :param Y: N x Q matrix
         :return: N x P matrix
         """
         return (~self).forward(Y)
 
-    def tf_backward(self, Y):
+    def build_backward(self, Y):
         """
         Performs numpy transformation of V -> U. By default, calls tf_forward on the inverted transform object which 
-        requires implementation of __invert__
+        requires implementation of __invert__. The method can be overwritten in subclasses if more efficient 
+        implementation is available.
         :param Y: N x Q tensor
         :return: N x P tensor
                 """
-        return (~self).tf_forward(Y)
+        return (~self).build_forward(Y)
 
     def __invert__(self):
         """
@@ -74,16 +76,16 @@ class LinearTransform(DataTransform):
     Implements a simple linear transform of the form
     
     .. math::
-       \\mathbf Y = \\mathbf X \\mathbf A + \\mathbf b
+       \\mathbf Y = (\\mathbf A \\mathbf X^{T})^{T} + \\mathbf b \\otimes \\mathbf 1_{N}^{T}
 
     """
 
     def __init__(self, A, b):
         """
         :param A: scaling matrix. Either a P-dimensional vector, or a P x P transformation matrix. For the latter, 
-        the inverse and backward methods are not guaranteed to work. It is also possible to specify a matrix with size 
-        P x Q with Q != P to achieve a lower dimensional representation of X. In this case, inverse and backward 
-        will not work.
+        the inverse and backward methods are not guaranteed to work as A must be invertible. It is also possible to 
+        specify a matrix with size P x Q with Q != P to achieve a lower dimensional representation of X. In this case, 
+        A is not invertible, hence inverse and backward are not supported.
         :param b: A P-dimensional offset vector.
         """
         self.b = np.atleast_1d(b)
@@ -95,22 +97,28 @@ class LinearTransform(DataTransform):
         assert (len(self.A.shape) == 2)
 
     def forward(self, X):
-        return np.dot(np.atleast_2d(X), self.A) + self.b
+        return np.dot(np.atleast_2d(X), self.A.T) + self.b
 
     def backward(self, Y):
-        L = scipy.linalg.cholesky(self.A)
+        """
+        Overwrites the default backward approach, it avoids an explicit matrix inversion.
+        """
+        L = scipy.linalg.cholesky(self.A.T)
         return scipy.linalg.cho_solve((L, False), (Y - self.b).T).T
 
-    def tf_forward(self, X):
-        return tf.matmul(X, self.A) + self.b
+    def build_forward(self, X):
+        return tf.matmul(X, self.A.T) + self.b
 
-    def tf_backward(self, Y):
-        L = tf.cholesky(self.A)
+    def build_backward(self, Y):
+        """
+        Overwrites the default backward approach, it avoids an explicit matrix inversion.
+        """
+        L = tf.cholesky(self.A.T)
         XT = tf.matrix_triangular_solve(tf.transpose(L), tf.matrix_triangular_solve(L, tf.transpose(Y - self.b)))
         return tf.transpose(XT)
 
     def __invert__(self):
-        A_inv = np.linalg.inv(self.A)
+        A_inv = np.linalg.inv(self.A.T)
         return LinearTransform(A_inv, -np.dot(self.b, A_inv))
 
     def __str__(self):
