@@ -17,3 +17,4 @@ from . import domain
 from .bo import BayesianOptimizer
 from . import optim
 from . import design
+from . import transforms

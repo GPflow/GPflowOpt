@@ -7,7 +7,7 @@ class TestContinuousParameter(unittest.TestCase):
 
     def test_simple(self):
         p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
-        self.assertListEqual(p._range, [0,1], msg="Internal storage of object incorrect")
+        self.assertTrue(np.allclose(p._range, [0,1]), msg="Internal storage of object incorrect")
         self.assertEqual(p.lower, 0, msg="Lower should equal 0")
         self.assertEqual(p.upper, 1, msg="Upper should equal 1")
         self.assertEqual(p.size, 1, msg="Size of parameter should equal 1")
@@ -112,3 +112,19 @@ class TestHypercubeDomain(unittest.TestCase):
         self.domain.value = A
         self.assertTupleEqual(self.domain.value.shape, (10, 3), msg="Assigned value has incorrect shape.")
         np.testing.assert_allclose(self.domain.value, A, err_msg="Parameter has incorrect value after assignment")
+
+    def test_transformation(self):
+        X = np.random.rand(50,3)*2-1
+        target = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), 0, 1) for i in range(1,4)])
+        transform = self.domain >> target
+        self.assertTrue(np.allclose(transform.forward(X), (X + 1) / 2), msg="Transformation to [0,1] incorrect")
+        self.assertTrue(np.allclose(transform.backward(transform.forward(X)), X),
+                        msg="Transforming back and forth yields different result")
+
+        inv_transform = target >> self.domain
+        self.assertTrue(np.allclose(transform.backward(transform.forward(X)),
+                                    inv_transform.forward(transform.forward(X))),
+                        msg="Inverse transform yields different results")
+        self.assertTrue(np.allclose((~transform).A, inv_transform.A))
+        self.assertTrue(np.allclose((~transform).b, inv_transform.b))
+
