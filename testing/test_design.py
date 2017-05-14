@@ -40,3 +40,9 @@ class TestFactorialDesign(_TestDesign, unittest.TestCase):
         for i in range(1, self.domain.size + 1):
             self.assertTrue(np.all(np.any(A[i - 1, :] - np.linspace(-i, 2 * i, 4)[:, None] < 1e-4, axis=0)),
                             msg="Generated off-grid.")
+
+
+class TestDPPDesign(_TestDesign, unittest.TestCase):
+    @_TestDesign.design.getter
+    def design(self):
+        return GPflowOpt.design.DPPDesign(5, self.domain)
