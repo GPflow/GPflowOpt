@@ -14,7 +14,7 @@
 
 from GPflow.param import Parameterized, AutoFlow, ParamList, DataHolder
 from GPflow.model import Model
-from GPflow._settings import settings
+from GPflow import settings
 
 import numpy as np
 

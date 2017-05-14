@@ -15,7 +15,7 @@
 import numpy as np
 from scipy.optimize import OptimizeResult, minimize
 from GPflow import model
-from GPflow._settings import settings
+from GPflow import settings
 
 from .design import RandomDesign
 

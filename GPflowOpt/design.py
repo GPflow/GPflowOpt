@@ -35,7 +35,7 @@ class Design(object):
         """
         Method for generating the design, to be overwritten in subclasses.
         """
-        pass
+        raise NotImplementedError
 
 
 class RandomDesign(Design):

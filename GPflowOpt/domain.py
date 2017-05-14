@@ -14,8 +14,9 @@
 
 import numpy as np
 from itertools import chain
-
 from GPflow.param import Parentable
+
+from .transforms import LinearTransform
 
 
 class Domain(Parentable):
@@ -40,10 +41,6 @@ class Domain(Parentable):
         Upper bound of the domain, corresponding to a numpy array with the upper value of each parameter
         """
         return np.array(list(map(lambda param: param.upper, self._parameters))).flatten()
-
-    # def optimize(self, optimizer, objectivefx):
-    #    optimizer.domain = self
-    #    result = optimizer.optimize(objectivefx)
 
     def __add__(self, other):
         assert isinstance(other, Domain)
@@ -80,6 +77,12 @@ class Domain(Parentable):
 
     def __getitem__(self, item):
         return self._parameters[item]
+
+    def __rshift__(self, other):
+        assert(self.size == other.size)
+        A = (other.upper - other.lower) / (self.upper - self.lower)
+        b = -self.upper * A + other.upper
+        return LinearTransform(A, b)
 
     @property
     def value(self):
@@ -130,7 +133,7 @@ class Parameter(Domain):
 
 class ContinuousParameter(Parameter):
     def __init__(self, label, lb, ub, xinit=None):
-        self._range = [lb, ub]
+        self._range = np.array([lb, ub], dtype=float)
         super(ContinuousParameter, self).__init__(label, xinit or ((ub + lb) / 2.0))
 
     @Parameter.lower.getter
