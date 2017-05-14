@@ -98,6 +98,27 @@ class Domain(Parentable):
             p.value = x[:, offset:offset + p.size]
             offset += p.size
 
+    def _repr_html_(self):
+        """
+        Build html string for table display in jupyter notebooks.
+        """
+        html = ["<table id='domain' width=100%>"]
+
+        # Table header
+        columns = ['Name', 'Type', 'Values']
+        header = "<tr>"
+        header += ''.join(map(lambda l: "<td>{0}</td>".format(l), columns))
+        header += "</tr>"
+        html.append(header)
+
+        # Add parameters
+        html.append(self._html_table_rows())
+        html.append("</table>")
+
+        return ''.join(html)
+
+    def _html_table_rows(self):
+        return ''.join(map(lambda l: l._html_table_rows(), self._parameters))
 
 class Parameter(Domain):
     """
@@ -130,6 +151,12 @@ class Parameter(Domain):
         x = np.atleast_1d(x)
         self._x = x.ravel()
 
+    def _html_table_rows(self):
+        """
+        html row representation of a Parameter. Should be overwritten in subclasses objects.
+        """
+        return "<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>".format(self.label, 'N/A', 'N/A')
+
 
 class ContinuousParameter(Parameter):
     def __init__(self, label, lb, ub, xinit=None):
@@ -154,3 +181,9 @@ class ContinuousParameter(Parameter):
 
     def __eq__(self, other):
         return isinstance(other, ContinuousParameter) and self.lower == other.lower and self.upper == other.upper
+
+    def _html_table_rows(self):
+        """
+        html row representation of a ContinuousParameter. 
+        """
+        return "<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>".format(self.label, 'Continuous', str(self._range))
