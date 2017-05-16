@@ -125,11 +125,11 @@ class ContinuousParameter(Parameter):
 
     @Parameter.lower.getter
     def lower(self):
-        return self._range[0]
+        return np.array([self._range[0]])
 
     @Parameter.upper.getter
     def upper(self):
-        return self._range[1]
+        return np.array([self._range[1]])
 
     @lower.setter
     def lower(self, value):
