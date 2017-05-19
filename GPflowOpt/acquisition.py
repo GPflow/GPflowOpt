@@ -146,7 +146,7 @@ class ExpectedImprovement(Acquisition):
         # Compute EI
         normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
         t1 = (self.fmin - candidate_mean) * normal.cdf(self.fmin)
-        t2 = candidate_var * normal.pdf(self.fmin)
+        t2 = candidate_var * normal.prob(self.fmin)
         return tf.add(t1, t2, name=self.__class__.__name__)
 
 
