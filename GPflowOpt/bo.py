@@ -16,24 +16,33 @@ import numpy as np
 from scipy.optimize import OptimizeResult
 
 from .acquisition import Acquisition
-from .optim import Optimizer, SciPyOptimizer
+from .optim import Optimizer, SciPyOptimizer, ObjectiveWrapper
 from .design import EmptyDesign
 
 
 class BayesianOptimizer(Optimizer):
     """
-    Specific optimizer representing bayesian optimization. Takes a domain, an acquisition function and an optimization
-    strategy for the acquisition function.
+    Specific optimizer representing the typical workflow of Bayesian Optimization. Like other optimizers, this optimizer
+    is constructed for optimization over a domain. 
     """
 
     def __init__(self, domain, acquisition, optimizer=None, initial=None):
+        """
+        :param domain: Domain object defining the optimization space
+        :param acquisition: Acquisition object representing a utility function optimized over the domain
+        :param optimizer: (optional) Optimizer object used to optimize acquisition. If not specified, SciPyOptimizer
+         is used. This optimizer will run on the same domain as the BayesianOptimizer object.
+        :param initial: (optional) Design object used as initial set of candidates evaluated before the optimization 
+         loop runs. Note that if the underlying data already contain some data from an initial design, this design is 
+         evaluated on top of that.
+        """
         assert isinstance(acquisition, Acquisition)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
         self.acquisition = acquisition
-        if initial is None:
-            initial = EmptyDesign(domain)
+        initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
-        self.optimizer = SciPyOptimizer(domain) if optimizer is None else optimizer
+        self.optimizer = optimizer or SciPyOptimizer(domain)
+        self.optimizer.domain = domain
 
     def _update_model_data(self, newX, newY):
         """
@@ -68,7 +77,8 @@ class BayesianOptimizer(Optimizer):
 
     def _create_result(self, success, message):
         """
-        Given all data evaluated after the optimization, analyse and return an OptimizeResult
+        Given all data evaluated after the optimization, analyse and return an OptimizeResult. Outputs of constraints
+        are used to remove all infeasible points.
         :param success: Optimization successfull? (True/False)
         :param message: return message
         :return: OptimizeResult object
@@ -99,10 +109,15 @@ class BayesianOptimizer(Optimizer):
 
     def optimize(self, objectivefx, n_iter=20):
         """
-        Run Bayesian optimization for a number of iterations. Each iteration a new data point is selected by optimizing
-        an acquisition function. This point is evaluated on the objective and black-box constraints. This retrieved
-        information then updates the model
-        :param objectivefx: (list of) expensive black-box objective and constraint functions
+        Run Bayesian optimization for a number of iterations. Before the loop is initiated, first all points retrieved
+        by get_initial() are evaluated on the objective and black-box constraints. These points are then added to the 
+        acquisition function by calling Acquisition.set_data() (and hence, the underlying models). 
+        
+        Each iteration a new data point is selected for evaluation by optimizing an acquisition function. This point
+        updates the models.
+        :param objectivefx: (list of) expensive black-box objective and constraint functions. For evaluation, the 
+         responses of all the expensive functions are aggregated column wise. Unlike the typical optimizer interface, 
+         these functions should not return gradients. 
         :param n_iter: number of iterations to run
         :return: OptimizeResult object
         """
@@ -114,11 +129,13 @@ class BayesianOptimizer(Optimizer):
 
     def _optimize(self, fx, n_iter):
         """
-        Internal optimization function. Receives and ObjectiveWrapper
+        Internal optimization function. Receives an ObjectiveWrapper as input.
         :param fx: ObjectiveWrapper object wrapping expensive black-box objective and constraint functions
         :param n_iter: number of iterations to run
         :return: OptimizeResult object
         """
+
+        assert(isinstance(fx, ObjectiveWrapper))
 
         # Evaluate and add the initial design (if any)
         initial = self.get_initial()

@@ -30,11 +30,12 @@ class Acquisition(Parameterized):
     score indicating how promising the point is for evaluation. In Bayesian Optimization this function is typically 
     optimized over the optimization domain to determine the next point for evaluation. 
 
-    An object of this class a list of GPflow models. For single objective optimization this typically a single model.
-    Subclasses implement a build_acquisition function which computes the acquisition function using Tensorflow.
+    An object of this class holds ga list of GPflow models. For single objective optimization this is typically a 
+    single model. Subclasses implement a build_acquisition function which computes the acquisition function (usually 
+    from the predictive distribution) using TensorFlow. 
 
     Acquisition functions can be combined through addition or multiplication to construct joint criteria 
-    (for instance for constrained optimization, basic multi-objective optimization using ParEGO, etc.)
+    (for instance for constrained optimization)
     """
 
     def __init__(self, models=[], optimize_restarts=5):
