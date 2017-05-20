@@ -84,20 +84,23 @@ class _TestAcquisition(object):
         np.testing.assert_allclose(self.acquisition.data[0], X, err_msg="Samples not updated")
         np.testing.assert_allclose(self.acquisition.data[1], Y, err_msg="Values not updated")
 
+    def test_data_indices(self):
+        self.assertTupleEqual(self.acquisition.feasible_data_index().shape, (self.acquisition.data[0].shape[0],),
+                              msg="Incorrect shape returned.")
+
 
 class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
     def setUp(self):
         super(TestExpectedImprovement, self).setUp()
         self.model = self.create_parabola_model()
-        print(self.model)
         self.acquisition = GPflowOpt.acquisition.ExpectedImprovement(self.model)
 
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
         self.assertEqual(len(self.acquisition._default_params), 1)
-        print(self.acquisition._default_params[0])
-        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413, -0.2918, -0.2918, 0.5413])), atol=1e-2),
+        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]),
+                                    np.sort(np.array([0.5413, -0.2918, -0.2918, 0.5413])), atol=1e-2),
                         msg="Initial hypers improperly stored")
         self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
                          msg="ExpectedImprovement returns all objectives")
@@ -122,6 +125,7 @@ class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
         ei1 = self.acquisition.evaluate(Xborder)
         ei2 = self.acquisition.evaluate(Xcenter)
         self.assertGreater(np.min(ei2), np.max(ei1))
+        self.assertTrue(np.all(self.acquisition.feasible_data_index()), msg="EI does never invalidate points")
 
 
 class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
@@ -134,7 +138,8 @@ class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in PoF")
         self.assertEqual(len(self.acquisition._default_params), 1)
-        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413, 0.0277,  0.0277,  0.5413])), atol=1e-2),
+        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]),
+                                    np.sort(np.array([0.5413, 0.0277, 0.0277, 0.5413])), atol=1e-2),
                         msg="Initial hypers improperly stored")
         self.assertEqual(self.acquisition.constraint_indices(), np.arange(1, dtype=int),
                          msg="PoF returns all constraints")
@@ -144,6 +149,8 @@ class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
         X2 = np.random.rand(10, 2) / 2 + 0.5
         self.assertTrue(np.allclose(self.acquisition.evaluate(X1), 1), msg="Left half of plane is feasible")
         self.assertTrue(np.allclose(self.acquisition.evaluate(X2), 0), msg="Right half of plane is not feasible")
+        self.assertTrue(np.array_equal(self.acquisition.feasible_data_index(), self.acquisition.data[0][:, 0] <= 0.0),
+                        msg='Incorrect feasible indices returned')
 
 
 class _TestAcquisitionBinaryOperator(_TestAcquisition):
@@ -233,13 +240,18 @@ class TestJointAcquisition(unittest.TestCase):
         design = GPflowOpt.design.FactorialDesign(4, self.domain)
         X = design.generate()
         Yo = parabola2d(X)
-        Yc = plane(X)
+        Yc = -parabola2d(X) + 0.5
         m1 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
-        m2 = GPflow.gpr.GPR(X, Yc, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0) / 2))
-        joint = GPflowOpt.acquisition.ExpectedImprovement(m1) * GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
+        m2 = GPflow.gpr.GPR(X, Yc, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
+        ei = GPflowOpt.acquisition.ExpectedImprovement(m1)
+        pof = GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
+        joint = ei * pof
 
         np.testing.assert_allclose(joint.objective_indices(), np.array([0], dtype=int))
         np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
+        self.assertGreater(ei.fmin.value, np.min(Yo), msg="The best objective value is in an infeasible area")
+        self.assertTrue(np.allclose(ei.fmin.value, np.min(Yo[pof.feasible_data_index(), :]), atol=1e-3),
+                        msg="fmin computed incorrectly")
 
     def test_hierarchy(self):
         design = GPflowOpt.design.FactorialDesign(4, self.domain)

@@ -42,7 +42,7 @@ class Acquisition(Parameterized):
         self.models = ParamList(np.atleast_1d(models).tolist())
         self._default_params = list(map(lambda m: m.get_free_state(), self.models))
 
-        assert(optimize_restarts >= 0)
+        assert (optimize_restarts >= 0)
         self._optimize_restarts = optimize_restarts
         self._optimize_all()
 
@@ -69,6 +69,9 @@ class Acquisition(Parameterized):
         else:
             return acq
 
+    def build_acquisition(self):
+        raise NotImplementedError
+
     def set_data(self, X, Y):
         num_outputs_sum = 0
         for model in self.models:
@@ -80,7 +83,8 @@ class Acquisition(Parameterized):
             model.Y = Ypart
 
         self._optimize_all()
-        self.setup()
+        if self.highest_parent == self:
+            self.setup()
         return num_outputs_sum
 
     @property
@@ -95,6 +99,14 @@ class Acquisition(Parameterized):
 
     def objective_indices(self):
         return np.setdiff1d(np.arange(self.data[1].shape[1]), self.constraint_indices())
+
+    def feasible_data_index(self):
+        """
+        Returns a boolean array indicating which data points are considered feasible (according to the acquisition 
+        function(s) ) and which not.
+        :return: boolean ndarray, N 
+        """
+        return np.ones(self.data[0].shape[0], dtype=bool)
 
     def setup(self):
         """
@@ -132,11 +144,10 @@ class ExpectedImprovement(Acquisition):
 
     def setup(self):
         super(ExpectedImprovement, self).setup()
-        # Obtain the lowest posterior mean for the previous evaluations
-        samples_mean, _ = self.models[0].predict_f(self.data[0])
+        # Obtain the lowest posterior mean for the previous - feasible - evaluations
+        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
+        samples_mean, _ = self.models[0].predict_f(feasible_samples)
         self.fmin.set_data(np.min(samples_mean, axis=0))
-        # samples_mean, _ = self.models[0].build_predict(self.data[0])
-        # self.fmin = tf.reduce_min(samples_mean, axis=0)
 
     def build_acquisition(self, Xcand):
         # Obtain predictive distributions for candidates
@@ -161,6 +172,10 @@ class ProbabilityOfFeasibility(Acquisition):
     def constraint_indices(self):
         return np.arange(self.data[1].shape[1])
 
+    def feasible_data_index(self):
+        pred = self.evaluate(self.data[0])
+        return pred.ravel() > 0.5
+
     def build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
         candidate_var = tf.maximum(candidate_var, stability)
@@ -180,6 +195,7 @@ class AcquisitionBinaryOperator(Acquisition):
         self.lhs = lhs
         self.rhs = rhs
         self._oper = oper
+        self.setup()
 
     @Acquisition.data.getter
     def data(self):
@@ -199,9 +215,16 @@ class AcquisitionBinaryOperator(Acquisition):
         offset = self.lhs.data[1].shape[1]
         return np.hstack((self.lhs.constraint_indices(), offset + self.rhs.constraint_indices()))
 
+    def feasible_data_index(self):
+        return np.all(np.vstack((self.lhs.feasible_data_index(), self.rhs.feasible_data_index())), axis=0)
+
     def build_acquisition(self, Xcand):
         return self._oper(self.lhs.build_acquisition(Xcand), self.rhs.build_acquisition(Xcand),
                           name=self.__class__.__name__)
+
+    def setup(self):
+        self.lhs.setup()
+        self.rhs.setup()
 
 
 class AcquisitionSum(AcquisitionBinaryOperator):
