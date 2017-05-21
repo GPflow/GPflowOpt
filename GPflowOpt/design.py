@@ -19,11 +19,11 @@ from GPflowOpt.domain import ContinuousParameter
 
 class Design(object):
     """
-    Space-filling design if specified size (N) generated within a D-dimensional domain. 
+    Space-filling design of size N (number of points) generated within a D-dimensional domain.
     
-    To implement new design methodologies, subclasses implement create_design() which returns the design, on the domain 
-    specified by the generative_domain (which defaults to a unit cube). Users of the design call generate() which 
-    auto-scales the design to the domain specified in the constructor.
+    Users should call generate() which auto-scales the design to the domain specified in the constructor.
+    To implement new design methodologies subclasses should implement create_design(),
+    which returns the design on the domain specified by the generative_domain method (which defaults to a unit cube).
     """
 
     def __init__(self, size, domain):
@@ -34,14 +34,14 @@ class Design(object):
     @property
     def generative_domain(self):
         """
-        :return: Domain object representing representing the domain create_design() generates its points in. Defaults to
-        [0,1]^D, can be overwritten by subclasses is different.
+        :return: Domain object representing the domain associated with the points generated in create_design().
+        Defaults to [0,1]^D, can be overwritten by subclasses
         """
         return np.sum([ContinuousParameter('d{0}'.format(i), 0, 1) for i in np.arange(self.domain.size)])
 
     def generate(self):
         """
-        Returns a design, transformed to the domain specified during construction. All data points are in the 
+        Returns a design transformed to the domain as specified in the constructor. All data points are in the
         design specified in the constructor.
         :return: 2D ndarray, N x D
         """
@@ -64,6 +64,8 @@ class Design(object):
 class RandomDesign(Design):
     """
     Random space-filling design
+
+    Generates points drawn from the standard uniform distribution U(0,1)
     """
 
     def __init__(self, size, domain):
@@ -76,6 +78,8 @@ class RandomDesign(Design):
 class FactorialDesign(Design):
     """
     Grid-based design
+
+    Generates points part of an equally spaced grid of 'levels' levels
     """
 
     def __init__(self, levels, domain):
@@ -106,11 +110,11 @@ class EmptyDesign(Design):
 
 class LatinHyperCube(Design):
     """
-    Latin hypercube with optimized maximin distance. Created with the Translational Propagation algorithm to obtain 
-    some speed and avoid lengthy generation procedures. For dimensions smaller or equal to 6, this algorithm finds 
-    the optimal LHD (or gets very close) with overwhelming probability. To increase this probability, if a design for
+    Latin hypercube with optimized maximin distance. Created with the Translational Propagation algorithm to
+    avoid lengthy generation procedures. For dimensions smaller or equal to 6, this algorithm finds
+    the quasi-optimal LHD with overwhelming probability. To increase this probability, if a design for
     a domain with dimensionality D is requested, D different designs are generated using seed sizes 1,2,...D (unless a 
-    maximum seed size 1<= S <= D is specified. The seeds themselves are small Latin hypbercubes, generated with the 
+    maximum seed size 1<= S <= D is specified. The seeds themselves are small Latin hypercubes generated with the
     same algorithm.
     
     Beyond 6D, the probability of finding the optimal LHD fades, although the resulting designs are still acceptable. 
@@ -151,7 +155,7 @@ class LatinHyperCube(Design):
 
     def create_design(self):
         """
-        Generate several TPLHDs with increading seed. Maximum S = min(dimensionality,max_seed_size)
+        Generate several TPLHDs with increasing seed. Maximum S = min(dimensionality,max_seed_size)
         :return: From S candidate designs, the one with the best intersite distance is returned. 2D ndarray, N x D.
         """
         candidates = []
@@ -221,7 +225,7 @@ class LatinHyperCube(Design):
     @staticmethod
     def _translate_propagate(seed, npStar, ndStar):
         """
-        Translates and propgates the seed design to a LHD of size npStar (which might exceed the requested size N)
+        Translates and propagates the seed design to a LHD of size npStar (which might exceed the requested size N)
         :param seed: seed design, 2D ndarray S x D
         :param npStar: size of the LHD to be generated (N*). 
         :param ndStar: number of translation steps for the seed in each dimension
@@ -248,7 +252,7 @@ class LatinHyperCube(Design):
     @staticmethod
     def _shrink(X, npoints):
         """
-        When designs are generated that are larger than the requested number of points (N* > N), resize. 
+        When designs are generated that are larger than the requested number of points (N* > N), resize them.
         If the size was correct all along, the LHD is returned unchanged.
         :param X: Generated LHD, N* x D, with N* >= N
         :param npoints: What size to resize to (N)
