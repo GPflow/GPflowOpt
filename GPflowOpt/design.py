@@ -42,14 +42,15 @@ class Design(object):
     def generate(self):
         """
         Returns a design, transformed to the domain specified during construction. All data points are in the 
-        design specified in the constructor.
+        domain specified in the constructor.
         :return: 2D ndarray, N x D
         """
         Xs = self.create_design()
         assert (Xs in self.generative_domain)
         assert (Xs.shape == (self.size, self.domain.size))
         transform = self.generative_domain >> self.domain
-        X = np.clip(transform.forward(Xs), self.domain.lower, self.domain.upper)
+        #X = np.clip(transform.forward(Xs), self.domain.lower, self.domain.upper)
+        X = transform.forward(Xs)
         assert (X in self.domain)
         return X
 

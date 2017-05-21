@@ -60,7 +60,8 @@ class Domain(Parentable):
         X = np.atleast_2d(X)
         if X.shape[1] is not self.size:
             return False
-        return np.all(np.logical_and((self.lower <= X), (X <= self.upper)))
+        return np.all(np.logical_and(np.logical_or(self.lower < X, np.isclose(self.lower, X)),
+                                     np.logical_or(X < self.upper, np.isclose(self.upper, X))))
 
     def __iter__(self):
         for v in chain(*map(iter, self._parameters)):
