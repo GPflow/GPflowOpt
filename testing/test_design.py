@@ -20,11 +20,29 @@ class _TestDesign(object):
             self.assertTupleEqual(p.shape, (d.size, d.domain.size), msg="Generated design does match specifications")
             self.assertIn(p, d.domain, "Not all generated points are generated within the domain")
 
+    def test_create_to_generate(self):
+        X = [design.create_design() for design in self.designs]
+        Xt = [design.generate() for design in self.designs]
+        transforms = [design.generative_domain >> design.domain for design in self.designs]
+
+        Xs = [t.forward(p) for p, t in zip(X, transforms)]
+        Xr = [t.backward(p) for p, t in zip(Xt, transforms)]
+
+        for generated, scaled in zip(Xs, Xt):
+            np.testing.assert_allclose(generated, scaled, atol=1e-4,
+                                       err_msg="Incorrect scaling from generative domain to domain")
+
+        for generated, scaled in zip(Xr, X):
+            np.testing.assert_allclose(generated, scaled, atol=1e-4,
+                                       err_msg="Incorrect scaling from generative domain to domain")
 
 class TestRandomDesign(_TestDesign, unittest.TestCase):
     @_TestDesign.designs.getter
     def designs(self):
         return [GPflowOpt.design.RandomDesign(200, domain) for domain in self.domains]
+
+    def test_create_to_generate(self):
+        pass
 
 
 class TestEmptyDesign(_TestDesign, unittest.TestCase):
