@@ -24,17 +24,16 @@ class _TestAcquisition(object):
 
     def create_parabola_model(self, design=None):
         if design is None:
-            design = GPflowOpt.design.FactorialDesign(4, self.domain)
+            design = GPflowOpt.design.LatinHyperCube(16, self.domain)
         X, Y = design.generate(), parabola2d(design.generate())
-        m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.var(axis=0)))
-        m.kern.variance.prior = GPflow.priors.Gamma(3.0, 1.0 / 3.0)
+        m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
         return m
 
     def create_plane_model(self, design=None):
         if design is None:
-            design = GPflowOpt.design.FactorialDesign(5, self.domain)
+            design = GPflowOpt.design.LatinHyperCube(25, self.domain)
         X, Y = design.generate(), plane(design.generate())
-        m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
+        m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
         return m
 
     def setUp(self):
@@ -97,7 +96,7 @@ class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
         self.assertEqual(len(self.acquisition._default_params), 1)
         print(self.acquisition._default_params[0])
-        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413, -0.2918, -0.2918, 0.5413])), atol=1e-2),
+        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413]*4)), atol=1e-2),
                         msg="Initial hypers improperly stored")
         self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
                          msg="ExpectedImprovement returns all objectives")
@@ -134,7 +133,7 @@ class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in PoF")
         self.assertEqual(len(self.acquisition._default_params), 1)
-        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413, 0.0277,  0.0277,  0.5413])), atol=1e-2),
+        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413]*4)), atol=1e-2),
                         msg="Initial hypers improperly stored")
         self.assertEqual(self.acquisition.constraint_indices(), np.arange(1, dtype=int),
                          msg="PoF returns all constraints")
@@ -176,16 +175,15 @@ class TestAcquisitionSum(_TestAcquisitionBinaryOperator, unittest.TestCase):
 
     def test_sum_validity(self):
         design = GPflowOpt.design.FactorialDesign(4, self.domain)
-        m = self.create_parabola_model(design)
+        m = self.create_parabola_model()
         single_ei = GPflowOpt.acquisition.ExpectedImprovement(m)
         p1 = self.acquisition.evaluate(design.generate())
         p2 = single_ei.evaluate(design.generate())
         np.testing.assert_allclose(p2, p1 / 2, rtol=1e-3, err_msg="The sum of 2 EI should be the double of only EI")
 
     def test_generating_operator(self):
-        design = GPflowOpt.design.FactorialDesign(4, self.domain)
-        joint = GPflowOpt.acquisition.ExpectedImprovement(self.create_parabola_model(design)) + \
-                GPflowOpt.acquisition.ExpectedImprovement(self.create_parabola_model(design))
+        joint = GPflowOpt.acquisition.ExpectedImprovement(self.create_parabola_model()) + \
+                GPflowOpt.acquisition.ExpectedImprovement(self.create_parabola_model())
         self.assertTrue(isinstance(joint, GPflowOpt.acquisition.AcquisitionSum))
 
     def test_indices(self):
@@ -205,10 +203,12 @@ class TestAcquisitionProduct(_TestAcquisitionBinaryOperator, unittest.TestCase):
 
     def test_product_validity(self):
         design = GPflowOpt.design.FactorialDesign(4, self.domain)
-        m = self.create_parabola_model(design)
+        m = self.create_parabola_model()
         single_ei = GPflowOpt.acquisition.ExpectedImprovement(m)
         p1 = self.acquisition.evaluate(design.generate())
         p2 = single_ei.evaluate(design.generate())
+        print(p1)
+        print(p2)
         np.testing.assert_allclose(p2, np.sqrt(p1), rtol=1e-3,
                                    err_msg="The product of 2 EI should be the square of one EI")
 
@@ -230,25 +230,25 @@ class TestJointAcquisition(unittest.TestCase):
         return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
 
     def test_constrained_EI(self):
-        design = GPflowOpt.design.FactorialDesign(4, self.domain)
+        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
         X = design.generate()
         Yo = parabola2d(X)
         Yc = plane(X)
-        m1 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
-        m2 = GPflow.gpr.GPR(X, Yc, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0) / 2))
+        m1 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True))
+        m2 = GPflow.gpr.GPR(X, Yc, GPflow.kernels.RBF(2, ARD=True))
         joint = GPflowOpt.acquisition.ExpectedImprovement(m1) * GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
 
         np.testing.assert_allclose(joint.objective_indices(), np.array([0], dtype=int))
         np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
 
     def test_hierarchy(self):
-        design = GPflowOpt.design.FactorialDesign(4, self.domain)
+        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
         X = design.generate()
         Yo = parabola2d(X)
         Yc = plane(X)
-        m1 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
-        m2 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
-        m3 = GPflow.gpr.GPR(X, Yc, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0) / 2))
+        m1 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True))
+        m2 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True))
+        m3 = GPflow.gpr.GPR(X, Yc, GPflow.kernels.RBF(2, ARD=True))
         joint = GPflowOpt.acquisition.ExpectedImprovement(m1) * \
                 (GPflowOpt.acquisition.ProbabilityOfFeasibility(m3)
                  + GPflowOpt.acquisition.ExpectedImprovement(m2))
