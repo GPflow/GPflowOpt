@@ -113,12 +113,12 @@ class Acquisition(Parameterized):
 
     def __add__(self, other):
         if isinstance(other, AcquisitionSum):
-            return AcquisitionSum([self, *other.operands.sorted_params])
+            return AcquisitionSum([self] + other.operands.sorted_params)
         return AcquisitionSum([self, other])
 
     def __mul__(self, other):
         if isinstance(other, AcquisitionProduct):
-            return AcquisitionProduct([self, *other.operands.sorted_params])
+            return AcquisitionProduct([self] + other.operands.sorted_params)
         return AcquisitionProduct([self, other])
 
 
@@ -218,7 +218,7 @@ class AcquisitionSum(AcquisitionAggregationOperator):
         if isinstance(other, AcquisitionSum):
             return AcquisitionSum(self.operands.sorted_params + other.operands.sorted_params)
         else:
-            return AcquisitionSum([*self.operands.sorted_params, other])
+            return AcquisitionSum(self.operands.sorted_params + [other])
 
 
 class AcquisitionProduct(AcquisitionAggregationOperator):
@@ -229,4 +229,4 @@ class AcquisitionProduct(AcquisitionAggregationOperator):
         if isinstance(other, AcquisitionProduct):
             return AcquisitionProduct(self.operands.sorted_params + other.operands.sorted_params)
         else:
-            return AcquisitionProduct([*self.operands.sorted_params, other])
+            return AcquisitionProduct(self.operands.sorted_params + [other])
