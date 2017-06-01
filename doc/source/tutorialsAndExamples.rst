@@ -2,6 +2,7 @@ Tutorials and examples
 ==================================
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    notebooks/constrained_bo
+   notebooks/new_acquisition
