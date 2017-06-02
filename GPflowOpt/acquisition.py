@@ -205,7 +205,7 @@ class ExpectedImprovement(Acquisition):
     improvement w.r.t the current best observation to the integral. 
     
     .. math::
-       \\alpha(\\mathbf x_{\\star}) = \\int (f_{\\min} - f_{\\star}) \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
+       \\alpha(\\mathbf x_{\\star}) = \\int \\max(f_{\\min} - f_{\\star}, 0) \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
     """
 
     def __init__(self, model):
