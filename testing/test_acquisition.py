@@ -160,10 +160,11 @@ class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
                          msg="PoF returns all constraints")
 
     def test_PoF_validity(self):
-        X1 = np.random.rand(10, 2) / 2
-        X2 = np.random.rand(10, 2) / 2 + 0.5
-        self.assertTrue(np.allclose(self.acquisition.evaluate(X1), 1), msg="Left half of plane is feasible")
-        self.assertTrue(np.allclose(self.acquisition.evaluate(X2), 0), msg="Right half of plane is not feasible")
+        X1 = np.random.rand(10, 2) / 4
+        X2 = np.random.rand(10, 2) / 4 + 0.75
+        self.assertTrue(np.all(self.acquisition.evaluate(X1) > 0.85), msg="Left half of plane is feasible")
+        self.assertTrue(np.all(self.acquisition.evaluate(X2) < 0.15), msg="Right half of plane is feasible")
+        self.assertTrue(np.all(self.acquisition.evaluate(X1) > self.acquisition.evaluate(X2).T))
 
 
 class TestLowerConfidenceBound(_TestAcquisition, unittest.TestCase):
