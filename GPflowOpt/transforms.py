@@ -14,24 +14,25 @@
 
 
 from GPflow import settings
+from GPflow.param import Parameterized, DataHolder, AutoFlow
 import numpy as np
-import scipy
 import tensorflow as tf
 
 float_type = settings.dtypes.float_type
 
 
-class DataTransform(object):
+class DataTransform(Parameterized):
     """
     Implements a mapping from data in domain U to domain V.
     Useful for domain scaling.
     """
 
+    @AutoFlow((float_type, [None, None]))
     def forward(self, X):
         """
         Performs numpy transformation of U -> V
         """
-        raise NotImplementedError
+        return self.build_forward(X)
 
     def build_forward(self, X):
         """
@@ -88,38 +89,39 @@ class LinearTransform(DataTransform):
         A is not invertible, hence inverse and backward are not supported.
         :param b: A P-dimensional offset vector.
         """
-        self.b = np.atleast_1d(b)
-        self.A = np.atleast_1d(A)
-        if len(self.A.shape) == 1:
-            self.A = np.diag(self.A)
+        super(LinearTransform, self).__init__()
+        b = np.atleast_1d(b)
+        A = np.atleast_1d(A)
+        if len(A.shape) == 1:
+            A = np.diag(A)
 
-        assert (len(self.b.shape) == 1)
-        assert (len(self.A.shape) == 2)
+        assert (len(b.shape) == 1)
+        assert (len(A.shape) == 2)
 
-    def forward(self, X):
-        return np.dot(np.atleast_2d(X), self.A.T) + self.b
+        self.A = DataHolder(A)
+        self.b = DataHolder(b)
 
+    @AutoFlow((float_type, [None, None]))
     def backward(self, Y):
         """
         Overwrites the default backward approach, it avoids an explicit matrix inversion.
         """
-        L = scipy.linalg.cholesky(self.A.T)
-        return scipy.linalg.cho_solve((L, False), (Y - self.b).T).T
+        return self.build_backward(Y)
 
     def build_forward(self, X):
-        return tf.matmul(X, self.A.T) + self.b
+        return tf.matmul(X, tf.transpose(self.A)) + self.b
 
     def build_backward(self, Y):
         """
         Overwrites the default backward approach, it avoids an explicit matrix inversion.
         """
-        L = tf.cholesky(self.A.T)
+        L = tf.cholesky(tf.transpose(self.A))
         XT = tf.matrix_triangular_solve(tf.transpose(L), tf.matrix_triangular_solve(L, tf.transpose(Y - self.b)))
         return tf.transpose(XT)
 
     def __invert__(self):
-        A_inv = np.linalg.inv(self.A.T)
-        return LinearTransform(A_inv, -np.dot(self.b, A_inv))
+        A_inv = np.linalg.inv(self.A.value.T)
+        return LinearTransform(A_inv, -np.dot(self.b.value, A_inv))
 
     def __str__(self):
         return 'XA + b'
