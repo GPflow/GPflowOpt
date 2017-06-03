@@ -91,7 +91,7 @@ class _TestAcquisition(object):
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
         self.assertEqual(len(self.acquisition._default_params), 1)
         self.assertTrue(
-            np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413] * 4)), atol=1e-2),
+            np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413]*4)), atol=1e-2),
             msg="Initial hypers improperly stored")
 
 
@@ -162,9 +162,8 @@ class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
     def test_PoF_validity(self):
         X1 = np.random.rand(10, 2) / 2
         X2 = np.random.rand(10, 2) / 2 + 0.5
-        self.assertTrue(np.allclose(self.acquisition.evaluate(X1), 1), msg="Left half of plane is feasible")
-        self.assertTrue(np.allclose(self.acquisition.evaluate(X2), 0), msg="Right half of plane is not feasible")
-
+        self.assertTrue(np.all(self.acquisition.evaluate(X1) > 0.85), msg="Left half of plane is feasible")
+        self.assertTrue(np.all(self.acquisition.evaluate(X2) < 0.15), msg="Right half of plane is feasible")
 
 class TestLowerConfidenceBound(_TestAcquisition, unittest.TestCase):
     def setUp(self):
