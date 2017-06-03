@@ -170,6 +170,50 @@ class ProbabilityOfFeasibility(Acquisition):
         return normal.cdf(tf.constant(0.0, dtype=float_type), name=self.__class__.__name__)
 
 
+class ProbabilityOfImprovement(Acquisition):
+    """
+    Implementation of the Probability of Improvement acquisition function for single-objective global optimization
+
+    .. math::
+       \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{f_{\\min}} \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
+    """
+
+    def __init__(self, model):
+        super(ProbabilityOfImprovement, self).__init__(model)
+        self.fmin = DataHolder(np.zeros(1))
+        self.setup()
+
+    def setup(self):
+        super(ProbabilityOfImprovement, self).setup()
+        samples_mean, _ = self.models[0].predict_f(self.data[0])
+        self.fmin.set_data(np.min(samples_mean, axis=0))
+
+    def build_acquisition(self, Xcand):
+        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
+        candidate_var = tf.maximum(candidate_var, stability)
+        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
+        return normal.cdf(self.fmin, name=self.__class__.__name__)
+
+
+class LowerConfidenceBound(Acquisition):
+    """
+    Implementation of the LCB acquisition function for single-objective global optimization
+
+    .. math::
+       \\alpha(\\mathbf x_{\\star}) =\\mathbb{E} \\left[ \\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
+       - \\sigma \\mbox{Var} \\left[ \\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
+    """
+
+    def __init__(self, model, sigma=2.0):
+        super(LowerConfidenceBound, self).__init__(model)
+        self.sigma = sigma
+
+    def build_acquisition(self, Xcand):
+        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
+        candidate_var = tf.maximum(candidate_var, 0)
+        return tf.subtract(candidate_mean, self.sigma * tf.sqrt(candidate_var), name=self.__class__.__name__)
+
+
 class AcquisitionAggregationOperator(Acquisition):
     def __init__(self, operands, oper):
         super(AcquisitionAggregationOperator, self).__init__()

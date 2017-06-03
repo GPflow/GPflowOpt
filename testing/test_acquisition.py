@@ -38,6 +38,7 @@ class _TestAcquisition(object):
 
     def setUp(self):
         self.acquisition = None
+        self.model = None
 
     def test_result_shape(self):
         # Verify the returned shape of evaluate
@@ -85,22 +86,21 @@ class _TestAcquisition(object):
         np.testing.assert_allclose(self.acquisition.data[0], X, err_msg="Samples not updated")
         np.testing.assert_allclose(self.acquisition.data[1], Y, err_msg="Values not updated")
 
+    def test_object_integrity(self):
+        self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
+        self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
+        self.assertEqual(len(self.acquisition._default_params), 1)
+        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413]*4)), atol=1e-2),
+                        msg="Initial hypers improperly stored")
+
 
 class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
     def setUp(self):
         super(TestExpectedImprovement, self).setUp()
         self.model = self.create_parabola_model()
-        print(self.model)
         self.acquisition = GPflowOpt.acquisition.ExpectedImprovement(self.model)
 
-    def test_object_integrity(self):
-        self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
-        self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
-        self.assertEqual(len(self.acquisition._default_params), 1)
-        print(self.acquisition._default_params[0])
-        self.assertTrue(
-            np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413] * 4)), atol=1e-2),
-            msg="Initial hypers improperly stored")
+    def test_objective_indices(self):
         self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
                          msg="ExpectedImprovement returns all objectives")
 
@@ -126,19 +126,35 @@ class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
         self.assertGreater(np.min(ei2), np.max(ei1))
 
 
+class TestProbabilityOfImprovement(_TestAcquisition, unittest.TestCase):
+    def setUp(self):
+        super(TestProbabilityOfImprovement, self).setUp()
+        self.model = self.create_parabola_model()
+        self.acquisition = GPflowOpt.acquisition.ProbabilityOfImprovement(self.model)
+
+    def test_objective_indices(self):
+        self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
+                         msg="PoI returns all objectives")
+
+    def test_setup(self):
+        fmin = np.min(self.acquisition.data[1])
+        self.assertGreater(self.acquisition.fmin.value, 0, msg="The minimum (0) is not amongst the design.")
+        self.assertTrue(np.allclose(self.acquisition.fmin.value, fmin, atol=1e-2), msg="fmin computed incorrectly")
+
+        # Now add the actual minimum
+        p = np.array([[0.0, 0.0]])
+        self.acquisition.set_data(np.vstack((self.model.X.value, p)),
+                                  np.vstack((self.model.Y.value, parabola2d(p))))
+        self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-1), msg="fmin not updated")
+
+
 class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
     def setUp(self):
         super(TestProbabilityOfFeasibility, self).setUp()
         self.model = self.create_plane_model()
         self.acquisition = GPflowOpt.acquisition.ProbabilityOfFeasibility(self.model)
 
-    def test_object_integrity(self):
-        self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
-        self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in PoF")
-        self.assertEqual(len(self.acquisition._default_params), 1)
-        self.assertTrue(
-            np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413] * 4)), atol=1e-2),
-            msg="Initial hypers improperly stored")
+    def test_constraint_indices(self):
         self.assertEqual(self.acquisition.constraint_indices(), np.arange(1, dtype=int),
                          msg="PoF returns all constraints")
 
@@ -147,6 +163,34 @@ class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
         X2 = np.random.rand(10, 2) / 2 + 0.5
         self.assertTrue(np.allclose(self.acquisition.evaluate(X1), 1), msg="Left half of plane is feasible")
         self.assertTrue(np.allclose(self.acquisition.evaluate(X2), 0), msg="Right half of plane is not feasible")
+
+
+class TestLowerConfidenceBound(_TestAcquisition, unittest.TestCase):
+    def setUp(self):
+        super(TestLowerConfidenceBound, self).setUp()
+        self.model = self.create_plane_model()
+        self.acquisition = GPflowOpt.acquisition.LowerConfidenceBound(self.model, 3.2)
+
+    def test_objective_indices(self):
+        self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
+                         msg="LCB returns all objectives")
+
+    def test_object_integrity(self):
+        super(TestLowerConfidenceBound, self).test_object_integrity()
+        self.assertEqual(self.acquisition.sigma, 3.2)
+
+    def test_LCB_validity(self):
+        design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
+        p = self.model.predict_f(design)[0]
+        q = self.acquisition.evaluate(design)
+        np.testing.assert_array_less(q,p)
+
+    def test_LCB_validity_2(self):
+        design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
+        self.acquisition.sigma = 0
+        p = self.model.predict_f(design)[0]
+        q = self.acquisition.evaluate(design)
+        np.testing.assert_allclose(q,p)
 
 
 class _TestAcquisitionAggregationOperator(_TestAcquisition):
@@ -212,8 +256,6 @@ class TestAcquisitionProduct(_TestAcquisitionAggregationOperator, unittest.TestC
         single_ei = GPflowOpt.acquisition.ExpectedImprovement(m)
         p1 = self.acquisition.evaluate(design.generate())
         p2 = single_ei.evaluate(design.generate())
-        print(p1)
-        print(p2)
         np.testing.assert_allclose(p2, np.sqrt(p1), rtol=1e-3,
                                    err_msg="The product of 2 EI should be the square of one EI")
 
