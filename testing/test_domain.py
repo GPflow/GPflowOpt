@@ -125,6 +125,6 @@ class TestHypercubeDomain(unittest.TestCase):
         self.assertTrue(np.allclose(transform.backward(transform.forward(X)),
                                     inv_transform.forward(transform.forward(X))),
                         msg="Inverse transform yields different results")
-        self.assertTrue(np.allclose((~transform).A, inv_transform.A))
-        self.assertTrue(np.allclose((~transform).b, inv_transform.b))
+        self.assertTrue(np.allclose((~transform).A.value, inv_transform.A.value))
+        self.assertTrue(np.allclose((~transform).b.value, inv_transform.b.value))
 
