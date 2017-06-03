@@ -38,6 +38,7 @@ class _TestAcquisition(object):
 
     def setUp(self):
         self.acquisition = None
+        self.model = None
 
     def test_result_shape(self):
         # Verify the returned shape of evaluate
@@ -50,7 +51,9 @@ class _TestAcquisition(object):
             with self.acquisition.tf_mode():
                 tens = self.acquisition.build_acquisition(x_tf)
                 self.assertTrue(isinstance(tens, tf.Tensor), msg="no Tensor was returned")
-                self.assertListEqual(tens.get_shape().as_list(), [50, None], msg="Tensor of incorrect shape returned")
+                tf_shape = tens.get_shape().as_list()
+                self.assertEqual(tf_shape[0], 50, msg="Tensor of incorrect shape returned")
+                self.assertTrue(tf_shape[1] == 1 or tf_shape[1] is None)
 
         res = self.acquisition.evaluate(design.generate())
         self.assertTupleEqual(res.shape, (50, 1),
@@ -83,21 +86,22 @@ class _TestAcquisition(object):
         np.testing.assert_allclose(self.acquisition.data[0], X, err_msg="Samples not updated")
         np.testing.assert_allclose(self.acquisition.data[1], Y, err_msg="Values not updated")
 
+    def test_object_integrity(self):
+        self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
+        self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
+        self.assertEqual(len(self.acquisition._default_params), 1)
+        self.assertTrue(
+            np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413] * 4)), atol=1e-2),
+            msg="Initial hypers improperly stored")
+
 
 class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
     def setUp(self):
         super(TestExpectedImprovement, self).setUp()
         self.model = self.create_parabola_model()
-        print(self.model)
         self.acquisition = GPflowOpt.acquisition.ExpectedImprovement(self.model)
 
-    def test_object_integrity(self):
-        self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
-        self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
-        self.assertEqual(len(self.acquisition._default_params), 1)
-        print(self.acquisition._default_params[0])
-        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413]*4)), atol=1e-2),
-                        msg="Initial hypers improperly stored")
+    def test_objective_indices(self):
         self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
                          msg="ExpectedImprovement returns all objectives")
 
@@ -123,55 +127,101 @@ class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
         self.assertGreater(np.min(ei2), np.max(ei1))
 
 
+class TestProbabilityOfImprovement(_TestAcquisition, unittest.TestCase):
+    def setUp(self):
+        super(TestProbabilityOfImprovement, self).setUp()
+        self.model = self.create_parabola_model()
+        self.acquisition = GPflowOpt.acquisition.ProbabilityOfImprovement(self.model)
+
+    def test_objective_indices(self):
+        self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
+                         msg="PoI returns all objectives")
+
+    def test_setup(self):
+        fmin = np.min(self.acquisition.data[1])
+        self.assertGreater(self.acquisition.fmin.value, 0, msg="The minimum (0) is not amongst the design.")
+        self.assertTrue(np.allclose(self.acquisition.fmin.value, fmin, atol=1e-2), msg="fmin computed incorrectly")
+
+        # Now add the actual minimum
+        p = np.array([[0.0, 0.0]])
+        self.acquisition.set_data(np.vstack((self.model.X.value, p)),
+                                  np.vstack((self.model.Y.value, parabola2d(p))))
+        self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-1), msg="fmin not updated")
+
+
 class TestProbabilityOfFeasibility(_TestAcquisition, unittest.TestCase):
     def setUp(self):
         super(TestProbabilityOfFeasibility, self).setUp()
         self.model = self.create_plane_model()
         self.acquisition = GPflowOpt.acquisition.ProbabilityOfFeasibility(self.model)
 
-    def test_object_integrity(self):
-        self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
-        self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in PoF")
-        self.assertEqual(len(self.acquisition._default_params), 1)
-        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413]*4)), atol=1e-2),
-                        msg="Initial hypers improperly stored")
+    def test_constraint_indices(self):
         self.assertEqual(self.acquisition.constraint_indices(), np.arange(1, dtype=int),
                          msg="PoF returns all constraints")
 
     def test_PoF_validity(self):
-        X1 = np.random.rand(10, 2) / 2
-        X2 = np.random.rand(10, 2) / 2 + 0.5
-        self.assertTrue(np.allclose(self.acquisition.evaluate(X1), 1), msg="Left half of plane is feasible")
-        self.assertTrue(np.allclose(self.acquisition.evaluate(X2), 0), msg="Right half of plane is not feasible")
+        X1 = np.random.rand(10, 2) / 4
+        X2 = np.random.rand(10, 2) / 4 + 0.75
+        self.assertTrue(np.all(self.acquisition.evaluate(X1) > 0.85), msg="Left half of plane is feasible")
+        self.assertTrue(np.all(self.acquisition.evaluate(X2) < 0.15), msg="Right half of plane is feasible")
+        self.assertTrue(np.all(self.acquisition.evaluate(X1) > self.acquisition.evaluate(X2).T))
 
 
-class _TestAcquisitionBinaryOperator(_TestAcquisition):
+class TestLowerConfidenceBound(_TestAcquisition, unittest.TestCase):
+    def setUp(self):
+        super(TestLowerConfidenceBound, self).setUp()
+        self.model = self.create_plane_model()
+        self.acquisition = GPflowOpt.acquisition.LowerConfidenceBound(self.model, 3.2)
+
+    def test_objective_indices(self):
+        self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
+                         msg="LCB returns all objectives")
+
     def test_object_integrity(self):
-        self.assertTrue(isinstance(self.acquisition.lhs, GPflowOpt.acquisition.Acquisition),
-                        msg="Left hand operand should be an acquisition object")
-        self.assertTrue(isinstance(self.acquisition.rhs, GPflowOpt.acquisition.Acquisition),
-                        msg="Right hand operand should be an acquisition object")
+        super(TestLowerConfidenceBound, self).test_object_integrity()
+        self.assertEqual(self.acquisition.sigma, 3.2)
+
+    def test_LCB_validity(self):
+        design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
+        p = self.model.predict_f(design)[0]
+        q = self.acquisition.evaluate(design)
+        np.testing.assert_array_less(q, p)
+
+    def test_LCB_validity_2(self):
+        design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
+        self.acquisition.sigma = 0
+        p = self.model.predict_f(design)[0]
+        q = self.acquisition.evaluate(design)
+        np.testing.assert_allclose(q, p)
+
+
+class _TestAcquisitionAggregation(_TestAcquisition):
+    def test_object_integrity(self):
+        for oper in self.acquisition.operands:
+            self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
+                            msg="All operands should be an acquisition object")
         self.assertEqual(len(self.acquisition._default_params), 0)
 
     def test_data(self):
-        super(_TestAcquisitionBinaryOperator, self).test_data()
-        np.testing.assert_allclose(self.acquisition.data[0], self.acquisition.lhs.data[0],
+        super(_TestAcquisitionAggregation, self).test_data()
+        np.testing.assert_allclose(self.acquisition.data[0], self.acquisition[0].data[0],
                                    err_msg="Samples should be equal for all operands")
-        np.testing.assert_allclose(self.acquisition.data[0], self.acquisition.rhs.data[0],
+        np.testing.assert_allclose(self.acquisition.data[0], self.acquisition[1].data[0],
                                    err_msg="Samples should be equal for all operands")
 
-        Y = np.hstack((self.acquisition.lhs.data[1], self.acquisition.rhs.data[1]))
+        Y = np.hstack(map(lambda oper: oper.data[1], self.acquisition.operands))
         np.testing.assert_allclose(self.acquisition.data[1], Y,
                                    err_msg="Value should be horizontally concatenated")
 
 
-class TestAcquisitionSum(_TestAcquisitionBinaryOperator, unittest.TestCase):
+class TestAcquisitionSum(_TestAcquisitionAggregation, unittest.TestCase):
     def setUp(self):
         super(TestAcquisitionSum, self).setUp()
         self.models = [self.create_parabola_model(), self.create_parabola_model()]
-        self.acquisition = GPflowOpt.acquisition.AcquisitionSum(
+        self.acquisition = GPflowOpt.acquisition.AcquisitionSum([
             GPflowOpt.acquisition.ExpectedImprovement(self.models[0]),
-            GPflowOpt.acquisition.ExpectedImprovement(self.models[1]))
+            GPflowOpt.acquisition.ExpectedImprovement(self.models[1])
+        ])
 
     def test_sum_validity(self):
         design = GPflowOpt.design.FactorialDesign(4, self.domain)
@@ -193,13 +243,14 @@ class TestAcquisitionSum(_TestAcquisitionBinaryOperator, unittest.TestCase):
                                    err_msg="Sum of two EI should return no constraints")
 
 
-class TestAcquisitionProduct(_TestAcquisitionBinaryOperator, unittest.TestCase):
+class TestAcquisitionProduct(_TestAcquisitionAggregation, unittest.TestCase):
     def setUp(self):
         super(TestAcquisitionProduct, self).setUp()
         self.models = [self.create_parabola_model(), self.create_parabola_model()]
-        self.acquisition = GPflowOpt.acquisition.AcquisitionProduct(
+        self.acquisition = GPflowOpt.acquisition.AcquisitionProduct([
             GPflowOpt.acquisition.ExpectedImprovement(self.models[0]),
-            GPflowOpt.acquisition.ExpectedImprovement(self.models[1]))
+            GPflowOpt.acquisition.ExpectedImprovement(self.models[1])
+        ])
 
     def test_product_validity(self):
         design = GPflowOpt.design.FactorialDesign(4, self.domain)
@@ -207,8 +258,6 @@ class TestAcquisitionProduct(_TestAcquisitionBinaryOperator, unittest.TestCase):
         single_ei = GPflowOpt.acquisition.ExpectedImprovement(m)
         p1 = self.acquisition.evaluate(design.generate())
         p2 = single_ei.evaluate(design.generate())
-        print(p1)
-        print(p2)
         np.testing.assert_allclose(p2, np.sqrt(p1), rtol=1e-3,
                                    err_msg="The product of 2 EI should be the square of one EI")
 
@@ -229,6 +278,13 @@ class TestJointAcquisition(unittest.TestCase):
     def domain(self):
         return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
 
+    def create_parabola_model(self, design=None):
+        if design is None:
+            design = GPflowOpt.design.LatinHyperCube(16, self.domain)
+        X, Y = design.generate(), parabola2d(design.generate())
+        m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
+        return m
+
     def test_constrained_EI(self):
         design = GPflowOpt.design.LatinHyperCube(16, self.domain)
         X = design.generate()
@@ -244,10 +300,9 @@ class TestJointAcquisition(unittest.TestCase):
     def test_hierarchy(self):
         design = GPflowOpt.design.LatinHyperCube(16, self.domain)
         X = design.generate()
-        Yo = parabola2d(X)
         Yc = plane(X)
-        m1 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True))
-        m2 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True))
+        m1 = self.create_parabola_model()
+        m2 = self.create_parabola_model()
         m3 = GPflow.gpr.GPR(X, Yc, GPflow.kernels.RBF(2, ARD=True))
         joint = GPflowOpt.acquisition.ExpectedImprovement(m1) * \
                 (GPflowOpt.acquisition.ProbabilityOfFeasibility(m3)
@@ -255,3 +310,41 @@ class TestJointAcquisition(unittest.TestCase):
 
         np.testing.assert_allclose(joint.objective_indices(), np.array([0, 2], dtype=int))
         np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
+
+    def test_multi_aggr(self):
+        models = [self.create_parabola_model(), self.create_parabola_model(), self.create_parabola_model()]
+        acq1, acq2, acq3 = tuple(map(lambda m: GPflowOpt.acquisition.ExpectedImprovement(m), models))
+        joint = acq1 + acq2 + acq3
+        self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionSum)
+        self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
+
+        joint = acq1 * acq2 * acq3
+        self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionProduct)
+        self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
+
+        first = acq2 + acq3
+        self.assertIsInstance(first, GPflowOpt.acquisition.AcquisitionSum)
+        self.assertListEqual(first.operands.sorted_params, [acq2, acq3])
+        joint = acq1 + first
+        self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionSum)
+        self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
+
+        first = acq2 * acq3
+        self.assertIsInstance(first, GPflowOpt.acquisition.AcquisitionProduct)
+        self.assertListEqual(first.operands.sorted_params, [acq2, acq3])
+        joint = acq1 * first
+        self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionProduct)
+        self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
+
+        acq4 = GPflowOpt.acquisition.ExpectedImprovement(self.create_parabola_model())
+        first = acq1 + acq2
+        second = acq3 + acq4
+        joint = first + second
+        self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionSum)
+        self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3, acq4])
+
+        first = acq1 * acq2
+        second = acq3 * acq4
+        joint = first * second
+        self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionProduct)
+        self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3, acq4])
