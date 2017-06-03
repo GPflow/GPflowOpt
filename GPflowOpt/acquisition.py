@@ -214,16 +214,18 @@ class LowerConfidenceBound(Acquisition):
         return tf.subtract(candidate_mean, self.sigma * tf.sqrt(candidate_var), name=self.__class__.__name__)
 
 
-class AcquisitionAggregationOperator(Acquisition):
+class AcquisitionAggregation(Acquisition):
     def __init__(self, operands, oper):
-        super(AcquisitionAggregationOperator, self).__init__()
-        for operand in operands:
-            assert isinstance(operand, Acquisition)
+        super(AcquisitionAggregation, self).__init__()
+        assert (all([isinstance(x, Acquisition) for x in operands]))
         self.operands = ParamList(operands)
         self._oper = oper
 
     @Acquisition.data.getter
     def data(self):
+        if not self._tf_mode:
+            assert (all(np.allclose(x.data[0], self.operands[0].data[0]) for x in self.operands))
+
         X = self.operands[0].data[0]
         Ys = map(lambda operand: operand.data[1], self.operands)
 
@@ -254,7 +256,7 @@ class AcquisitionAggregationOperator(Acquisition):
         return self.operands[item]
 
 
-class AcquisitionSum(AcquisitionAggregationOperator):
+class AcquisitionSum(AcquisitionAggregation):
     def __init__(self, operands):
         super(AcquisitionSum, self).__init__(operands, tf.reduce_sum)
 
@@ -265,7 +267,7 @@ class AcquisitionSum(AcquisitionAggregationOperator):
             return AcquisitionSum(self.operands.sorted_params + [other])
 
 
-class AcquisitionProduct(AcquisitionAggregationOperator):
+class AcquisitionProduct(AcquisitionAggregation):
     def __init__(self, operands):
         super(AcquisitionProduct, self).__init__(operands, tf.reduce_prod)
 

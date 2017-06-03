@@ -90,8 +90,9 @@ class _TestAcquisition(object):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
         self.assertEqual(len(self.acquisition._default_params), 1)
-        self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413]*4)), atol=1e-2),
-                        msg="Initial hypers improperly stored")
+        self.assertTrue(
+            np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413] * 4)), atol=1e-2),
+            msg="Initial hypers improperly stored")
 
 
 class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
@@ -183,17 +184,17 @@ class TestLowerConfidenceBound(_TestAcquisition, unittest.TestCase):
         design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
         p = self.model.predict_f(design)[0]
         q = self.acquisition.evaluate(design)
-        np.testing.assert_array_less(q,p)
+        np.testing.assert_array_less(q, p)
 
     def test_LCB_validity_2(self):
         design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
         self.acquisition.sigma = 0
         p = self.model.predict_f(design)[0]
         q = self.acquisition.evaluate(design)
-        np.testing.assert_allclose(q,p)
+        np.testing.assert_allclose(q, p)
 
 
-class _TestAcquisitionAggregationOperator(_TestAcquisition):
+class _TestAcquisitionAggregation(_TestAcquisition):
     def test_object_integrity(self):
         for oper in self.acquisition.operands:
             self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
@@ -201,7 +202,7 @@ class _TestAcquisitionAggregationOperator(_TestAcquisition):
         self.assertEqual(len(self.acquisition._default_params), 0)
 
     def test_data(self):
-        super(_TestAcquisitionAggregationOperator, self).test_data()
+        super(_TestAcquisitionAggregation, self).test_data()
         np.testing.assert_allclose(self.acquisition.data[0], self.acquisition[0].data[0],
                                    err_msg="Samples should be equal for all operands")
         np.testing.assert_allclose(self.acquisition.data[0], self.acquisition[1].data[0],
@@ -212,7 +213,7 @@ class _TestAcquisitionAggregationOperator(_TestAcquisition):
                                    err_msg="Value should be horizontally concatenated")
 
 
-class TestAcquisitionSum(_TestAcquisitionAggregationOperator, unittest.TestCase):
+class TestAcquisitionSum(_TestAcquisitionAggregation, unittest.TestCase):
     def setUp(self):
         super(TestAcquisitionSum, self).setUp()
         self.models = [self.create_parabola_model(), self.create_parabola_model()]
@@ -241,7 +242,7 @@ class TestAcquisitionSum(_TestAcquisitionAggregationOperator, unittest.TestCase)
                                    err_msg="Sum of two EI should return no constraints")
 
 
-class TestAcquisitionProduct(_TestAcquisitionAggregationOperator, unittest.TestCase):
+class TestAcquisitionProduct(_TestAcquisitionAggregation, unittest.TestCase):
     def setUp(self):
         super(TestAcquisitionProduct, self).setUp()
         self.models = [self.create_parabola_model(), self.create_parabola_model()]
