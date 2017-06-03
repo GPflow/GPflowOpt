@@ -183,7 +183,7 @@ class TestLowerConfidenceBound(_TestAcquisition, unittest.TestCase):
         q = self.acquisition.evaluate(design)
         np.testing.assert_array_less(q,p)
 
-    def test_LCB_validity_v2(self):
+    def test_LCB_validity_2(self):
         design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
         self.acquisition.sigma = 0
         p = self.model.predict_f(design)[0]
