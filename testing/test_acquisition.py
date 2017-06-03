@@ -303,6 +303,8 @@ class TestJointAcquisition(unittest.TestCase):
 
         np.testing.assert_allclose(joint.objective_indices(), np.array([0], dtype=int))
         np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
+        print(joint.data[1])
+        print(pof.feasible_data_index())
         self.assertGreater(ei.fmin.value, np.min(Yo), msg="The best objective value is in an infeasible area")
         self.assertTrue(np.allclose(ei.fmin.value, np.min(Yo[pof.feasible_data_index(), :]), atol=1e-3),
                         msg="fmin computed incorrectly")

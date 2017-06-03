@@ -258,6 +258,9 @@ class AcquisitionAggregation(Acquisition):
             offset += operand.set_data(X, Y[:, offset:])
         return offset
 
+    def setup(self):
+        _ = [oper.setup() for oper in self.operands]
+
     def constraint_indices(self):
         offset = [0]
         idx = []
@@ -267,7 +270,7 @@ class AcquisitionAggregation(Acquisition):
         return np.hstack([i + o for i, o in zip(idx, offset[:-1])])
 
     def feasible_data_index(self):
-        return np.all(np.vstack((self.lhs.feasible_data_index(), self.rhs.feasible_data_index())), axis=0)
+        return np.all(np.vstack(map(lambda o: o.feasible_data_index(), self.operands)), axis=0)
 
     def build_acquisition(self, Xcand):
         return self._oper(tf.concat(list(map(lambda operand: operand.build_acquisition(Xcand), self.operands)), 1),
