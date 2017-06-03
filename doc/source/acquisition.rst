@@ -13,6 +13,10 @@ summarized in the table below. Detailed description for each can be found below.
 +----------------------------------------------------------+-----------+-------------+-----------+
 | :class:`GPflowOpt.acquisition.ProbabilityOfFeasibility`  |           |      ✔      |     1     |
 +----------------------------------------------------------+-----------+-------------+-----------+
+| :class:`GPflowOpt.acquisition.ProbabilityOfImprovement`  |     ✔     |             |     1     |
++----------------------------------------------------------+-----------+-------------+-----------+
+| :class:`GPflowOpt.acquisition.LowerConfidenceBound`      |     ✔     |             |     1     |
++----------------------------------------------------------+-----------+-------------+-----------+
 
 
 Expected Improvement
@@ -26,5 +30,19 @@ Probability of Feasibility
 --------------------------
 
 .. autoclass:: GPflowOpt.acquisition.ProbabilityOfFeasibility
+   :members:
+   :special-members:
+
+Probability of Improvement
+--------------------------
+
+.. autoclass:: GPflowOpt.acquisition.ProbabilityOfImprovement
+   :members:
+   :special-members:
+
+Lower Confidence Bound
+--------------------------
+
+.. autoclass:: GPflowOpt.acquisition.LowerConfidenceBound
    :members:
    :special-members:

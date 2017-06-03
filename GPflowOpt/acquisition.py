@@ -189,7 +189,8 @@ class Acquisition(Parameterized):
 class ExpectedImprovement(Acquisition):
     """
     Expected Improvement acquisition function for single-objective global optimization. 
-    Introduced by (Mockus et al, 1975)
+    Introduced by (Mockus et al, 1975).
+
     Key reference:
     
     ::
@@ -240,6 +241,7 @@ class ProbabilityOfFeasibility(Acquisition):
     """
     Probability of Feasibility acquisition function for sampling feasible regions. Standard acquisition function for
     Bayesian Optimization with black-box expensive constraints. 
+
     Key reference:
     
     ::
@@ -276,7 +278,7 @@ class ProbabilityOfFeasibility(Acquisition):
 
 class ProbabilityOfImprovement(Acquisition):
     """
-    Implementation of the Probability of Improvement acquisition function for single-objective global optimization
+    Implementation of the Probability of Improvement acquisition function for single-objective global optimization.
 
     .. math::
        \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{f_{\\min}} \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
@@ -301,7 +303,7 @@ class ProbabilityOfImprovement(Acquisition):
 
 class LowerConfidenceBound(Acquisition):
     """
-    Implementation of the LCB acquisition function for single-objective global optimization
+    Implementation of the LCB acquisition function for single-objective global optimization.
 
     .. math::
        \\alpha(\\mathbf x_{\\star}) =\\mathbb{E} \\left[ \\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
