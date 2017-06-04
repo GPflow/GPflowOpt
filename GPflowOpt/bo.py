@@ -76,9 +76,7 @@ class BayesianOptimizer(Optimizer):
         X, Y = self.acquisition.data
 
         # Filter on constraints
-        # Extend with valid column - in case of no constrains
-        Yext = np.hstack((-np.ones((Y.shape[0], 1)), Y[:, self.acquisition.constraint_indices()]))
-        valid = np.all(Yext < 0, axis=1)
+        valid = self.acquisition.feasible_data_index()
 
         if not np.any(valid):
             return OptimizeResult(success=False,

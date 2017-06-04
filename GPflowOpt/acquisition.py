@@ -69,6 +69,9 @@ class Acquisition(Parameterized):
         else:
             return acq
 
+    def build_acquisition(self):
+        raise NotImplementedError
+
     def set_data(self, X, Y):
         num_outputs_sum = 0
         for model in self.models:
@@ -80,7 +83,8 @@ class Acquisition(Parameterized):
             model.Y = Ypart
 
         self._optimize_all()
-        self.setup()
+        if self.highest_parent == self:
+            self.setup()
         return num_outputs_sum
 
     @property
@@ -95,6 +99,14 @@ class Acquisition(Parameterized):
 
     def objective_indices(self):
         return np.setdiff1d(np.arange(self.data[1].shape[1]), self.constraint_indices())
+
+    def feasible_data_index(self):
+        """
+        Returns a boolean array indicating which data points are considered feasible (according to the acquisition 
+        function(s) ) and which not.
+        :return: boolean ndarray, N 
+        """
+        return np.ones(self.data[0].shape[0], dtype=bool)
 
     def setup(self):
         """
@@ -136,8 +148,9 @@ class ExpectedImprovement(Acquisition):
 
     def setup(self):
         super(ExpectedImprovement, self).setup()
-        # Obtain the lowest posterior mean for the previous evaluations
-        samples_mean, _ = self.models[0].predict_f(self.data[0])
+        # Obtain the lowest posterior mean for the previous - feasible - evaluations
+        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
+        samples_mean, _ = self.models[0].predict_f(feasible_samples)
         self.fmin.set_data(np.min(samples_mean, axis=0))
 
     def build_acquisition(self, Xcand):
@@ -157,17 +170,43 @@ class ProbabilityOfFeasibility(Acquisition):
     Probability of Feasibility acquisition function for learning  feasible regions
     """
 
-    def __init__(self, model):
+    def __init__(self, model, threshold=0.0, minimum_pof=0.5):
+        """
+
+        :param model: GPflow model (single output) for computing the PoF
+        :param threshold: threshold value. Observed values lower than this value are considered valid
+        :param minimum_pof: minimum pof score required for a point to be valid. For more information, see docstring
+        of feasible_data_index
+        """
         super(ProbabilityOfFeasibility, self).__init__(model)
+        self.threshold = threshold
+        self.minimum_pof = minimum_pof
 
     def constraint_indices(self):
         return np.arange(self.data[1].shape[1])
+
+    def feasible_data_index(self):
+        """
+        Returns a boolean array indicating which points are feasible (True) and which are not (False)
+        Answering the question *which points are feasible?* is slightly troublesome in case noise is present.
+        Directly relying on the data and comparing it to self.threshold can be troublesome.
+
+        Instead, we rely on the model belief. More specifically, we evaluate the PoF (score between 0 and 1).
+        As the implementation of the PoF corresponds to the cdf of the (normal) predictive distribution in
+        a point evaluated at the threshold, requiring a minimum pof of 0.5 implies the mean of the predictive
+        distribution is below the threshold, hence it is marked as feasible. A minimum pof of 0 marks all points valid.
+        Setting it to 1 results in all invalid.
+        :return: boolean ndarray, size N
+        """
+        # In
+        pred = self.evaluate(self.data[0])
+        return pred.ravel() > self.minimum_pof
 
     def build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
         candidate_var = tf.maximum(candidate_var, stability)
         normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        return normal.cdf(tf.constant(0.0, dtype=float_type), name=self.__class__.__name__)
+        return normal.cdf(tf.constant(self.threshold, dtype=float_type), name=self.__class__.__name__)
 
 
 class ProbabilityOfImprovement(Acquisition):
@@ -220,6 +259,7 @@ class AcquisitionAggregation(Acquisition):
         assert (all([isinstance(x, Acquisition) for x in operands]))
         self.operands = ParamList(operands)
         self._oper = oper
+        self.setup()
 
     @Acquisition.data.getter
     def data(self):
@@ -240,6 +280,9 @@ class AcquisitionAggregation(Acquisition):
             offset += operand.set_data(X, Y[:, offset:])
         return offset
 
+    def setup(self):
+        _ = [oper.setup() for oper in self.operands]
+
     def constraint_indices(self):
         offset = [0]
         idx = []
@@ -247,6 +290,9 @@ class AcquisitionAggregation(Acquisition):
             idx.append(operand.constraint_indices())
             offset.append(operand.data[1].shape[1])
         return np.hstack([i + o for i, o in zip(idx, offset[:-1])])
+
+    def feasible_data_index(self):
+        return np.all(np.vstack(map(lambda o: o.feasible_data_index(), self.operands)), axis=0)
 
     def build_acquisition(self, Xcand):
         return self._oper(tf.concat(list(map(lambda operand: operand.build_acquisition(Xcand), self.operands)), 1),
