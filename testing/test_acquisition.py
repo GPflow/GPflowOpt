@@ -86,6 +86,10 @@ class _TestAcquisition(object):
         np.testing.assert_allclose(self.acquisition.data[0], X, err_msg="Samples not updated")
         np.testing.assert_allclose(self.acquisition.data[1], Y, err_msg="Values not updated")
 
+    def test_data_indices(self):
+        self.assertTupleEqual(self.acquisition.feasible_data_index().shape, (self.acquisition.data[0].shape[0],),
+                              msg="Incorrect shape returned.")
+
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
@@ -125,6 +129,7 @@ class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
         ei1 = self.acquisition.evaluate(Xborder)
         ei2 = self.acquisition.evaluate(Xcenter)
         self.assertGreater(np.min(ei2), np.max(ei1))
+        self.assertTrue(np.all(self.acquisition.feasible_data_index()), msg="EI does never invalidate points")
 
 
 class TestProbabilityOfImprovement(_TestAcquisition, unittest.TestCase):
@@ -289,13 +294,20 @@ class TestJointAcquisition(unittest.TestCase):
         design = GPflowOpt.design.LatinHyperCube(16, self.domain)
         X = design.generate()
         Yo = parabola2d(X)
-        Yc = plane(X)
-        m1 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True))
-        m2 = GPflow.gpr.GPR(X, Yc, GPflow.kernels.RBF(2, ARD=True))
-        joint = GPflowOpt.acquisition.ExpectedImprovement(m1) * GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
+        Yc = -parabola2d(X) + 0.5
+        m1 = GPflow.gpr.GPR(X, Yo, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
+        m2 = GPflow.gpr.GPR(X, Yc, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
+        ei = GPflowOpt.acquisition.ExpectedImprovement(m1)
+        pof = GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
+        joint = ei * pof
 
         np.testing.assert_allclose(joint.objective_indices(), np.array([0], dtype=int))
         np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
+        print(joint.data[1])
+        print(pof.feasible_data_index())
+        self.assertGreater(ei.fmin.value, np.min(Yo), msg="The best objective value is in an infeasible area")
+        self.assertTrue(np.allclose(ei.fmin.value, np.min(Yo[pof.feasible_data_index(), :]), atol=1e-3),
+                        msg="fmin computed incorrectly")
 
     def test_hierarchy(self):
         design = GPflowOpt.design.LatinHyperCube(16, self.domain)
