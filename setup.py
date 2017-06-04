@@ -33,7 +33,8 @@ setup(name='GPflowOpt',
       py_modules=['GPflowOpt.__init__'],
       test_suite='testing',
       install_requires=['numpy>=1.9', 'scipy>=0.16', 'tensorflow>=1.0.0', 'GPflow>=0.3.5'],
-      extras_require={'tensorflow with gpu': ['tensorflow-gpu>=1.0.0']},
+      extras_require={'tensorflow with gpu': ['tensorflow-gpu>=1.0.0'],
+                      'docs': ['sphinx', 'sphinx_rtd_theme', 'numpydoc', 'nbsphinx', 'jupyter']},
       dependency_links=['https://github.com/GPflow/GPflow/tarball/master#egg=GPflow-0.3.5'],
       classifiers=['License :: OSI Approved :: Apache Software License',
                    'Natural Language :: English',
@@ -43,4 +44,3 @@ setup(name='GPflowOpt',
                    'Programming Language :: Python :: 3.6',
                    'Topic :: Scientific/Engineering :: Artificial Intelligence']
       )
-
