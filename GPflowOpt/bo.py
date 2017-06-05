@@ -108,7 +108,7 @@ class BayesianOptimizer(Optimizer):
 
     def _optimize(self, fx, n_iter):
         """
-        Internal optimization function. Receives and ObjectiveWrapper. As exclude_gradient is set to true,
+        Internal optimization function. Receives an ObjectiveWrapper. As exclude_gradient is set to true,
         the placeholder created by _evaluate_objectives will not be returned.
         :param fx: ObjectiveWrapper object wrapping expensive black-box objective and constraint functions
         :param n_iter: number of iterations to run
