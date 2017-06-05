@@ -21,7 +21,7 @@ from .transforms import LinearTransform
 
 class Domain(Parentable):
     """
-    Basic class, representing an optimization domain by aggregating several parameters to be optimized.
+    A domain representing the mathematical space over which is optimized.
     """
 
     def __init__(self, parameters):
@@ -154,7 +154,7 @@ class Parameter(Domain):
 
     def _html_table_rows(self):
         """
-        html row representation of a Parameter. Should be overwritten in subclasses objects.
+        Html row representation of a Parameter. Should be overwritten in subclasses objects.
         """
         return "<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>".format(self.label, 'N/A', 'N/A')
 
@@ -185,6 +185,6 @@ class ContinuousParameter(Parameter):
 
     def _html_table_rows(self):
         """
-        html row representation of a ContinuousParameter. 
+        Html row representation of a ContinuousParameter.
         """
         return "<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>".format(self.label, 'Continuous', str(self._range))

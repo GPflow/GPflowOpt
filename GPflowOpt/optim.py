@@ -37,8 +37,10 @@ class ObjectiveWrapper(model.ObjectiveWrapper):
 
 class Optimizer(object):
     """
-    Basic class representing an optimization algorithm over a domain. Starts from an initial
-    (set of) point(s). May be gradient-based or gradient-free.
+    An optimization algorithm.
+
+    Starts from an initial (set of) point(s) it performs an optimization over a domain.
+    May be gradient-based or gradient-free.
     """
 
     def __init__(self, domain, exclude_gradient=False):
@@ -49,12 +51,13 @@ class Optimizer(object):
 
     def optimize(self, objectivefx, **kwargs):
         """
-        Method to optimize a given function f over the optimizer domain. 
-        The optimizer class supports interruption. If during the optimization ctrl+c is pressed, the previous point is
+        Optimize a given function f over a domain.
+
+        The optimizer class supports interruption. If during the optimization ctrl+c is pressed, the last best point is
         returned.
         
         The actual optimization routine is implemented in _optimize, to be implemented in subclasses.
-        
+
         :param objectivefx: callable, taking one argument: a 2D numpy array. The number of columns correspond to the 
         dimensionality of the input domain.
         :return: OptimizeResult reporting the results.
@@ -95,9 +98,10 @@ class Optimizer(object):
 
 class CandidateOptimizer(Optimizer):
     """
-    This optimizer optimizes an objective function by evaluating of a set of candidate points (and returning the point
-    with minimal objective value. 
-    
+    Optimization of an objective function by evaluating a set of pre-defined candidate points.
+
+    Returns the point with minimal objective value.
+
     For compatibility with the StagedOptimizer, the candidate points are concatenated with
     the initial points and evaluated.
     """
@@ -136,8 +140,9 @@ class CandidateOptimizer(Optimizer):
 
 class MCOptimizer(CandidateOptimizer):
     """
-    This class represents optimization of an objective function by evaluating a set of random points. Each call to
-    optimize, a different set of random points is evaluated.
+    Optimization of an objective function by evaluating a set of random points.
+
+    Note: each call to optimize, a different set of random points is evaluated.
     """
 
     def __init__(self, domain, nsamples, batch=False):
@@ -151,7 +156,7 @@ class MCOptimizer(CandidateOptimizer):
 
 class SciPyOptimizer(Optimizer):
     """
-    Wraps optimization with SciPy's minimize function.
+    Wraps SciPy's minimize function.
     """
 
     def __init__(self, domain, method='L-BFGS-B', tol=None, maxiter=1000):
@@ -177,7 +182,9 @@ class SciPyOptimizer(Optimizer):
 
 class StagedOptimizer(Optimizer):
     """
-    Represents an optimization pipeline. A list of optimizers can be specified (all on the same domain). The optimal
+    An optimization pipeline of multiple optimizers called in succession.
+
+    A list of optimizers can be specified (all on the same domain). The optimal
     solution of the an optimizer is used as an initial point for the next optimizer.
     """
 
@@ -189,7 +196,7 @@ class StagedOptimizer(Optimizer):
 
     def optimize(self, objectivefx):
         """
-        The StagedOptimizer overwrites the default behaviour by optimize(). It passes the best point of the previous
+        The StagedOptimizer overwrites the default behaviour of optimize(). It passes the best point of the previous
         stage to the next stage. If the optimization is interrupted or fails, this process stops and the OptimizeResult 
         is returned.
         """

@@ -22,8 +22,9 @@ from .design import EmptyDesign
 
 class BayesianOptimizer(Optimizer):
     """
-    Specific optimizer representing the typical workflow of Bayesian Optimization. Like other optimizers, this optimizer
-    is constructed for optimization over a domain. 
+    A Bayesian Optimizer.
+
+    Like other optimizers, this optimizer is constructed for optimization over a domain.
     """
 
     def __init__(self, domain, acquisition, optimizer=None, initial=None):
@@ -77,9 +78,9 @@ class BayesianOptimizer(Optimizer):
 
     def _create_result(self, success, message):
         """
-        Given all data evaluated after the optimization, analyse and return an OptimizeResult. Outputs of constraints
+        Analyzes all data evaluated during the optimization, and return an OptimizeResult. Outputs of constraints
         are used to remove all infeasible points.
-        :param success: Optimization successfull? (True/False)
+        :param success: Optimization successful? (True/False)
         :param message: return message
         :return: OptimizeResult object
         """

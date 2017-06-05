@@ -1,7 +1,7 @@
 Acquisition functions
 ========================
 
-The GPflowOpt package currently supports a limited number implementations of popular acquisition functions. These are
+The GPflowOpt package currently supports a limited number of popular acquisition functions. These are
 summarized in the table below. Detailed description for each can be found below.
 
 .. automodule:: GPflowOpt.acquisition
@@ -17,7 +17,6 @@ summarized in the table below. Detailed description for each can be found below.
 +----------------------------------------------------------+-----------+-------------+-----------+
 | :class:`GPflowOpt.acquisition.LowerConfidenceBound`      |     ✔     |             |     1     |
 +----------------------------------------------------------+-----------+-------------+-----------+
-
 
 Expected Improvement
 --------------------

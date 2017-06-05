@@ -26,11 +26,13 @@ stability = settings.numerics.jitter_level
 
 class Acquisition(Parameterized):
     """
-    This class represents an acquisition functions which maps the predictive distribution of a Bayesian model into a 
-    score indicating how promising the point is for evaluation. In Bayesian Optimization this function is typically 
-    optimized over the optimization domain to determine the next point for evaluation. 
+    An acquisition function maps the belief represented by a Bayesian model into a
+    score indicating how promising a point is for evaluation.
 
-    An object of this class holds ga list of GPflow models. For single objective optimization this is typically a 
+    In Bayesian Optimization this function is typically optimized over the optimization domain
+    to determine the next point for evaluation.
+
+    An object of this class holds a list of GPflow models. For single objective optimization this is typically a 
     single model. Subclasses implement a build_acquisition function which computes the acquisition function (usually 
     from the predictive distribution) using TensorFlow. 
 
@@ -49,12 +51,16 @@ class Acquisition(Parameterized):
 
     def _optimize_all(self):
         """
-        Optimizes all contained models. Called after initialization and set_data(). 
+        Optimizes the hyperparameters of all models that the acquisition function is based on.
+
+        It is called after initialization and set_data(), and before optimizing the acquisition function itself.
+
         For each model the hyperparameters of the model at the time it was passed to __init__() are used as initial
         point and optimized. If optimize_restarts was configured to values larger than one additional randomization 
         steps are performed. 
         
-        Exceptionally, if optimize_restarts is set to zero, the hyperparameters of the models are not optimized. 
+        As a special case, if optimize_restarts is set to zero, the hyperparameters of the models are not optimized.
+        This is useful when the hyperparameters are sampled using MCMC.
         """
         for model, hypers in zip(self.models, self._default_params):
             runs = []
@@ -73,7 +79,7 @@ class Acquisition(Parameterized):
 
     def _build_acquisition_wrapper(self, Xcand, gradients=True):
         """
-        Wrapper to build the graph to compute the acquisition function with or without the gradient.
+        Build the graph to compute the acquisition function.
         
         :param Xcand: candidate points to compute the acquisition function for
         :param gradients: (True/False) should the wrapper return only the score, or also the gradient?
@@ -90,11 +96,11 @@ class Acquisition(Parameterized):
 
     def set_data(self, X, Y):
         """
-        Method to update the data of the contained models. Automatically triggers a hyperparameter optimization
+        Update the training data of the contained models. Automatically triggers a hyperparameter optimization
         step by calling _optimize_all() and an update of pre-computed quantities by calling setup().
         
         Consider Q to be the the sum of the output dimensions of the contained models, Y should have a minimum of 
-        Q columns. The method will only the first Q columns of Y and return the scalar Q
+        Q columns. Only the first Q columns of Y are used while returning the scalar Q
 
         :param X: input data N x D
         :param Y: Responses N x M (M >= Q)
@@ -117,8 +123,11 @@ class Acquisition(Parameterized):
     @property
     def data(self):
         """
-        Property for accessing the data of the models. Corresponds to the input data X, and column-wise concatenation 
-        of the Y properties. 
+        Property for accessing the training data of the models.
+
+        Corresponds to the input data X which is the same for every model,
+        and column-wise concatenation of the Y data over all models
+
         :return: X, Y tensors (if in tf_mode) or X, Y numpy arrays.
         """
         if self._tf_mode:
@@ -128,15 +137,15 @@ class Acquisition(Parameterized):
 
     def constraint_indices(self):
         """
-        Method returning the indices of the model outputs which are constraints. 
-        By default: no constraint outputs
+        Method returning the indices of the model outputs which correspond to the (expensive) constraint functions.
+        By default there are no constraint functions
         """
         return np.empty((0,), dtype=int)
 
     def objective_indices(self):
         """
-        Method returning the indices of the model outputs which are objectives
-        By default: all outputs are objectives
+        Method returning the indices of the model outputs which are objective functions.
+        By default all outputs are objectives
         """
         return np.setdiff1d(np.arange(self.data[1].shape[1]), self.constraint_indices())
 
@@ -144,13 +153,16 @@ class Acquisition(Parameterized):
         """
         Returns a boolean array indicating which data points are considered feasible (according to the acquisition 
         function(s) ) and which not.
+        By default all data is considered feasible
         :return: boolean ndarray, N 
         """
         return np.ones(self.data[0].shape[0], dtype=bool)
 
     def setup(self):
         """
-        Method triggered after calling set_data(). Override for pre-calculation of quantities used later in
+        Method triggered after calling set_data().
+
+        Override for pre-calculation of quantities used later in
         the evaluation of the acquisition function for candidate points
         """
         pass
@@ -217,10 +229,11 @@ class ExpectedImprovement(Acquisition):
             year={1998},
             publisher={Springer}
        }
-       
-    This acquisition function is related to the Probability of Improvement, but adds a multiplication with the 
-    improvement w.r.t the current best observation to the integral. 
-    
+
+    This acquisition function is the expectation of the improvement over the current best observation
+    w.r.t. the predictive distribution. The definition is closely related to the Probability of Improvement,
+    but adds a multiplication with the improvement w.r.t the current best observation to the integral.
+
     .. math::
        \\alpha(\\mathbf x_{\\star}) = \\int \\max(f_{\\min} - f_{\\star}, 0) \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
     """
@@ -295,7 +308,7 @@ class ProbabilityOfFeasibility(Acquisition):
         """
         Returns a boolean array indicating which points are feasible (True) and which are not (False)
         Answering the question *which points are feasible?* is slightly troublesome in case noise is present.
-        Directly relying on the data and comparing it to self.threshold can be troublesome.
+        Directly relying on the noisy data and comparing it to self.threshold does not make much sense.
 
         Instead, we rely on the model belief. More specifically, we evaluate the PoF (score between 0 and 1).
         As the implementation of the PoF corresponds to the cdf of the (normal) predictive distribution in
@@ -317,7 +330,7 @@ class ProbabilityOfFeasibility(Acquisition):
 
 class ProbabilityOfImprovement(Acquisition):
     """
-    Implementation of the Probability of Improvement acquisition function for single-objective global optimization.
+    Probability of Improvement acquisition function for single-objective global optimization.
 
     .. math::
        \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{f_{\\min}} \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
@@ -342,7 +355,7 @@ class ProbabilityOfImprovement(Acquisition):
 
 class LowerConfidenceBound(Acquisition):
     """
-    Implementation of the LCB acquisition function for single-objective global optimization.
+    Lower confidence bound acquisition function for single-objective global optimization.
 
     .. math::
        \\alpha(\\mathbf x_{\\star}) =\\mathbb{E} \\left[ \\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
@@ -410,7 +423,7 @@ class AcquisitionAggregation(Acquisition):
 
 class AcquisitionSum(AcquisitionAggregation):
     """
-    Sum of several acquisition functions
+    Sum of acquisition functions
     """
     def __init__(self, operands):
         super(AcquisitionSum, self).__init__(operands, tf.reduce_sum)
@@ -423,7 +436,7 @@ class AcquisitionSum(AcquisitionAggregation):
 
 class AcquisitionProduct(AcquisitionAggregation):
     """
-    Product of several acquisition functions
+    Product of acquisition functions
     """
     def __init__(self, operands):
         super(AcquisitionProduct, self).__init__(operands, tf.reduce_prod)
