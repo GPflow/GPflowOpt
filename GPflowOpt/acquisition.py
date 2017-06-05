@@ -44,9 +44,9 @@ class Acquisition(Parameterized):
 
         assert (optimize_restarts >= 0)
         self._optimize_restarts = optimize_restarts
-        self._optimize_all()
+        self._optimize_models()
 
-    def _optimize_all(self):
+    def _optimize_models(self):
         for model, hypers in zip(self.models, self._default_params):
             runs = []
             # Start from supplied hyperparameters
@@ -82,7 +82,7 @@ class Acquisition(Parameterized):
             model.X = X
             model.Y = Ypart
 
-        self._optimize_all()
+        self._optimize_models()
         if self.highest_parent == self:
             self.setup()
         return num_outputs_sum
