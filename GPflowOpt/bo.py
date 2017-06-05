@@ -24,7 +24,8 @@ class BayesianOptimizer(Optimizer):
     """
     A Bayesian Optimizer.
 
-    Like other optimizers, this optimizer is constructed for optimization over a domain.
+    Like other optimizers, this optimizer is constructed for optimization over a domain. Additionally, it is configured
+    with a seperate optimizer for the acquisition function.
     """
 
     def __init__(self, domain, acquisition, optimizer=None, initial=None):
@@ -58,25 +59,24 @@ class BayesianOptimizer(Optimizer):
         Y = np.vstack((self.acquisition.data[1], newY))
         self.acquisition.set_data(X, Y)
 
-    def _acquisition_wrapper(self, x):
+    def _evaluate_objectives(self, X, fxs):
         """
-        Negation of the acquisition score/gradient
-        :param x: candidate points (# candidates x indim)
-        :return: negative score and gradient (maximizing acquisition function vs minimization algorithm)
+        Evaluates a list of n functions on X. Returns a ndarray, with the number of columns equal to sum(Q0,...Qn-1)
+        with Qi the number of columns obtained by evaluating the i-th function.
+        :param X: input points, 2D ndarray, N x D
+        :param fxs: 1D ndarray of (expensive) functions
+        :return: tuple: (0) 2D ndarray (# new samples x sum(Q0,...Qn-1)). Evaluations
+                        (1) 2D ndarray (# new samples x 0): Bayesian Optimizer is gradient-free, however calling
+                        optimizer of the parent class expects a gradient. Will be discarded further on.
         """
-        scores, grad = self.acquisition.evaluate_with_gradients(np.atleast_2d(x))
-        return -scores, -grad
-
-    def _evaluate(self, X, fxs):
-        fxs = np.atleast_1d(fxs)
         if X.size > 0:
             evaluations = np.hstack(map(lambda f: f(X), fxs))
             assert evaluations.shape[1] == self.acquisition.data[1].shape[1]
-            return evaluations
+            return evaluations, np.zeros((X.shape[0], 0))
         else:
-            return np.empty((0, self.acquisition.data[1].shape[1]))
+            return np.empty((0, self.acquisition.data[1].shape[1])), np.zeros((0, 0))
 
-    def _create_result(self, success, message):
+    def _create_bo_result(self, success, message):
         """
         Analyzes all data evaluated during the optimization, and return an OptimizeResult. Outputs of constraints
         are used to remove all infeasible points.
@@ -120,15 +120,13 @@ class BayesianOptimizer(Optimizer):
         :param n_iter: number of iterations to run
         :return: OptimizeResult object
         """
-
-        # Bayesian optimization is Gradient-free: provide wrapper. Also anticipate for lists and pass on a function
-        # which satisfies the optimizer.optimize interface
-        fx = lambda X: (self._evaluate(X, objectivefx), np.zeros((X.shape[0], 0)))
-        return super(BayesianOptimizer, self).optimize(fx, n_iter=n_iter)
+        fxs = np.atleast_1d(objectivefx)
+        return super(BayesianOptimizer, self).optimize(lambda x: self._evaluate_objectives(x, fxs), n_iter=n_iter)
 
     def _optimize(self, fx, n_iter):
         """
-        Internal optimization function. Receives an ObjectiveWrapper as input.
+        Internal optimization function. Receives an ObjectiveWrapper as input. As exclude_gradient is set to true,
+        the placeholder created by _evaluate_objectives will not be returned.
         :param fx: ObjectiveWrapper object wrapping expensive black-box objective and constraint functions
         :param n_iter: number of iterations to run
         :return: OptimizeResult object
@@ -140,12 +138,16 @@ class BayesianOptimizer(Optimizer):
         initial = self.get_initial()
         values = fx(initial)
         self._update_model_data(initial, values)
+
         # Remove initial design for additional calls to optimize to proceed optimization
         self.set_initial(EmptyDesign(self.domain).generate())
 
+        def inverse_acquisition(x):
+            return tuple(map(lambda r: -r, self.acquisition.evaluate_with_gradients(np.atleast_2d(x))))
+
         # Optimization loop
         for i in range(n_iter):
-            result = self.optimizer.optimize(self._acquisition_wrapper)
+            result = self.optimizer.optimize(inverse_acquisition)
             self._update_model_data(result.x, fx(result.x))
 
-        return self._create_result(True, "OK")
+        return self._create_bo_result(True, "OK")

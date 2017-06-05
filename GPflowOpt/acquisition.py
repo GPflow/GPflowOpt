@@ -47,18 +47,18 @@ class Acquisition(Parameterized):
 
         assert (optimize_restarts >= 0)
         self._optimize_restarts = optimize_restarts
-        self._optimize_all()
+        self._optimize_models()
 
-    def _optimize_all(self):
+    def _optimize_models(self):
         """
         Optimizes the hyperparameters of all models that the acquisition function is based on.
 
         It is called after initialization and set_data(), and before optimizing the acquisition function itself.
 
         For each model the hyperparameters of the model at the time it was passed to __init__() are used as initial
-        point and optimized. If optimize_restarts was configured to values larger than one additional randomization 
-        steps are performed. 
-        
+        point and optimized. If optimize_restarts was configured to values larger than one additional randomization
+        steps are performed.
+
         As a special case, if optimize_restarts is set to zero, the hyperparameters of the models are not optimized.
         This is useful when the hyperparameters are sampled using MCMC.
         """
@@ -80,7 +80,7 @@ class Acquisition(Parameterized):
     def _build_acquisition_wrapper(self, Xcand, gradients=True):
         """
         Build the graph to compute the acquisition function.
-        
+
         :param Xcand: candidate points to compute the acquisition function for
         :param gradients: (True/False) should the wrapper return only the score, or also the gradient?
         :return: acquisition function evaluated on Xcand, gradient of the acquisition function (if gradients=True)
@@ -98,8 +98,8 @@ class Acquisition(Parameterized):
         """
         Update the training data of the contained models. Automatically triggers a hyperparameter optimization
         step by calling _optimize_all() and an update of pre-computed quantities by calling setup().
-        
-        Consider Q to be the the sum of the output dimensions of the contained models, Y should have a minimum of 
+
+        Consider Q to be the the sum of the output dimensions of the contained models, Y should have a minimum of
         Q columns. Only the first Q columns of Y are used while returning the scalar Q
 
         :param X: input data N x D
@@ -115,7 +115,7 @@ class Acquisition(Parameterized):
             model.X = X
             model.Y = Ypart
 
-        self._optimize_all()
+        self._optimize_models()
         if self.highest_parent == self:
             self.setup()
         return num_outputs_sum
@@ -151,10 +151,10 @@ class Acquisition(Parameterized):
 
     def feasible_data_index(self):
         """
-        Returns a boolean array indicating which data points are considered feasible (according to the acquisition 
+        Returns a boolean array indicating which data points are considered feasible (according to the acquisition
         function(s) ) and which not.
         By default all data is considered feasible
-        :return: boolean ndarray, N 
+        :return: boolean ndarray, N
         """
         return np.ones(self.data[0].shape[0], dtype=bool)
 
@@ -170,26 +170,26 @@ class Acquisition(Parameterized):
     @AutoFlow((float_type, [None, None]))
     def evaluate_with_gradients(self, Xcand):
         """
-        AutoFlow method to compute the acquisition scores for candidates, also returns the gradients. 
+        AutoFlow method to compute the acquisition scores for candidates, also returns the gradients.
         """
         return self._build_acquisition_wrapper(Xcand, gradients=True)
 
     @AutoFlow((float_type, [None, None]))
     def evaluate(self, Xcand):
         """
-        AutoFlow method to compute the acquisition scores for candidates, without returning the gradients. 
+        AutoFlow method to compute the acquisition scores for candidates, without returning the gradients.
         """
         return self._build_acquisition_wrapper(Xcand, gradients=False)
 
     def __add__(self, other):
         """
         Operator for adding acquisition functions. Example:
-        
+
         >>> a1 = GPflowOpt.acquisition.ExpectedImprovement(m1)
         >>> a2 = GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
         >>> type(a1 + a2)
         <type 'GPflowOpt.acquisition.AcquisitionSum'>
-        
+
         """
         if isinstance(other, AcquisitionSum):
             return AcquisitionSum([self] + other.operands.sorted_params)
