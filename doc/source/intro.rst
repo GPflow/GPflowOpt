@@ -9,7 +9,7 @@ Install
 You will need version 1.0 or above. We find that for many users pip installation is the fastest way to get going.
 ``pip install tensorflow``
 
-For alternative installations, please see instructions on the main `TensorFlow webpage <https://www.tensorflow.org/install/>`_. 
+For alternative installations, please see the instructions on the main `TensorFlow webpage <https://www.tensorflow.org/install/>`_.
 
 2. Install package
 
