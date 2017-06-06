@@ -55,7 +55,7 @@ class Normalizer(Parameterized):
         super(Normalizer, self).__setattr__(key, value)
 
     def __eq__(self, other):
-        return self.wrapped.__eq__(other)
+        return self.wrapped == other
 
     # Overwrites
     @property
