@@ -33,19 +33,19 @@ class TestNormalizer(unittest.TestCase):
 
     def test_enabling_transforms(self):
         m = self.create_parabola_model()
-        n1 = Normalizer(m, self.domain, scale_input=False, normalize_output=False)
+        n1 = Normalizer(m, normalize_output=False)
         self.assertTrue(np.allclose(m.X.value, n1.X.value))
         self.assertTrue(np.allclose(m.Y.value, n1.Y.value))
 
-        n2 = Normalizer(m, self.domain, scale_input=True, normalize_output=False)
+        n2 = Normalizer(m, self.domain, normalize_output=False)
         self.assertTrue(np.allclose(m.X.value * 2 - 1, n2.X.value))
         self.assertTrue(np.allclose(m.Y.value, n2.Y.value))
 
-        n3 = Normalizer(m, self.domain, scale_input=False, normalize_output=True)
+        n3 = Normalizer(m, normalize_output=True)
         self.assertTrue(np.allclose(m.X.value, n3.X.value))
         self.assertTrue(np.allclose(m.Y.value, (n3.Y.value - np.mean(n3.Y.value, axis=0)) / np.std(n3.Y.value, axis=0)))
 
-        n4 = Normalizer(m, self.domain, scale_input=True, normalize_output=True)
+        n4 = Normalizer(m, self.domain, normalize_output=True)
         self.assertTrue(np.allclose(m.X.value * 2 - 1, n4.X.value))
         self.assertTrue(np.allclose(m.Y.value, (n4.Y.value - np.mean(n4.Y.value, axis=0)) / np.std(n4.Y.value, axis=0)))
 

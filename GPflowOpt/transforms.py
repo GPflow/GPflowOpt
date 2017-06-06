@@ -140,6 +140,11 @@ class LinearTransform(DataTransform):
         scaled_var = tf.reshape(tf.transpose(tf.cholesky_solve(L, tf.transpose(Yvar))), [N, N, D])
         return tf.cond(tf.equal(rank, 2), lambda: tf.reduce_sum(scaled_var, axis=1), lambda: scaled_var)
 
+    def assign(self, other):
+        assert (isinstance(other, LinearTransform))
+        self.A.set_data(other.A.value)
+        self.b.set_data(other.b.value)
+
     def __invert__(self):
         A_inv = np.linalg.inv(self.A.value.T)
         return LinearTransform(A_inv, -np.dot(self.b.value, A_inv))

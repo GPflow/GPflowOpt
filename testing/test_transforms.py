@@ -98,3 +98,10 @@ class LinearTransformTests(unittest.TestCase):
         t.update_feed_dict(feed_dict_keys, feed_dict)
         Bs = session.run(scaled, feed_dict=feed_dict)
         self.assertTrue(np.allclose(Bs, B * np.array([4, 1])))
+
+    def test_assign(self):
+        t1 = GPflowOpt.transforms.LinearTransform([2.0, 1.0], [1.2, 0.7])
+        t2 = GPflowOpt.transforms.LinearTransform([1.0, 1.0], [0, 0])
+        t1.assign(t2)
+        np.testing.assert_allclose(t1.A.value, t2.A.value)
+        np.testing.assert_allclose(t1.b.value, t2.b.value)

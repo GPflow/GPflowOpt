@@ -15,6 +15,7 @@
 from GPflow.param import Parameterized, AutoFlow, ParamList, DataHolder
 from GPflow.model import Model
 from GPflow import settings
+from .normalizer import Normalizer
 
 import numpy as np
 
@@ -39,7 +40,7 @@ class Acquisition(Parameterized):
 
     def __init__(self, models=[], optimize_restarts=5):
         super(Acquisition, self).__init__()
-        self.models = ParamList(np.atleast_1d(models).tolist())
+        self.models = ParamList([Normalizer(m, normalize_output=True) for m in np.atleast_1d(models).tolist()])
         self._default_params = list(map(lambda m: m.get_free_state(), self.models))
 
         assert (optimize_restarts >= 0)
@@ -61,13 +62,6 @@ class Acquisition(Parameterized):
                     print("Warning - optimization restart {0}/{1} failed".format(i + 1, self._optimize_restarts))
             best_idx = np.argmin(map(lambda r: r.fun, runs))
             model.set_state(runs[best_idx].x)
-
-    def _build_acquisition_wrapper(self, Xcand, gradients=True):
-        acq = self.build_acquisition(Xcand)
-        if gradients:
-            return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
-        else:
-            return acq
 
     def build_acquisition(self):
         raise NotImplementedError
@@ -117,11 +111,12 @@ class Acquisition(Parameterized):
 
     @AutoFlow((float_type, [None, None]))
     def evaluate_with_gradients(self, Xcand):
-        return self._build_acquisition_wrapper(Xcand, gradients=True)
+        acq = self.build_acquisition(Xcand)
+        return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
     @AutoFlow((float_type, [None, None]))
     def evaluate(self, Xcand):
-        return self._build_acquisition_wrapper(Xcand, gradients=False)
+        return self.build_acquisition(Xcand)
 
     def __add__(self, other):
         if isinstance(other, AcquisitionSum):
