@@ -142,10 +142,9 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
 class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
         super(TestBayesianOptimizer, self).setUp()
-        design = GPflowOpt.design.FactorialDesign(4, self.domain)
+        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
         X, Y = design.generate(), parabola2d(design.generate())[0]
-        model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.var(axis=0)))
-        model.kern.variance.prior = GPflow.priors.Gamma(3, 1.0 / 3.0)
+        model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
         acquisition = GPflowOpt.acquisition.ExpectedImprovement(model)
         self.optimizer = GPflowOpt.BayesianOptimizer(self.domain, acquisition)
 
