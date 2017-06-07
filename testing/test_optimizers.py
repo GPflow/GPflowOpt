@@ -63,6 +63,11 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
     def test_set_domain(self):
         with self.assertRaises(AssertionError):
             super(TestCandidateOptimizer, self).test_set_domain()
+        self.optimizer.domain = GPflowOpt.domain.UnitCube(2)
+        self.assertNotEqual(self.optimizer.domain, self.domain)
+        self.assertEqual(self.optimizer.domain, GPflowOpt.domain.UnitCube(2))
+        rescaled_candidates = GPflowOpt.design.FactorialDesign(4, GPflowOpt.domain.UnitCube(2)).generate()
+        self.assertTrue(np.allclose(self.optimizer.get_initial(), np.vstack((0.5*np.ones((1,2)), rescaled_candidates))))
 
     def test_optimize(self):
         result = self.optimizer.optimize(parabola2d)
