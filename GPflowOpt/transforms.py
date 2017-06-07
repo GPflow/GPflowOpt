@@ -52,16 +52,6 @@ class DataTransform(Parameterized):
         """
         return (~self).forward(Y)
 
-    def build_backward(self, Y):
-        """
-        Performs numpy transformation of V -> U. By default, calls tf_forward on the inverted transform object which 
-        requires implementation of __invert__. The method can be overwritten in subclasses if more efficient 
-        implementation is available.
-        :param Y: N x Q tensor
-        :return: N x P tensor
-                """
-        return (~self).build_forward(Y)
-
     def __invert__(self):
         """
         Return a DataTransform object implementing the transform from V -> U
@@ -101,19 +91,19 @@ class LinearTransform(DataTransform):
         self.A = DataHolder(A)
         self.b = DataHolder(b)
 
-    @AutoFlow((float_type, [None, None]))
-    def backward(self, Y):
-        """
-        Overwrites the default backward approach, it avoids an explicit matrix inversion.
-        """
-        return self.build_backward(Y)
-
     def build_forward(self, X):
         return tf.matmul(X, tf.transpose(self.A)) + self.b
 
+    @AutoFlow((float_type, [None, None]))
+    def backward(self, Y):
+        """
+        Overwrites the default backward approach, to avoids an explicit matrix inversion.
+        """
+        return self.build_backward(Y)
+
     def build_backward(self, Y):
         """
-        Overwrites the default backward approach, it avoids an explicit matrix inversion.
+        TensorFlow implementation of the inverse mapping
         """
         L = tf.cholesky(tf.transpose(self.A))
         XT = tf.cholesky_solve(L, tf.transpose(Y-self.b))
