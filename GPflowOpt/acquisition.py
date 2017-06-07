@@ -16,6 +16,7 @@ from GPflow.param import Parameterized, AutoFlow, ParamList, DataHolder
 from GPflow.model import Model
 from GPflow import settings
 from .normalizer import Normalizer
+from .domain import UnitCube
 
 import numpy as np
 
@@ -40,7 +41,7 @@ class Acquisition(Parameterized):
 
     def __init__(self, models=[], optimize_restarts=5):
         super(Acquisition, self).__init__()
-        self.models = ParamList([Normalizer(m, normalize_output=True) for m in np.atleast_1d(models).tolist()])
+        self.models = ParamList([Normalizer(m) for m in np.atleast_1d(models).tolist()])
         self._default_params = list(map(lambda m: m.get_free_state(), self.models))
 
         assert (optimize_restarts >= 0)
@@ -65,6 +66,13 @@ class Acquisition(Parameterized):
 
     def build_acquisition(self):
         raise NotImplementedError
+
+    def enable_scaling(self, domain):
+        n_inputs = self.data[0].shape[1]
+        assert (domain.size == n_inputs)
+        for m in self.models:
+            m.input_transform = domain >> UnitCube(n_inputs)
+            m.normalize_output = True
 
     def set_data(self, X, Y):
         num_outputs_sum = 0
@@ -268,6 +276,9 @@ class AcquisitionAggregation(Acquisition):
             return X, tf.concat(list(Ys), 1)
         else:
             return X, np.hstack(Ys)
+
+    def enable_scaling(self, domain):
+        _ = [oper.enable_scaling(domain) for oper in self.operands]
 
     def set_data(self, X, Y):
         offset = 0

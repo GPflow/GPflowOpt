@@ -26,14 +26,18 @@ class BayesianOptimizer(Optimizer):
     Takes a domain, an acquisition function and a seperate, second optimizer object for the acquisition function.
     """
 
-    def __init__(self, domain, acquisition, optimizer=None, initial=None):
+    def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True):
         assert isinstance(acquisition, Acquisition)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
         self.acquisition = acquisition
-        if initial is None:
-            initial = EmptyDesign(domain)
+        if scaling:
+            self.acquisition.enable_scaling(domain)
+
+        self.optimizer = optimizer or SciPyOptimizer(domain)
+        self.optimizer.domain = domain
+
+        initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
-        self.optimizer = SciPyOptimizer(domain) if optimizer is None else optimizer
 
     def _update_model_data(self, newX, newY):
         """

@@ -42,6 +42,12 @@ class _TestOptimizer(object):
         self.assertTupleEqual(self.optimizer._initial.shape, (1, 2), msg="Invalid shape of initial points array")
         self.assertTrue(np.allclose(self.optimizer._initial, 1), msg="Specified initial point not loaded.")
 
+    def test_set_domain(self):
+        self.optimizer.domain = GPflowOpt.domain.UnitCube(3)
+        self.assertNotEqual(self.optimizer.domain, self.domain)
+        self.assertEqual(self.optimizer.domain, GPflowOpt.domain.UnitCube(3))
+        self.assertTrue(np.allclose(self.optimizer.get_initial(), 0.5))
+
 
 class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
@@ -53,6 +59,10 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertTupleEqual(self.optimizer.candidates.shape, (16, 2), msg="Invalid shape of candidate property.")
         self.assertTupleEqual(self.optimizer.get_initial().shape, (17, 2), msg="Invalid shape of initial points")
         self.assertFalse(self.optimizer.gradient_enabled(), msg="CandidateOptimizer supports no gradients.")
+
+    def test_set_domain(self):
+        with self.assertRaises(AssertionError):
+            super(TestCandidateOptimizer, self).test_set_domain()
 
     def test_optimize(self):
         result = self.optimizer.optimize(parabola2d)

@@ -17,36 +17,41 @@ from GPflow.model import Model
 from GPflow import settings
 import numpy as np
 from .transforms import LinearTransform
-from .domain import ContinuousParameter
+from .domain import UnitCube
 
 float_type = settings.dtypes.float_type
 
 
 class Normalizer(Parameterized):
-    def __init__(self, model, domain=None, normalize_output=True):
+    def __init__(self, model, domain=None, normalize_output=False):
+        # model sanity checks
         assert (model is not None)
         assert (hasattr(model, 'X'))
         assert (hasattr(model, 'Y'))
         assert (hasattr(model, 'build_predict'))
         assert (isinstance(model, Model))
+
+        # Wrap model
         self.wrapped = model
         super(Normalizer, self).__init__()
+
+        # Initial configuration of the normalizer
         n_inputs = model.X.shape[1]
         n_outputs = model.Y.shape[1]
-
-        unitcube = np.sum([ContinuousParameter('x{0}'.format(i), 0, 1) for i in np.arange(n_inputs)])
-        self._input_transform = domain >> unitcube if domain else LinearTransform(np.ones(n_inputs),
-                                                                                  np.zeros(n_inputs))
-
-        self._output = normalize_output
+        self._input_transform = (domain or UnitCube(n_inputs)) >> UnitCube(n_inputs)
+        self._normalize_output = normalize_output
         self.output_transform = LinearTransform(np.ones(n_outputs), np.zeros(n_outputs))
+
+        # These assignments take care of initial re-scaling of model data (they trigger setter properties)
         self.X = model.X.value
         self.Y = model.Y.value
 
     def __getattr__(self, item):
+        # Method not found in this class -> get it from wrapped model.
         return self.__getattribute__('wrapped').__getattribute__(item)
 
     def __setattr__(self, key, value):
+        # If setting wrapped attribute, point parent to the normalizer
         if key is 'wrapped':
             object.__setattr__(self, key, value)
             value.__setattr__('_parent', self)
@@ -57,7 +62,29 @@ class Normalizer(Parameterized):
     def __eq__(self, other):
         return self.wrapped == other
 
-    # Overwrites
+    @property
+    def input_transform(self):
+        return self._input_transform
+
+    @input_transform.setter
+    def input_transform(self, t):
+        X = self.X.value
+        self._input_transform.assign(t)
+        self.X = X
+
+    @property
+    def normalize_output(self):
+        return self._normalize_output
+
+    @normalize_output.setter
+    def normalize_output(self, flag):
+        Y = self.Y.value
+        self._normalize_output = flag
+        if not flag:
+            self.output_transform = LinearTransform(np.ones(Y.shape[1]), np.zeros(Y.shape[1]))
+        self.Y = Y
+
+    # Methods overwriting methods of the wrapped model.
     @property
     def X(self):
         return DataHolder(self.input_transform.backward(self.wrapped.X.value))
@@ -72,20 +99,9 @@ class Normalizer(Parameterized):
 
     @Y.setter
     def Y(self, value):
-        if self._output:
+        if self.normalize_output:
             self.output_transform.assign(~LinearTransform(value.std(axis=0), value.mean(axis=0)))
-        # self.highest_parent._kill_autoflow()
         self.wrapped.Y = self.output_transform.forward(value)
-
-    @property
-    def input_transform(self):
-        return self._input_transform
-
-    # @input_transform.setter
-    # def input_transform(self, t):
-    #    X = self.X.value
-    #    self._input_transform.assign(t)
-    #    self.X = X
 
     def build_predict(self, Xcand, full_cov=False):
         f, var = self.wrapped.build_predict(self.input_transform.build_forward(Xcand), full_cov=full_cov)

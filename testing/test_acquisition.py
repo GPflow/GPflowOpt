@@ -51,9 +51,9 @@ class _TestAcquisition(object):
             with self.acquisition.tf_mode():
                 tens = self.acquisition.build_acquisition(x_tf)
                 self.assertTrue(isinstance(tens, tf.Tensor), msg="no Tensor was returned")
-                #tf_shape = tens.get_shape().as_list()
-                #self.assertEqual(tf_shape[0], 50, msg="Tensor of incorrect shape returned")
-                #self.assertTrue(tf_shape[1] == 1 or tf_shape[1] is None)
+                # tf_shape = tens.get_shape().as_list()
+                # self.assertEqual(tf_shape[0], 50, msg="Tensor of incorrect shape returned")
+                # self.assertTrue(tf_shape[1] == 1 or tf_shape[1] is None)
 
         res = self.acquisition.evaluate(design.generate())
         self.assertTupleEqual(res.shape, (50, 1),
@@ -97,6 +97,13 @@ class _TestAcquisition(object):
         self.assertTrue(
             np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413] * 4)), atol=1e-2),
             msg="Initial hypers improperly stored")
+
+    def test_enable_scaling(self):
+        self.assertFalse(
+            any(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
+        self.acquisition.enable_scaling(self.domain)
+        self.assertTrue(
+            all(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
 
 
 class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
@@ -217,6 +224,13 @@ class _TestAcquisitionAggregation(_TestAcquisition):
         Y = np.hstack(map(lambda oper: oper.data[1], self.acquisition.operands))
         np.testing.assert_allclose(self.acquisition.data[1], Y,
                                    err_msg="Value should be horizontally concatenated")
+
+    def test_enable_scaling(self):
+        for oper in self.acquisition.operands:
+            self.assertFalse(any(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in oper.models))
+        self.acquisition.enable_scaling(self.domain)
+        for oper in self.acquisition.operands:
+            self.assertTrue(all(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in oper.models))
 
 
 class TestAcquisitionSum(_TestAcquisitionAggregation, unittest.TestCase):

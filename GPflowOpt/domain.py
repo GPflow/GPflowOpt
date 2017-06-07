@@ -142,3 +142,9 @@ class ContinuousParameter(Parameter):
 
     def __eq__(self, other):
         return isinstance(other, ContinuousParameter) and self.lower == other.lower and self.upper == other.upper
+
+
+class UnitCube(Domain):
+    def __init__(self, n_inputs):
+        params = [ContinuousParameter('u{0}'.format(i), 0, 1) for i in np.arange(n_inputs)]
+        super(UnitCube, self).__init__(params)
