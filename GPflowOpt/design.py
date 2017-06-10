@@ -19,7 +19,7 @@ from GPflowOpt.domain import ContinuousParameter
 
 class Design(object):
     """
-    Space-filling design of size N (number of points) generated within a D-dimensional domain.
+    Design of size N (number of points) generated within a D-dimensional domain.
     
     Users should call generate() which auto-scales the design to the domain specified in the constructor.
     To implement new design methodologies subclasses should implement create_design(),
@@ -27,6 +27,10 @@ class Design(object):
     """
 
     def __init__(self, size, domain):
+        """
+        :param size: number of data points to generate
+        :param domain: domain to generate data points in.
+        """
         super(Design, self).__init__()
         self.size = size
         self.domain = domain
@@ -41,8 +45,9 @@ class Design(object):
 
     def generate(self):
         """
-        Returns a design, transformed to the domain specified during construction. All data points are in the 
-        domain specified in the constructor.
+        Creates the design in the domain specified during construction.
+
+        It is guaranteed that all data points satisfy this domain
         :return: 2D ndarray, N x D
         """
         Xs = self.create_design()
@@ -56,7 +61,9 @@ class Design(object):
 
     def create_design(self):
         """
-        Returns a design generated in the generative domain. This method should be implemented in subclasses.
+        Returns a design generated in the `generative` domain.
+
+        This method should be implemented in the subclasses.
         :return: 2D ndarray, N x D
         """
         raise NotImplementedError
@@ -64,9 +71,9 @@ class Design(object):
 
 class RandomDesign(Design):
     """
-    Random space-filling design
+    Random space-filling design.
 
-    Generates points drawn from the standard uniform distribution U(0,1)
+    Generates points drawn from the standard uniform distribution U(0,1).
     """
 
     def __init__(self, size, domain):
@@ -78,9 +85,10 @@ class RandomDesign(Design):
 
 class FactorialDesign(Design):
     """
-    Grid-based design
+    A k-level grid-based design.
 
-    Generates points part of an equally spaced grid of 'levels' levels
+    Design with the optimal minimal distance between points, however it risks collapsing points when
+    removing parameters. Also its size is not arbitrary but a power of the domain dimensionality.
     """
 
     def __init__(self, levels, domain):
@@ -99,7 +107,7 @@ class FactorialDesign(Design):
 
 class EmptyDesign(Design):
     """
-    No design, used as placeholder
+    No design, can be used as placeholder.
     """
 
     def __init__(self, domain):
@@ -111,12 +119,13 @@ class EmptyDesign(Design):
 
 class LatinHyperCube(Design):
     """
-    Latin hypercube with optimized maximin distance. Created with the Translational Propagation algorithm to
-    avoid lengthy generation procedures. For dimensions smaller or equal to 6, this algorithm finds
-    the quasi-optimal LHD with overwhelming probability. To increase this probability, if a design for
-    a domain with dimensionality D is requested, D different designs are generated using seed sizes 1,2,...D (unless a 
-    maximum seed size 1<= S <= D is specified. The seeds themselves are small Latin hypercubes generated with the
-    same algorithm.
+    Latin hypercube with optimized minimal distance between points.
+
+    Created with the Translational Propagation algorithm to avoid lengthy generation procedures.
+    For dimensions smaller or equal to 6, this algorithm finds the quasi-optimal LHD with overwhelming probability.
+    To increase this probability, if a design for a domain with dimensionality D is requested,
+    D different designs are generated using seed sizes 1,2,...D (unless a maximum seed size 1<= S <= D is specified.
+    The seeds themselves are small Latin hypercubes generated with the same algorithm.
     
     Beyond 6D, the probability of finding the optimal LHD fades, although the resulting designs are still acceptable. 
     Somewhere beyond 15D this algorithm tends to slow down a lot and become very memory demanding. Key reference is
@@ -133,6 +142,7 @@ class LatinHyperCube(Design):
             publisher={John Wiley & Sons, Ltd.}
        }
 
+    For pre-generated LHDs please see the `following website  <https://spacefillingdesigns.nl/>`_.
     """
 
     def __init__(self, size, domain, max_seed_size=None):
@@ -156,7 +166,7 @@ class LatinHyperCube(Design):
 
     def create_design(self):
         """
-        Generate several TPLHDs with increasing seed. Maximum S = min(dimensionality,max_seed_size)
+        Generate several LHDs with increasing seed. Maximum S = min(dimensionality,max_seed_size)
         :return: From S candidate designs, the one with the best intersite distance is returned. 2D ndarray, N x D.
         """
         candidates = []
@@ -181,7 +191,7 @@ class LatinHyperCube(Design):
     def _tplhd_design(self, seed):
         """
         Creates an LHD with the Translational propagation algorithm with specified seed and design size specified during
-        construct (N).
+        construction (N).
         :param seed: 2D ndarray, the seed to use. S x D
         :return: LHD, 2D ndarray. N x D
         """

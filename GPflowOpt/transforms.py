@@ -23,20 +23,21 @@ float_type = settings.dtypes.float_type
 
 class DataTransform(Parameterized):
     """
-    Implements a mapping from data in domain U to domain V.
-    Useful for domain scaling.
+    Maps data in domain U to domain V.
+
+    Useful for scaling of data between domains.
     """
 
     @AutoFlow((float_type, [None, None]))
     def forward(self, X):
         """
-        Performs numpy transformation of U -> V
+        Performs the numpy transformation of U -> V
         """
         return self.build_forward(X)
 
     def build_forward(self, X):
         """
-        Performs Tensorflow transformation of U -> V
+        Performs the Tensorflow transformation of U -> V
         :param X: N x P tensor
         :return: N x Q tensor
         """
@@ -44,9 +45,11 @@ class DataTransform(Parameterized):
 
     def backward(self, Y):
         """
-        Performs numpy transformation of V -> U. By default, calls forward on the inverted transform object which 
-        requires implementation of __invert__. The method can be overwritten in subclasses if more efficient 
-        implementation is available.
+        Performs the numpy transformation of V -> U.
+
+        By default, calls the `forward` transform on the inverted transform object which
+        requires implementation of __invert__. The method can be overwritten in subclasses if a more efficient 
+        (direct) transformation is  possible.
         :param Y: N x Q matrix
         :return: N x P matrix
         """
@@ -54,7 +57,7 @@ class DataTransform(Parameterized):
 
     def __invert__(self):
         """
-        Return a DataTransform object implementing the transform from V -> U
+        Return a DataTransform object implementing the reverse transform V -> U
         """
         raise NotImplementedError
 
@@ -64,7 +67,7 @@ class DataTransform(Parameterized):
 
 class LinearTransform(DataTransform):
     """
-    Implements a simple linear transform of the form
+    A simple linear transform of the form
     
     .. math::
        \\mathbf Y = (\\mathbf A \\mathbf X^{T})^{T} + \\mathbf b \\otimes \\mathbf 1_{N}^{T}
