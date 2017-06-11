@@ -7,7 +7,8 @@ to offer scalability, and avoid implementation of gradients. The package was cre
 by `Joachim van der Herten <http://sumo.intec.ugent.be/jvanderherten>`_ and `Ivo Couckuyt <http://sumo.intec.ugent.be/icouckuy>`_
 
 Currently the software is pre-release and under construction, hence it lacks a lot of functionality and testing. This documentation
-might also be incomplete and under development. The project is open source: if you feel you have some relevant skills and are interested in contributing then please contact us on github.
+is also incomplete and under development. The project is open source: if you feel you have some relevant skills and are interested in
+contributing then please contact us on `GitHub <https://github.com/GPflow/GPflowOpt>`_ by opening an issue or pull request.
 
 Install
 --------
@@ -30,4 +31,4 @@ To build the documentation, first install extra dependencies with ``pip install 
 Acknowledgements
 -----------------
 Joachim van der Herten and Ivo Couckuyt are Ghent University - imec postdoctoral fellows. Ivo Couckuyt is supported
-by FWO vlaanderen.
+by FWO Vlaanderen.
