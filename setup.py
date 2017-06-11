@@ -19,7 +19,7 @@ from setuptools import setup
 
 setup(name='GPflowOpt',
       version="pre-release",
-      author="Joachim van der Herten",
+      author="Joachim van der Herten, Ivo Couckuyt",
       author_email="joachim.vanderherten@ugent.be",
       description=("Bayesian Optimization with GPflow"),
       license="Apache License 2.0",
