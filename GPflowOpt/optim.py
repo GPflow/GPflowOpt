@@ -100,6 +100,15 @@ class Optimizer(object):
 
     @contextlib.contextmanager
     def silent(self):
+        """
+        Context for performing actions on an optimizer (such as optimize) with all stdout discarded.
+        Usage example:
+
+        >>> opt = BayesianOptimizer(domain, acquisition, optimizer)
+        >>> with opt.silent():
+        >>>     # Run without printing anything
+        >>>     opt.optimize(fx, n_iter=2)
+        """
         save_stdout = sys.stdout
         sys.stdout = open(os.devnull, 'w')
         yield

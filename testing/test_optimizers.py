@@ -6,9 +6,9 @@ from contextlib import contextmanager
 from scipy.optimize import OptimizeResult
 
 import sys
-if sys.version_info[0] == 3: # pragma: no cover
+if sys.version_info[0] == 3:
     from io import StringIO
-else: # pragma: no cover
+else:
     from io import BytesIO as StringIO
 
 
@@ -184,6 +184,7 @@ class TestSilentOptimization(unittest.TestCase):
 
     @contextmanager
     def captured_output(self):
+        # Captures all stdout/stderr
         new_out, new_err = StringIO(), StringIO()
         old_out, old_err = sys.stdout, sys.stderr
         try:
@@ -200,12 +201,14 @@ class TestSilentOptimization(unittest.TestCase):
                 print('hello world!')
                 return OptimizeResult(x=np.array([0.5]))
 
+        # First, optimize with silent mode off. Should return the stdout of the optimizer
         opt = EmittingOptimizer()
         with self.captured_output() as (out, err):
             opt.optimize(None)
             output = out.getvalue().strip()
             self.assertEqual(output, 'hello world!')
 
+        # Now with silent mode on
         with self.captured_output() as (out, err):
             with opt.silent():
                 opt.optimize(None)
