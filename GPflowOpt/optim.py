@@ -37,8 +37,10 @@ class ObjectiveWrapper(model.ObjectiveWrapper):
 
 class Optimizer(object):
     """
-    Generic class representing an optimizer. Wraps an optimization algorithm over a domain, starting from an initial
-    (set of) point(s).
+    An optimization algorithm.
+
+    Starts from an initial (set of) point(s) it performs an optimization over a domain.
+    May be gradient-based or gradient-free.
     """
 
     def __init__(self, domain, exclude_gradient=False):
@@ -48,6 +50,18 @@ class Optimizer(object):
         self._initial = domain.value
 
     def optimize(self, objectivefx, **kwargs):
+        """
+        Optimize a given function f over a domain.
+
+        The optimizer class supports interruption. If during the optimization ctrl+c is pressed, the last best point is
+        returned.
+        
+        The actual optimization routine is implemented in _optimize, to be implemented in subclasses.
+
+        :param objectivefx: callable, taking one argument: a 2D numpy array. The number of columns correspond to the 
+        dimensionality of the input domain.
+        :return: OptimizeResult reporting the results.
+        """
         objective = ObjectiveWrapper(objectivefx, **self._wrapper_args)
         try:
             result = self._optimize(objective, **kwargs)
@@ -60,25 +74,46 @@ class Optimizer(object):
         return result
 
     def get_initial(self):
+        """
+        Return the initial set of points.
+        """
         return self._initial
 
     def set_initial(self, initial):
+        """
+        Set the initial set of points. The dimensionality should match the domain dimensionality, and all points should 
+        be within the domain
+        :param initial: initial points, should all be within the domain of the optimizer.
+        """
         initial = np.atleast_2d(initial)
-        assert (initial.shape[1] == self.domain.size)
+        assert (initial in self.domain)
         self._initial = initial
 
     def gradient_enabled(self):
+        """
+        Returns if the optimizer is a gradient-based algorithm or not.
+        """
         return not self._wrapper_args['exclude_gradient']
 
 
 class CandidateOptimizer(Optimizer):
     """
-    This optimizer optimizes an objective function by evaluating of a set of candidate points (and returning the point
-    with minimal objective value.
+    Optimization of an objective function by evaluating a set of pre-defined candidate points.
+
+    Returns the point with minimal objective value.
+
+    For compatibility with the StagedOptimizer, the candidate points are concatenated with
+    the initial points and evaluated.
     """
 
     def __init__(self, domain, candidates, batch=False):
+        """
+        :param domain: Optimization domain.
+        :param candidates: candidate points, should be within the optimization domain. 
+        :param batch: bool, evaluate the objective function on all points at once or one by one?
+        """
         super(CandidateOptimizer, self).__init__(domain, exclude_gradient=True)
+        assert(candidates in domain)
         self.candidates = candidates
         self._batch_mode = batch
 
@@ -86,6 +121,9 @@ class CandidateOptimizer(Optimizer):
         return np.vstack((super(CandidateOptimizer, self).get_initial(), self.candidates))
 
     def _evaluate_one_by_one(self, objective, X):
+        """
+        Evaluates each row of X individually.
+        """
         return np.vstack(map(lambda x: objective(x), X))
 
     def _optimize(self, objective):
@@ -102,8 +140,9 @@ class CandidateOptimizer(Optimizer):
 
 class MCOptimizer(CandidateOptimizer):
     """
-    This class represents optimization of an objective function by evaluating a set of random points. Each call to
-    optimize, a different set of random points is evaluated.
+    Optimization of an objective function by evaluating a set of random points.
+
+    Note: each call to optimize, a different set of random points is evaluated.
     """
 
     def __init__(self, domain, nsamples, batch=False):
@@ -117,7 +156,7 @@ class MCOptimizer(CandidateOptimizer):
 
 class SciPyOptimizer(Optimizer):
     """
-    Wraps optimization with scipy's minimize function.
+    Wraps SciPy's minimize function.
     """
 
     def __init__(self, domain, method='L-BFGS-B', tol=None, maxiter=1000):
@@ -129,6 +168,9 @@ class SciPyOptimizer(Optimizer):
                            options=options)
 
     def _optimize(self, objective):
+        """
+        Calls scipy.optimize.minimize. 
+        """
         objective1d = lambda X: tuple(map(lambda arr: arr.ravel(), objective(X)))
         result = minimize(fun=objective1d,
                           x0=self.get_initial(),
@@ -140,7 +182,9 @@ class SciPyOptimizer(Optimizer):
 
 class StagedOptimizer(Optimizer):
     """
-    Represents an optimization pipeline. A list of optimizers can be specified (all on the same domain). The optimal
+    An optimization pipeline of multiple optimizers called in succession.
+
+    A list of optimizers can be specified (all on the same domain). The optimal
     solution of the an optimizer is used as an initial point for the next optimizer.
     """
 
@@ -151,6 +195,12 @@ class StagedOptimizer(Optimizer):
         self.optimizers = optimizers
 
     def optimize(self, objectivefx):
+        """
+        The StagedOptimizer overwrites the default behaviour of optimize(). It passes the best point of the previous
+        stage to the next stage. If the optimization is interrupted or fails, this process stops and the OptimizeResult 
+        is returned.
+        """
+
         self.optimizers[0].set_initial(self.get_initial())
         fun_evals = []
         for current, next in zip(self.optimizers[:-1], self.optimizers[1:]):
