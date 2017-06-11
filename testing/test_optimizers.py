@@ -2,6 +2,14 @@ import GPflowOpt
 import unittest
 import numpy as np
 import GPflow
+from contextlib import contextmanager
+from scipy.optimize import OptimizeResult
+
+import sys
+if sys.version_info[0] == 3: # pragma: no cover
+    from io import StringIO
+else: # pragma: no cover
+    from io import BytesIO as StringIO
 
 
 def parabola2d(X):
@@ -170,3 +178,36 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertEqual(result.nfev, 0, "Initial was not reset")
         self.assertTupleEqual(optimizer.acquisition.data[0].shape, (21, 2))
         self.assertTupleEqual(optimizer.acquisition.data[1].shape, (21, 1))
+
+
+class TestSilentOptimization(unittest.TestCase):
+
+    @contextmanager
+    def captured_output(self):
+        new_out, new_err = StringIO(), StringIO()
+        old_out, old_err = sys.stdout, sys.stderr
+        try:
+            sys.stdout, sys.stderr = new_out, new_err
+            yield sys.stdout, sys.stderr
+        finally:
+            sys.stdout, sys.stderr = old_out, old_err
+
+    def test_silent(self):
+        class EmittingOptimizer(GPflowOpt.optim.Optimizer):
+            def __init__(self):
+                super(EmittingOptimizer, self).__init__(GPflowOpt.domain.ContinuousParameter('x0', 0, 1))
+            def _optimize(self, objective):
+                print('hello world!')
+                return OptimizeResult(x=np.array([0.5]))
+
+        opt = EmittingOptimizer()
+        with self.captured_output() as (out, err):
+            opt.optimize(None)
+            output = out.getvalue().strip()
+            self.assertEqual(output, 'hello world!')
+
+        with self.captured_output() as (out, err):
+            with opt.silent():
+                opt.optimize(None)
+                output = out.getvalue().strip()
+                self.assertEqual(output, '')

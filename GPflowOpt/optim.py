@@ -16,6 +16,9 @@ import numpy as np
 from scipy.optimize import OptimizeResult, minimize
 from GPflow import model
 from GPflow import settings
+import contextlib
+import sys
+import os
 
 from .design import RandomDesign
 
@@ -69,6 +72,13 @@ class Optimizer(object):
 
     def gradient_enabled(self):
         return not self._wrapper_args['exclude_gradient']
+
+    @contextlib.contextmanager
+    def silent(self):
+        save_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+        yield
+        sys.stdout = save_stdout
 
 
 class CandidateOptimizer(Optimizer):
