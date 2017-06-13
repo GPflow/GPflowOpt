@@ -91,7 +91,13 @@ class Acquisition(Parameterized):
         else:
             return acq
 
-    def build_acquisition(self):
+    def build_acquisition(self, Xcand):
+        """
+        TensorFlow routine to be implemented in subclasses. Maps P candidate points to a score.
+
+        :param Xcand: P x D, candidate points to compute the acquisition score for
+        :return: P x 1, the computed scores
+        """
         raise NotImplementedError
 
     def set_data(self, X, Y):
@@ -238,8 +244,8 @@ class ExpectedImprovement(Acquisition):
        \\alpha(\\mathbf x_{\\star}) = \\int \\max(f_{\\min} - f_{\\star}, 0) \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
     """
 
-    def __init__(self, model):
-        super(ExpectedImprovement, self).__init__(model)
+    def __init__(self, model, optimize_restarts=5):
+        super(ExpectedImprovement, self).__init__(model, optimize_restarts)
         assert (isinstance(model, Model))
         self.fmin = DataHolder(np.zeros(1))
         self.setup()
@@ -289,7 +295,7 @@ class ProbabilityOfFeasibility(Acquisition):
        \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{0} \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
     """
 
-    def __init__(self, model, threshold=0.0, minimum_pof=0.5):
+    def __init__(self, model, threshold=0.0, minimum_pof=0.5, optimize_restarts=5):
         """
 
         :param model: GPflow model (single output) for computing the PoF
@@ -297,7 +303,7 @@ class ProbabilityOfFeasibility(Acquisition):
         :param minimum_pof: minimum pof score required for a point to be valid. For more information, see docstring
         of feasible_data_index
         """
-        super(ProbabilityOfFeasibility, self).__init__(model)
+        super(ProbabilityOfFeasibility, self).__init__(model, optimize_restarts)
         self.threshold = threshold
         self.minimum_pof = minimum_pof
 
@@ -336,8 +342,8 @@ class ProbabilityOfImprovement(Acquisition):
        \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{f_{\\min}} \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
     """
 
-    def __init__(self, model):
-        super(ProbabilityOfImprovement, self).__init__(model)
+    def __init__(self, model, optimize_restarts=5):
+        super(ProbabilityOfImprovement, self).__init__(model, optimize_restarts)
         self.fmin = DataHolder(np.zeros(1))
         self.setup()
 
@@ -362,8 +368,8 @@ class LowerConfidenceBound(Acquisition):
        - \\sigma \\mbox{Var} \\left[ \\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
     """
 
-    def __init__(self, model, sigma=2.0):
-        super(LowerConfidenceBound, self).__init__(model)
+    def __init__(self, model, sigma=2.0, optimize_restarts=5):
+        super(LowerConfidenceBound, self).__init__(model, optimize_restarts)
         self.sigma = sigma
 
     def build_acquisition(self, Xcand):
@@ -373,7 +379,16 @@ class LowerConfidenceBound(Acquisition):
 
 
 class AcquisitionAggregation(Acquisition):
+    """
+    Special acquisition implementation for aggregating multiple others, using a TensorFlow reduce operation.
+    """
+
     def __init__(self, operands, oper):
+        """
+        Constructor
+        :param operands: list of acquisition objects
+        :param oper: a tf.reduce operation (e.g., tf.reduce_sum) for aggregating the returned scores of each operand.
+        """
         super(AcquisitionAggregation, self).__init__()
         assert (all([isinstance(x, Acquisition) for x in operands]))
         self.operands = ParamList(operands)
@@ -425,6 +440,7 @@ class AcquisitionSum(AcquisitionAggregation):
     """
     Sum of acquisition functions
     """
+
     def __init__(self, operands):
         super(AcquisitionSum, self).__init__(operands, tf.reduce_sum)
 
@@ -434,10 +450,12 @@ class AcquisitionSum(AcquisitionAggregation):
         else:
             return AcquisitionSum(self.operands.sorted_params + [other])
 
+
 class AcquisitionProduct(AcquisitionAggregation):
     """
     Product of acquisition functions
     """
+
     def __init__(self, operands):
         super(AcquisitionProduct, self).__init__(operands, tf.reduce_prod)
 
