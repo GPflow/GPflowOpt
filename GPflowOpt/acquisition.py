@@ -74,7 +74,7 @@ class Acquisition(Parameterized):
                 try:
                     result = model.optimize()
                     runs.append(result)
-                except tf.errors.InvalidArgumentError:
+                except tf.errors.InvalidArgumentError:  # pragma: no cover
                     print("Warning: optimization restart {0}/{1} failed".format(i + 1, self._optimize_restarts))
             best_idx = np.argmin(map(lambda r: r.fun, runs))
             model.set_state(runs[best_idx].x)
