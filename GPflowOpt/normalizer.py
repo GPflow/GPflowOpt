@@ -48,7 +48,8 @@ class Normalizer(Parameterized):
     to assume the data is not scaled, and is within the configured optimization domain. There is only one exception:
     the hyperparameters are determined on the scaled data, and are NOT automatically unscaled by this class because the
     normalizer does not know what model is wrapped and what kernels are used. Should hyperparameters of the model be
-    required, it is the responsability of the implementation to rescale the hyperparameters.
+    required, it is the responsability of the implementation to rescale the hyperparameters. Additionally, applying
+    hyperpriors should anticipate for the scaled data.
     """
     def __init__(self, model, domain=None, normalize_output=False):
         """
@@ -74,7 +75,7 @@ class Normalizer(Parameterized):
         n_outputs = model.Y.shape[1]
         self._input_transform = (domain or UnitCube(n_inputs)) >> UnitCube(n_inputs)
         self._normalize_output = normalize_output
-        self.output_transform = LinearTransform(np.ones(n_outputs), np.zeros(n_outputs))
+        self._output_transform = LinearTransform(np.ones(n_outputs), np.zeros(n_outputs))
 
         # These assignments take care of initial re-scaling of model data (they trigger setter properties)
         self.X = model.X.value
@@ -120,6 +121,25 @@ class Normalizer(Parameterized):
         self.X = X
 
     @property
+    def output_transform(self):
+        """
+        Get the current output transform
+        :return: :class:`.DataTransform` output transform object
+        """
+        return self._output_transform
+
+    @output_transform.setter
+    def output_transform(self, t):
+        """
+        Configure a new output transform. Data in the model is automatically updated with the new transform.
+        :param t: :class:`.DataTransform` object: the new output transform.
+        """
+        assert (isinstance(t, DataTransform))
+        Y = self.Y.value
+        self._output_transform.assign(t)
+        self.Y = Y
+
+    @property
     def normalize_output(self):
         """
         :return: boolean, indicating if output is automatically scaled to zero mean and unit variance.
@@ -134,11 +154,12 @@ class Normalizer(Parameterized):
         switched on or off, the data in the model is automatically adapted.
         :param flag: boolean, turn output scaling on or off
         """
-        Y = self.Y.value
+
         self._normalize_output = flag
         if not flag:
-            self.output_transform = LinearTransform(np.ones(Y.shape[1]), np.zeros(Y.shape[1]))
-        self.Y = Y
+            self.output_transform = LinearTransform(np.ones(self.Y.value.shape[1]), np.zeros(self.Y.value.shape[1]))
+        else:
+            self.Y = self.Y.value
 
     # Methods overwriting methods of the wrapped model.
     @property

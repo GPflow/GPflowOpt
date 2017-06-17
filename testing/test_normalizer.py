@@ -70,6 +70,14 @@ class TestNormalizer(unittest.TestCase):
         n4.normalize_output = False
         self.assertTrue(np.allclose(m.Y.value, n3.Y.value))
 
+        m = self.create_parabola_model()
+        Y = m.Y.value
+        n5 = Normalizer(m, self.domain, normalize_output=False)
+        n5.output_transform = GPflowOpt.transforms.LinearTransform(2, 0)
+        self.assertTrue(np.allclose(m.X.value, scaledX))
+        self.assertTrue(np.allclose(n5.Y.value, Y))
+        self.assertTrue(np.allclose(m.Y.value, Y*2))
+
     def test_predict_scaling(self):
         m = self.create_parabola_model()
         n = Normalizer(self.create_parabola_model(), self.domain)
@@ -89,7 +97,5 @@ class TestNormalizer(unittest.TestCase):
 
         fr, vr = m.predict_f_full_cov(Xt)
         fs, vs = n.predict_f_full_cov(Xt)
-        print(fr)
-        print(fs)
         self.assertTrue(np.allclose(fr, fs, atol=1e-3))
         self.assertTrue(np.allclose(vr, vs, atol=1e-3))
