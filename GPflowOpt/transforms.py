@@ -23,7 +23,7 @@ float_type = settings.dtypes.float_type
 
 class DataTransform(Parameterized):
     """
-    Maps data in domain U to domain V.
+    Maps data in :class:`.Domain` U to :class:`.Domain` V.
 
     Useful for scaling of data between domains.
     """
@@ -45,11 +45,9 @@ class DataTransform(Parameterized):
 
     def backward(self, Y):
         """
-        Performs the numpy transformation of V -> U.
-
-        By default, calls the `forward` transform on the inverted transform object which
-        requires implementation of __invert__. The method can be overwritten in subclasses if a more efficient 
-        (direct) transformation is  possible.
+        Performs the numpy transformation of V -> U. By default, calls the :func:`.forward` transform on the inverted
+        transform object which requires implementation of __invert__. The method can be overwritten in subclasses if a
+        more efficient (direct) transformation is  possible.
         :param Y: N x Q matrix
         :return: N x P matrix
         """
@@ -57,7 +55,7 @@ class DataTransform(Parameterized):
 
     def __invert__(self):
         """
-        Return a DataTransform object implementing the reverse transform V -> U
+        Return a :class:`.DataTransform` object implementing the reverse transform V -> U
         """
         raise NotImplementedError
 
@@ -70,7 +68,7 @@ class LinearTransform(DataTransform):
     A simple linear transform of the form
     
     .. math::
-       \\mathbf Y = (\\mathbf A \\mathbf X^{T})^{T} + \\mathbf b \\otimes \\mathbf 1_{N}^{T}
+       \\mathbf Y = (\\mathbf A \\mathbf X^{T})^{T} + \\mathbf b \\times \\mathbf 1_{N}^{T}
 
     """
 
@@ -83,6 +81,9 @@ class LinearTransform(DataTransform):
         :param b: A P-dimensional offset vector.
         """
         super(LinearTransform, self).__init__()
+        assert A is not None
+        assert b is not None
+
         b = np.atleast_1d(b)
         A = np.atleast_1d(A)
         if len(A.shape) == 1:
@@ -114,8 +115,8 @@ class LinearTransform(DataTransform):
 
     def build_backward_variance(self, Yvar):
         """
-        Additional method for scaling variance backward (used in Normalizer). Can process both the diagonal variances
-        returned by predict_f, as well as full covariance matrices.
+        Additional method for scaling variance backward (used in :class:`.Normalizer`). Can process both the diagonal
+        variances returned by predict_f, as well as full covariance matrices.
         :param Yvar: N x N x P or N x P
         :return: Yvar scaled, same rank and dimensionality as input
         """
@@ -134,7 +135,13 @@ class LinearTransform(DataTransform):
         return tf.cond(tf.equal(rank, 2), lambda: tf.reduce_sum(scaled_var, axis=1), lambda: scaled_var)
 
     def assign(self, other):
-        assert (isinstance(other, LinearTransform))
+        """
+        Assign the parameters of another  to this transform. Can be useful to avoid graph
+        re-compilation.
+        :param other: :class:`.LinearTransform` object
+        """
+        assert other is not None
+        assert isinstance(other, LinearTransform)
         self.A.set_data(other.A.value)
         self.b.set_data(other.b.value)
 

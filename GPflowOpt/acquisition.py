@@ -36,7 +36,7 @@ class Acquisition(Parameterized):
 
     An object of this class holds a list of GPflow models. For single objective optimization this is typically a 
     single model. Subclasses implement a build_acquisition function which computes the acquisition function (usually 
-    from the predictive distribution) using TensorFlow. 
+    from the predictive distribution) using TensorFlow. Each model is automatically optimized.
 
     Acquisition functions can be combined through addition or multiplication to construct joint criteria 
     (for instance for constrained optimization)
@@ -83,11 +83,17 @@ class Acquisition(Parameterized):
         raise NotImplementedError
 
     def enable_scaling(self, domain):
+        """
+        Enables and configures the :class:`.Normalizer` objects wrapping the GP models.
+        :param domain: :class:`.Domain` object, the input transform of the normalizers is configured as a transform from
+         domain to the unitcube with the same dimensionality.
+        """
         n_inputs = self.data[0].shape[1]
         assert (domain.size == n_inputs)
         for m in self.models:
             m.input_transform = domain >> UnitCube(n_inputs)
             m.normalize_output = True
+        self._optimize_models()
 
     def set_data(self, X, Y):
         """
@@ -424,6 +430,7 @@ class AcquisitionSum(AcquisitionAggregation):
     """
     Sum of acquisition functions
     """
+
     def __init__(self, operands):
         super(AcquisitionSum, self).__init__(operands, tf.reduce_sum)
 
@@ -433,10 +440,12 @@ class AcquisitionSum(AcquisitionAggregation):
         else:
             return AcquisitionSum(self.operands.sorted_params + [other])
 
+
 class AcquisitionProduct(AcquisitionAggregation):
     """
     Product of acquisition functions
     """
+
     def __init__(self, operands):
         super(AcquisitionProduct, self).__init__(operands, tf.reduce_prod)
 

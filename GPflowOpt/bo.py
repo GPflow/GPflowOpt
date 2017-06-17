@@ -37,9 +37,9 @@ class BayesianOptimizer(Optimizer):
         :param initial: (optional) Design object used as initial set of candidates evaluated before the optimization
          loop runs. Note that if the underlying data already contain some data from an initial design, this design is
          evaluated on top of that.
-        :param scaling: (boolean, default true) if set to true, the outputs are be normalized, and the inputs are
-          scaled to [0,1]^d. This only affects model training: calls to acquisition.data, as well as returned optima
-          are unscaled.
+        :param scaling: (boolean, default true) if set to true, the outputs are normalized, and the inputs are
+          scaled to :class:`.Normalizer`. This only affects model training: calls to acquisition.data, as well as
+          returned optima are unscaled (see :class:`.Normalizer` for more details.)
         """
         assert isinstance(acquisition, Acquisition)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
