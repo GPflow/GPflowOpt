@@ -68,7 +68,7 @@ class LinearTransform(DataTransform):
     A simple linear transform of the form
     
     .. math::
-       \\mathbf Y = (\\mathbf A \\mathbf X^{T})^{T} + \\mathbf b \\times \\mathbf 1_{N}^{T}
+       \\mathbf Y = (\\mathbf A \\mathbf X^{T})^{T} + \\mathbf b \\otimes \\mathbf 1_{N}^{T}
 
     """
 
