@@ -7,8 +7,10 @@ python:
   - 3.6
 install:
   - sudo apt-get update
-  - pip install tensorflow==1.0.1 numpy scipy nose pandas codecov coverage
-  - python setup.py install
+  - pip install tensorflow==1.0.1
+  - pip install --process-dependency-links .
+  - pip install .[test]
+  - pip install codecov
 script:
   - nosetests --nologcapture --with-coverage --cover-package=GPflowOpt testing
 after_success:
