@@ -32,6 +32,8 @@ class LinearTransformTests(unittest.TestCase):
     Tests are inspired on GPflow transform tests.
     """
 
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         tf.reset_default_graph()
         self.x = tf.placeholder(float_type)

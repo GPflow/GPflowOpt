@@ -5,6 +5,9 @@ import os
 
 
 class _TestDesign(object):
+
+    _multiprocess_can_split_ = True
+
     @property
     def designs(self):
         raise NotImplementedError()
@@ -36,7 +39,9 @@ class _TestDesign(object):
             np.testing.assert_allclose(generated, scaled, atol=1e-4,
                                        err_msg="Incorrect scaling from generative domain to domain")
 
+
 class TestRandomDesign(_TestDesign, unittest.TestCase):
+
     @_TestDesign.designs.getter
     def designs(self):
         return [GPflowOpt.design.RandomDesign(200, domain) for domain in self.domains]
@@ -65,6 +70,7 @@ class TestFactorialDesign(_TestDesign, unittest.TestCase):
 
 
 class TestLatinHyperCubeDesign(_TestDesign, unittest.TestCase):
+
     @_TestDesign.designs.getter
     def designs(self):
         return [GPflowOpt.design.LatinHyperCube(20, domain) for domain in self.domains]
