@@ -2,15 +2,10 @@ import GPflowOpt
 import unittest
 import numpy as np
 import GPflow
+import six
+import sys
 from contextlib import contextmanager
 from scipy.optimize import OptimizeResult
-
-import sys
-if sys.version_info[0] == 3:
-    from io import StringIO
-else:
-    from io import BytesIO as StringIO
-
 
 def parabola2d(X):
     return np.atleast_2d(np.sum(X ** 2, axis=1)).T, 2 * X
@@ -188,7 +183,7 @@ class TestSilentOptimization(unittest.TestCase):
     @contextmanager
     def captured_output(self):
         # Captures all stdout/stderr
-        new_out, new_err = StringIO(), StringIO()
+        new_out, new_err = six.StringIO(), six.StringIO()
         old_out, old_err = sys.stdout, sys.stderr
         try:
             sys.stdout, sys.stderr = new_out, new_err
