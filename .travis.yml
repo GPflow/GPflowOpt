@@ -1,6 +1,5 @@
-sudo: required
+sudo: false
 dist: trusty
-group: edge
 language: python
 python:
   - 2.7
@@ -8,12 +7,12 @@ python:
   - 3.6
 cache: pip
 install:
-  - sudo apt-get update
+  - pip install -U pip wheel
   - pip install tensorflow==1.0.1
   - pip install --process-dependency-links .
   - pip install .[test]
   - pip install codecov
 script:
-  - nosetests --nologcapture --with-coverage --cover-package=GPflowOpt testing
+  - nosetests --nologcapture --with-coverage --cover-package=GPflowOpt --processes=2 testing
 after_success:
   - codecov
