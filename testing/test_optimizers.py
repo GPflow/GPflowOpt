@@ -25,6 +25,9 @@ class KeyboardRaiser:
 
 
 class _TestOptimizer(object):
+
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         self.optimizer = None
 

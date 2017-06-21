@@ -13,6 +13,6 @@ install:
   - pip install .[test]
   - pip install codecov
 script:
-  - nosetests --nologcapture --with-coverage --cover-package=GPflowOpt --processes=2 testing
+  - nosetests testing
 after_success:
   - codecov
