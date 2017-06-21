@@ -16,6 +16,9 @@ import numpy as np
 from scipy.optimize import OptimizeResult, minimize
 from GPflow import model
 from GPflow import settings
+import contextlib
+import sys
+import os
 
 from .design import RandomDesign
 
@@ -94,6 +97,22 @@ class Optimizer(object):
         Returns if the optimizer is a gradient-based algorithm or not.
         """
         return not self._wrapper_args['exclude_gradient']
+
+    @contextlib.contextmanager
+    def silent(self):
+        """
+        Context for performing actions on an optimizer (such as optimize) with all stdout discarded.
+        Usage example:
+
+        >>> opt = BayesianOptimizer(domain, acquisition, optimizer)
+        >>> with opt.silent():
+        >>>     # Run without printing anything
+        >>>     opt.optimize(fx, n_iter=2)
+        """
+        save_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+        yield
+        sys.stdout = save_stdout
 
 
 class CandidateOptimizer(Optimizer):
