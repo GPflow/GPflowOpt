@@ -1,15 +1,18 @@
-sudo: required
-dist: trusty    
+sudo: false
+dist: trusty
 language: python
 python:
   - 2.7
   - 3.5
   - 3.6
+cache: pip
 install:
-  - sudo apt-get update
-  - pip install tensorflow==1.0.1 numpy scipy nose pandas codecov coverage
-  - python setup.py install
+  - pip install -U pip wheel
+  - pip install tensorflow==1.0.1
+  - pip install --process-dependency-links .
+  - pip install .[test]
+  - pip install codecov
 script:
-  - nosetests --nologcapture --with-coverage --cover-package=GPflowOpt testing
+  - nosetests testing
 after_success:
   - codecov

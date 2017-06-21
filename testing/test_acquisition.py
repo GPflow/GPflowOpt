@@ -18,6 +18,8 @@ class _TestAcquisition(object):
     Defines some basic verifications for all acquisition functions. Test classes can derive from this
     """
 
+    _multiprocess_can_split_ = True
+
     @property
     def domain(self):
         return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
@@ -293,6 +295,9 @@ class TestAcquisitionProduct(_TestAcquisitionAggregation, unittest.TestCase):
 
 
 class TestJointAcquisition(unittest.TestCase):
+
+    _multiprocessing_can_split_ = True
+
     @property
     def domain(self):
         return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])

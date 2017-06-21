@@ -34,6 +34,8 @@ class LinearTransformTests(unittest.TestCase):
     Tests are inspired on GPflow transform tests.
     """
 
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         self.x_np = np.random.rand(10, 2).astype(np_float_type)
         self.transforms = [DummyTransform(2.0), GPflowOpt.transforms.LinearTransform([2.0, 3.5], [1.2, 0.7])]

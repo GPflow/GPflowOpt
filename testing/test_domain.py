@@ -5,6 +5,8 @@ import numpy as np
 
 class TestContinuousParameter(unittest.TestCase):
 
+    _multiprocess_can_split_ = True
+
     def test_simple(self):
         p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
         self.assertTrue(np.allclose(p._range, [0,1]), msg="Internal storage of object incorrect")
@@ -55,6 +57,8 @@ class TestContinuousParameter(unittest.TestCase):
 
 
 class TestHypercubeDomain(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1,4)])

@@ -2,7 +2,10 @@ import GPflowOpt
 import unittest
 import numpy as np
 import GPflow
-
+import six
+import sys
+from contextlib import contextmanager
+from scipy.optimize import OptimizeResult
 
 def parabola2d(X):
     return np.atleast_2d(np.sum(X ** 2, axis=1)).T, 2 * X
@@ -25,6 +28,9 @@ class KeyboardRaiser:
 
 
 class _TestOptimizer(object):
+
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         self.optimizer = None
 
@@ -184,3 +190,39 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertEqual(result.nfev, 0, "Initial was not reset")
         self.assertTupleEqual(optimizer.acquisition.data[0].shape, (21, 2))
         self.assertTupleEqual(optimizer.acquisition.data[1].shape, (21, 1))
+
+
+class TestSilentOptimization(unittest.TestCase):
+
+    @contextmanager
+    def captured_output(self):
+        # Captures all stdout/stderr
+        new_out, new_err = six.StringIO(), six.StringIO()
+        old_out, old_err = sys.stdout, sys.stderr
+        try:
+            sys.stdout, sys.stderr = new_out, new_err
+            yield sys.stdout, sys.stderr
+        finally:
+            sys.stdout, sys.stderr = old_out, old_err
+
+    def test_silent(self):
+        class EmittingOptimizer(GPflowOpt.optim.Optimizer):
+            def __init__(self):
+                super(EmittingOptimizer, self).__init__(GPflowOpt.domain.ContinuousParameter('x0', 0, 1))
+            def _optimize(self, objective):
+                print('hello world!')
+                return OptimizeResult(x=np.array([0.5]))
+
+        # First, optimize with silent mode off. Should return the stdout of the optimizer
+        opt = EmittingOptimizer()
+        with self.captured_output() as (out, err):
+            opt.optimize(None)
+            output = out.getvalue().strip()
+            self.assertEqual(output, 'hello world!')
+
+        # Now with silent mode on
+        with self.captured_output() as (out, err):
+            with opt.silent():
+                opt.optimize(None)
+                output = out.getvalue().strip()
+                self.assertEqual(output, '')
