@@ -85,7 +85,7 @@ class Normalizer(Parameterized):
         """
         If an attribute is not found in this class, it is searched in the wrapped model
         """
-        return self.__getattribute__('wrapped').__getattribute__(item)
+        return self.wrapped.__getattribute__(item)
 
     def __setattr__(self, key, value):
         """
