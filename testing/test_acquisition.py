@@ -208,6 +208,7 @@ class _TestAcquisitionAggregation(_TestAcquisition):
             self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
                             msg="All operands should be an acquisition object")
         self.assertEqual(len(self.acquisition._default_params), 0)
+        self.assertListEqual(self.acquisition.models.sorted_params, self.models)
 
     def test_data(self):
         super(_TestAcquisitionAggregation, self).test_data()
@@ -216,7 +217,7 @@ class _TestAcquisitionAggregation(_TestAcquisition):
         np.testing.assert_allclose(self.acquisition.data[0], self.acquisition[1].data[0],
                                    err_msg="Samples should be equal for all operands")
 
-        Y = np.hstack(map(lambda oper: oper.data[1], self.acquisition.operands))
+        Y = np.hstack(map(lambda model: model.Y.value, self.acquisition.models))
         np.testing.assert_allclose(self.acquisition.data[1], Y,
                                    err_msg="Value should be horizontally concatenated")
 
@@ -280,6 +281,25 @@ class TestAcquisitionProduct(_TestAcquisitionAggregation, unittest.TestCase):
                                    err_msg="Product of two EI should return no constraints")
 
 
+class TestMCMCAcquisition(_TestAcquisitionAggregation, unittest.TestCase):
+    def setUp(self):
+        super(TestMCMCAcquisition, self).setUp()
+        self.models = [self.create_parabola_model()]
+        self.acquisition = GPflowOpt.acquisition.MCMCAcquistion(GPflowOpt.acquisition.ExpectedImprovement(self.models[0]), 5)
+
+    def test_hyper_updates(self):
+        orig_hypers = [c.get_free_state() for c in self.acquisition.operands[1:]]
+        self.acquisition._update_hyper_draws()
+        for co, cn in zip(orig_hypers, [c.get_free_state() for c in self.acquisition.operands[1:]]):
+            self.assertFalse(np.allclose(co, cn))
+
+    def test_marginalized_score(self):
+        Xt = np.random.rand(20, 2) * 2 - 1
+        ei_mle = self.acquisition.operands[0].evaluate(Xt)
+        ei_mcmc = self.acquisition.evaluate(Xt)
+        np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
+
+
 class TestJointAcquisition(unittest.TestCase):
 
     _multiprocessing_can_split_ = True
@@ -308,8 +328,6 @@ class TestJointAcquisition(unittest.TestCase):
 
         np.testing.assert_allclose(joint.objective_indices(), np.array([0], dtype=int))
         np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
-        print(joint.data[1])
-        print(pof.feasible_data_index())
         self.assertGreater(ei.fmin.value, np.min(Yo), msg="The best objective value is in an infeasible area")
         self.assertTrue(np.allclose(ei.fmin.value, np.min(Yo[pof.feasible_data_index(), :]), atol=1e-3),
                         msg="fmin computed incorrectly")
