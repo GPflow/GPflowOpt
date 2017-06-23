@@ -7,6 +7,7 @@ import sys
 from contextlib import contextmanager
 from scipy.optimize import OptimizeResult
 
+
 def parabola2d(X):
     return np.atleast_2d(np.sum(X ** 2, axis=1)).T, 2 * X
 
@@ -28,7 +29,6 @@ class KeyboardRaiser:
 
 
 class _TestOptimizer(object):
-
     _multiprocess_can_split_ = True
 
     def setUp(self):
@@ -138,10 +138,9 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
 class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
         super(TestBayesianOptimizer, self).setUp()
-        design = GPflowOpt.design.FactorialDesign(4, self.domain)
+        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
         X, Y = design.generate(), parabola2d(design.generate())[0]
         model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.var(axis=0)))
-        model.kern.variance.prior = GPflow.priors.Gamma(3, 1.0 / 3.0)
         acquisition = GPflowOpt.acquisition.ExpectedImprovement(model)
         self.optimizer = GPflowOpt.BayesianOptimizer(self.domain, acquisition)
 
@@ -161,9 +160,19 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
                                              "non-succesfull result expected.")
         self.assertTrue(np.allclose(result.x, 0.0), msg="The optimum will not be identified nonetheless")
 
+
+class TestBayesianOptimizerConfigurations(unittest.TestCase):
+    def setUp(self):
+        self.domain = GPflowOpt.domain.ContinuousParameter("x1", 0.0, 1.0) + \
+                      GPflowOpt.domain.ContinuousParameter("x2", 0.0, 1.0)
+        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
+        X, Y = design.generate(), parabola2d(design.generate())[0]
+        model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.var(axis=0)))
+        self.acquisition = GPflowOpt.acquisition.ExpectedImprovement(model)
+
     def test_initial_design(self):
         design = GPflowOpt.design.RandomDesign(5, self.domain)
-        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.optimizer.acquisition, initial=design)
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, initial=design)
 
         result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=0)
         self.assertTrue(result.success)
@@ -177,9 +186,19 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertTupleEqual(optimizer.acquisition.data[0].shape, (21, 2))
         self.assertTupleEqual(optimizer.acquisition.data[1].shape, (21, 1))
 
+    def test_mcmc(self):
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, hyper_draws=10)
+        self.assertIsInstance(optimizer.acquisition, GPflowOpt.acquisition.MCMCAcquistion)
+        self.assertEqual(len(optimizer.acquisition.operands), 10)
+        self.assertEqual(optimizer.acquisition.operands[0], self.acquisition)
+
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=20)
+        self.assertTrue(result.success)
+        self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
+        self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
+
 
 class TestSilentOptimization(unittest.TestCase):
-
     @contextmanager
     def captured_output(self):
         # Captures all stdout/stderr
@@ -195,6 +214,7 @@ class TestSilentOptimization(unittest.TestCase):
         class EmittingOptimizer(GPflowOpt.optim.Optimizer):
             def __init__(self):
                 super(EmittingOptimizer, self).__init__(GPflowOpt.domain.ContinuousParameter('x0', 0, 1))
+
             def _optimize(self, objective):
                 print('hello world!')
                 return OptimizeResult(x=np.array([0.5]))

@@ -454,7 +454,7 @@ class AcquisitionProduct(AcquisitionAggregation):
 
 
 class MCMCAcquistion(AcquisitionSum):
-    def __init__(self, acquisition, n_slices):
+    def __init__(self, acquisition, n_slices, **kwargs):
         assert isinstance(acquisition, Acquisition)
         assert n_slices > 0
 
@@ -463,11 +463,12 @@ class MCMCAcquistion(AcquisitionSum):
             c._optimize_restarts = 0
 
         super(MCMCAcquistion, self).__init__([acquisition] + copies)
+        self._sample_opt = kwargs
         self._update_hyper_draws()
 
     def _update_hyper_draws(self):
         # Sample each model of the acquisition function - results in a list of 2D ndarrays.
-        hypers = np.hstack([model.sample(len(self.operands)) for model in self.models])
+        hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
 
         # Now visit all copies, and set state
         for draw, idx in zip(self.operands, range(0, len(self.operands))):
