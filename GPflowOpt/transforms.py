@@ -31,13 +31,13 @@ class DataTransform(Parameterized):
     @AutoFlow((float_type, [None, None]))
     def forward(self, X):
         """
-        Performs the numpy transformation of U -> V
+        Performs the transformation of U -> V
         """
         return self.build_forward(X)
 
     def build_forward(self, X):
         """
-        Performs the Tensorflow transformation of U -> V
+        Tensorflow graph for the transformation of U -> V
         :param X: N x P tensor
         :return: N x Q tensor
         """
@@ -45,7 +45,7 @@ class DataTransform(Parameterized):
 
     def backward(self, Y):
         """
-        Performs the numpy transformation of V -> U. By default, calls the :func:`.forward` transform on the inverted
+        Performs the transformation of V -> U. By default, calls the :func:`.forward` transform on the inverted
         transform object which requires implementation of __invert__. The method can be overwritten in subclasses if a
         more efficient (direct) transformation is  possible.
         :param Y: N x Q matrix

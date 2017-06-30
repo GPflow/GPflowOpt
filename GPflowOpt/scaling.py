@@ -22,13 +22,13 @@ from .domain import UnitCube
 float_type = settings.dtypes.float_type
 
 
-class Normalizer(Parameterized):
+class DataScaler(Parameterized):
     """
-    Model-wrapping class, primarily intended to assure the data in GPflow models is scaled. One Normalizer wraps one
+    Model-wrapping class, primarily intended to assure the data in GPflow models is scaled. One DataScaler wraps one
     GPflow model, and can scale the input as well as the output data. By default, if any kind of object attribute
-    is not found in the normalizer object, it is searched on the wrapped model.
+    is not found in the datascaler object, it is searched on the wrapped model.
 
-    The normalizer supports both input as well as output scaling, although both scalings are set up differently:
+    The datascaler supports both input as well as output scaling, although both scalings are set up differently:
 
     - For input, the transform is not automatically generated. By default, the input transform is the identity
       transform. The input transform can be set through the setter property, or by specifying a domain in the
@@ -40,23 +40,23 @@ class Normalizer(Parameterized):
 
 
     By default, :class:`.Acquisition` objects will always wrap each model received. However, the input and output transforms
-    will be the identity transforms, and automated output normalization is switched off. It is up to the user (or
-    specialized classes such as the BayesianOptimizer to correctly configure the Normalizers involved.
+    will be the identity transforms, and output normalization is switched off. It is up to the user (or
+    specialized classes such as the BayesianOptimizer to correctly configure the datascalers involved.
 
-    By carrying out the normalization at such a deep level in the framework, it is possible to keep the normalization
+    By carrying out the scaling at such a deep level in the framework, it is possible to keep the scaling
     hidden throughout the rest of GPflowOpt. This means that, during implementation of acquisition functions it is safe
     to assume the data is not scaled, and is within the configured optimization domain. There is only one exception:
     the hyperparameters are determined on the scaled data, and are NOT automatically unscaled by this class because the
-    normalizer does not know what model is wrapped and what kernels are used. Should hyperparameters of the model be
+    datascaler does not know what model is wrapped and what kernels are used. Should hyperparameters of the model be
     required, it is the responsability of the implementation to rescale the hyperparameters. Additionally, applying
     hyperpriors should anticipate for the scaled data.
     """
-    def __init__(self, model, domain=None, normalize_output=False):
+    def __init__(self, model, domain=None, normalize_Y=False):
         """
         :param model: model to be wrapped
         :param domain: (default: None) if supplied, the input transform is configured from the supplied domain to
         :class:`.UnitCube`. If None, the input transform defaults to the identity transform.
-        :param normalize_output: (default: False) enable automatic scaling of output values to zero mean and unit
+        :param normalize_Y: (default: False) enable automatic scaling of output values to zero mean and unit
          variance.
         """
         # model sanity checks
@@ -68,13 +68,13 @@ class Normalizer(Parameterized):
 
         # Wrap model
         self.wrapped = model
-        super(Normalizer, self).__init__()
+        super(DataScaler, self).__init__()
 
-        # Initial configuration of the normalizer
+        # Initial configuration of the datascaler
         n_inputs = model.X.shape[1]
         n_outputs = model.Y.shape[1]
         self._input_transform = (domain or UnitCube(n_inputs)) >> UnitCube(n_inputs)
-        self._normalize_output = normalize_output
+        self._normalize_Y = normalize_Y
         self._output_transform = LinearTransform(np.ones(n_outputs), np.zeros(n_outputs))
 
         # These assignments take care of initial re-scaling of model data (they trigger setter properties)
@@ -89,14 +89,14 @@ class Normalizer(Parameterized):
 
     def __setattr__(self, key, value):
         """
-        If setting :attr:`wrapped` attribute, point parent to this object (the normalizer)
+        If setting :attr:`wrapped` attribute, point parent to this object (the datascaler)
         """
         if key is 'wrapped':
             object.__setattr__(self, key, value)
             value.__setattr__('_parent', self)
             return
 
-        super(Normalizer, self).__setattr__(key, value)
+        super(DataScaler, self).__setattr__(key, value)
 
     def __eq__(self, other):
         return self.wrapped == other
@@ -144,7 +144,7 @@ class Normalizer(Parameterized):
         """
         :return: boolean, indicating if output is automatically scaled to zero mean and unit variance.
         """
-        return self._normalize_output
+        return self._normalize_Y
 
     @normalize_output.setter
     def normalize_output(self, flag):
@@ -155,7 +155,7 @@ class Normalizer(Parameterized):
         :param flag: boolean, turn output scaling on or off
         """
 
-        self._normalize_output = flag
+        self._normalize_Y = flag
         if not flag:
             self.output_transform = LinearTransform(np.ones(self.Y.value.shape[1]), np.zeros(self.Y.value.shape[1]))
         else:
@@ -188,7 +188,7 @@ class Normalizer(Parameterized):
     @Y.setter
     def Y(self, value):
         """
-        Set the output data. In case normalize_output=True, the appropriate output transform is updated. It is then
+        Set the output data. In case normalize_Y=True, the appropriate output transform is updated. It is then
         applied on the data before setting the data of the wrapped model.
         """
         if self.normalize_output:

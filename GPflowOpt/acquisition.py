@@ -15,7 +15,7 @@
 from GPflow.param import Parameterized, AutoFlow, ParamList, DataHolder
 from GPflow.model import Model
 from GPflow import settings
-from .normalizer import Normalizer
+from .scaling import DataScaler
 from .domain import UnitCube
 
 import numpy as np
@@ -36,7 +36,8 @@ class Acquisition(Parameterized):
 
     An object of this class holds a list of GPflow models. For single objective optimization this is typically a 
     single model. Subclasses implement a build_acquisition function which computes the acquisition function (usually 
-    from the predictive distribution) using TensorFlow. Each model is automatically optimized.
+    from the predictive distribution) using TensorFlow. Each model is automatically optimized when an acquisition object
+    is constructed or when set_data is called.
 
     Acquisition functions can be combined through addition or multiplication to construct joint criteria 
     (for instance for constrained optimization)
@@ -44,7 +45,7 @@ class Acquisition(Parameterized):
 
     def __init__(self, models=[], optimize_restarts=5):
         super(Acquisition, self).__init__()
-        self.models = ParamList([Normalizer(m) for m in np.atleast_1d(models).tolist()])
+        self.models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
         self._default_params = list(map(lambda m: m.get_free_state(), self.models))
 
         assert (optimize_restarts >= 0)
@@ -396,7 +397,8 @@ class AcquisitionAggregation(Acquisition):
             return X, np.hstack(Ys)
 
     def enable_scaling(self, domain):
-        _ = [oper.enable_scaling(domain) for oper in self.operands]
+        for oper in self.operands:
+            oper.enable_scaling(domain)
 
     def set_data(self, X, Y):
         offset = 0

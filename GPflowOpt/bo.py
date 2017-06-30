@@ -35,8 +35,8 @@ class BayesianOptimizer(Optimizer):
         :param optimizer: (optional) Optimizer object used to optimize acquisition. If not specified, SciPyOptimizer
          is used. This optimizer will run on the same domain as the BayesianOptimizer object.
         :param initial: (optional) Design object used as initial set of candidates evaluated before the optimization
-         loop runs. Note that if the underlying data already contain some data from an initial design, this design is
-         evaluated on top of that.
+         loop runs. Note that if the underlying model already some data from an initial design, it is augmented with the
+         evaluations obtained by evaluating the points as specified by the design
         :param scaling: (boolean, default true) if set to true, the outputs are normalized, and the inputs are
           scaled to :class:`.Normalizer`. This only affects model training: calls to acquisition.data, as well as
           returned optima are unscaled (see :class:`.Normalizer` for more details.)
