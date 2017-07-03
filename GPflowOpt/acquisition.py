@@ -68,6 +68,7 @@ class Acquisition(Parameterized):
         """
         if self._optimize_restarts == 0:
             return
+        print(self._optimize_restarts)
 
         for model, hypers in zip(self.models, self._default_params):
             runs = []
@@ -75,9 +76,11 @@ class Acquisition(Parameterized):
                 model.randomize() if i > 0 else model.set_state(hypers)
                 try:
                     result = model.optimize()
+                    print(result)
                     runs.append(result)
                 except tf.errors.InvalidArgumentError:  # pragma: no cover
                     print("Warning: optimization restart {0}/{1} failed".format(i + 1, self._optimize_restarts))
+            print(runs)
             best_idx = np.argmin([r.fun for r in runs])
             model.set_state(runs[best_idx].x)
 
@@ -489,6 +492,7 @@ class MCMCAcquistion(AcquisitionSum):
         for operand in self.operands:
             # this triggers model.optimimze() on self.operands[0]
             # All copies have optimization disabled.
+            print(operand)
             offset = operand.set_data(X, Y)
         self._update_hyper_draws()
         if self.highest_parent == self:
