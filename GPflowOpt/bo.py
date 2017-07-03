@@ -38,8 +38,8 @@ class BayesianOptimizer(Optimizer):
          loop runs. Note that if the underlying model already some data from an initial design, it is augmented with the
          evaluations obtained by evaluating the points as specified by the design
         :param scaling: (boolean, default true) if set to true, the outputs are normalized, and the inputs are
-          scaled to :class:`.Normalizer`. This only affects model training: calls to acquisition.data, as well as
-          returned optima are unscaled (see :class:`.Normalizer` for more details.)
+          scaled to a unit cube. This only affects model training: calls to acquisition.data, as well as
+          returned optima are unscaled (see :class:`.DataScaler` for more details.)
         """
         assert isinstance(acquisition, Acquisition)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)

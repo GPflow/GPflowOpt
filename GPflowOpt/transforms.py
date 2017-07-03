@@ -101,7 +101,7 @@ class LinearTransform(DataTransform):
     @AutoFlow((float_type, [None, None]))
     def backward(self, Y):
         """
-        Overwrites the default backward approach, to avoids an explicit matrix inversion.
+        Overwrites the default backward approach, to avoid an explicit matrix inversion.
         """
         return self.build_backward(Y)
 

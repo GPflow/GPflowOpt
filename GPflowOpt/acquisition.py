@@ -85,9 +85,9 @@ class Acquisition(Parameterized):
 
     def enable_scaling(self, domain):
         """
-        Enables and configures the :class:`.Normalizer` objects wrapping the GP models.
-        :param domain: :class:`.Domain` object, the input transform of the normalizers is configured as a transform from
-         domain to the unitcube with the same dimensionality.
+        Enables and configures the :class:`.DataScaler` objects wrapping the GP models.
+        :param domain: :class:`.Domain` object, the input transform of the data scalers is configured as a transform
+         from domain to the unit cube with the same dimensionality.
         """
         n_inputs = self.data[0].shape[1]
         assert (domain.size == n_inputs)

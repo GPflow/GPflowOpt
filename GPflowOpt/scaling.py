@@ -33,7 +33,7 @@ class DataScaler(Parameterized):
     - For input, the transform is not automatically generated. By default, the input transform is the identity
       transform. The input transform can be set through the setter property, or by specifying a domain in the
       constructor. For the latter, the input transform will be initialized as the transform from the specified domain to
-      a :class:`.UnitCube`. When X is updated, the transform does not change.
+      a unit cube. When X is updated, the transform does not change.
 
     - If enabled: for output the data is always scaled to zero mean and unit variance. This means that if the Y property
       is set, the output transform is first calculated, then the data is scaled.
@@ -157,8 +157,10 @@ class DataScaler(Parameterized):
 
         self._normalize_Y = flag
         if not flag:
+            # Output normalization turned off. Reset transform to identity
             self.output_transform = LinearTransform(np.ones(self.Y.value.shape[1]), np.zeros(self.Y.value.shape[1]))
         else:
+            # Output normalization enabled. Trigger scaling.
             self.Y = self.Y.value
 
     # Methods overwriting methods of the wrapped model.
