@@ -100,6 +100,9 @@ class DataScaler(GPModel):
     def __eq__(self, other):
         return self.wrapped == other
 
+    def __str__(self, prepend=''):
+        return self.wrapped.__str__(prepend)
+
     @property
     def input_transform(self):
         """
