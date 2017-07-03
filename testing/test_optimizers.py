@@ -48,6 +48,12 @@ class _TestOptimizer(object):
         self.assertTupleEqual(self.optimizer._initial.shape, (1, 2), msg="Invalid shape of initial points array")
         self.assertTrue(np.allclose(self.optimizer._initial, 1), msg="Specified initial point not loaded.")
 
+    def test_set_domain(self):
+        self.optimizer.domain = GPflowOpt.domain.UnitCube(3)
+        self.assertNotEqual(self.optimizer.domain, self.domain)
+        self.assertEqual(self.optimizer.domain, GPflowOpt.domain.UnitCube(3))
+        self.assertTrue(np.allclose(self.optimizer.get_initial(), 0.5))
+
 
 class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
@@ -59,6 +65,15 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertTupleEqual(self.optimizer.candidates.shape, (16, 2), msg="Invalid shape of candidate property.")
         self.assertTupleEqual(self.optimizer.get_initial().shape, (17, 2), msg="Invalid shape of initial points")
         self.assertFalse(self.optimizer.gradient_enabled(), msg="CandidateOptimizer supports no gradients.")
+
+    def test_set_domain(self):
+        with self.assertRaises(AssertionError):
+            super(TestCandidateOptimizer, self).test_set_domain()
+        self.optimizer.domain = GPflowOpt.domain.UnitCube(2)
+        self.assertNotEqual(self.optimizer.domain, self.domain)
+        self.assertEqual(self.optimizer.domain, GPflowOpt.domain.UnitCube(2))
+        rescaled_candidates = GPflowOpt.design.FactorialDesign(4, GPflowOpt.domain.UnitCube(2)).generate()
+        self.assertTrue(np.allclose(self.optimizer.get_initial(), np.vstack((0.5*np.ones((1,2)), rescaled_candidates))))
 
     def test_optimize(self):
         result = self.optimizer.optimize(parabola2d)
@@ -140,7 +155,7 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         super(TestBayesianOptimizer, self).setUp()
         design = GPflowOpt.design.LatinHyperCube(16, self.domain)
         X, Y = design.generate(), parabola2d(design.generate())[0]
-        model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.var(axis=0)))
+        model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
         acquisition = GPflowOpt.acquisition.ExpectedImprovement(model)
         self.optimizer = GPflowOpt.BayesianOptimizer(self.domain, acquisition)
 

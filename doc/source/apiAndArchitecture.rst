@@ -7,3 +7,4 @@ API and architecture
    acquisition
    notebooks/structure
    interfaces
+   transforms
