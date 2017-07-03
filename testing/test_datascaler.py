@@ -99,3 +99,8 @@ class TestDataScaler(unittest.TestCase):
         fs, vs = n.predict_f_full_cov(Xt)
         self.assertTrue(np.allclose(fr, fs, atol=1e-3))
         self.assertTrue(np.allclose(vr, vs, atol=1e-3))
+
+        Yt = parabola2d(Xt) + np.random.rand(20, 1) * 0.25
+        fr = m.predict_density(Xt, Yt)
+        fs = m.predict_density(Xt, Yt)
+        self.assertTrue(np.allclose(fr, fs, atol=1e-3))

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from GPflow.param import DataHolder, AutoFlow, Parameterized
-from GPflow.model import Model
+from GPflow.model import Model, GPModel
 from GPflow import settings
 import numpy as np
 from .transforms import LinearTransform, DataTransform
@@ -22,7 +22,7 @@ from .domain import UnitCube
 float_type = settings.dtypes.float_type
 
 
-class DataScaler(Parameterized):
+class DataScaler(GPModel):
     """
     Model-wrapping class, primarily intended to assure the data in GPflow models is scaled. One DataScaler wraps one
     GPflow model, and can scale the input as well as the output data. By default, if any kind of object attribute
@@ -61,14 +61,11 @@ class DataScaler(Parameterized):
         """
         # model sanity checks
         assert (model is not None)
-        assert (hasattr(model, 'X'))
-        assert (hasattr(model, 'Y'))
-        assert (hasattr(model, 'build_predict'))
-        assert (isinstance(model, Model))
+        assert (isinstance(model, GPModel))
+        self._parent = None
 
         # Wrap model
         self.wrapped = model
-        super(DataScaler, self).__init__()
 
         # Initial configuration of the datascaler
         n_inputs = model.X.shape[1]
@@ -77,9 +74,11 @@ class DataScaler(Parameterized):
         self._normalize_Y = normalize_Y
         self._output_transform = LinearTransform(np.ones(n_outputs), np.zeros(n_outputs))
 
-        # These assignments take care of initial re-scaling of model data (they trigger setter properties)
-        self.X = model.X.value
-        self.Y = model.Y.value
+        # The assignments in the constructor of GPModel take care of initial re-scaling of model data.
+        super(DataScaler, self).__init__(model.X.value, model.Y.value, None, None, None, name=model.name+"_datascaler")
+        del self.kern
+        del self.mean_function
+        del self.likelihood
 
     def __getattr__(self, item):
         """
@@ -181,18 +180,19 @@ class DataScaler(Parameterized):
         return DataHolder(self.output_transform.backward(self.wrapped.Y.value))
 
     @X.setter
-    def X(self, value):
+    def X(self, x):
         """
         Set the input data. Applies the input transform before setting the data of the wrapped model.
         """
-        self.wrapped.X = self.input_transform.forward(value)
+        self.wrapped.X = self.input_transform.forward(x.value if isinstance(x, DataHolder) else x)
 
     @Y.setter
-    def Y(self, value):
+    def Y(self, y):
         """
         Set the output data. In case normalize_Y=True, the appropriate output transform is updated. It is then
         applied on the data before setting the data of the wrapped model.
         """
+        value = y.value if isinstance(y, DataHolder) else y
         if self.normalize_output:
             self.output_transform.assign(~LinearTransform(value.std(axis=0), value.mean(axis=0)))
         self.wrapped.Y = self.output_transform.forward(value)
@@ -207,25 +207,19 @@ class DataScaler(Parameterized):
         return self.output_transform.build_backward(f), self.output_transform.build_backward_variance(var)
 
     @AutoFlow((float_type, [None, None]))
-    def predict_f(self, Xnew):
-        """
-        Compute the mean and variance of the latent function(s) at the points Xnew.
-        """
-        return self.build_predict(Xnew)
-
-    @AutoFlow((float_type, [None, None]))
-    def predict_f_full_cov(self, Xnew):
-        """
-        Compute the mean and covariance matrix of the latent function(s) at the
-        points Xnew.
-        """
-        return self.build_predict(Xnew, full_cov=True)
-
-    @AutoFlow((float_type, [None, None]))
     def predict_y(self, Xnew):
         """
         Compute the mean and variance of held-out data at the points Xnew
         """
         f, var = self.wrapped.build_predict(self.input_transform.build_forward(Xnew))
-        f, var = self.wrapped.likelihood.predict_mean_and_var(f, var)
+        f, var = self.likelihood.predict_mean_and_var(f, var)
         return self.output_transform.build_backward(f), self.output_transform.build_backward_variance(var)
+
+    @AutoFlow((float_type, [None, None]), (float_type, [None, None]))
+    def predict_density(self, Xnew, Ynew):
+        """
+        Compute the (log) density of the data Ynew at the points Xnew
+        """
+        mu, var = self.build_predict(Xnew)
+        Ys = self.output_transform.build_forward(Ynew)
+        return self.likelihood.predict_density(mu, var, Ys)
