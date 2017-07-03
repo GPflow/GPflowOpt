@@ -28,23 +28,30 @@ class BayesianOptimizer(Optimizer):
     with a seperate optimizer for the acquisition function.
     """
 
-    def __init__(self, domain, acquisition, optimizer=None, initial=None):
+    def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True):
         """
         :param domain: Domain object defining the optimization space
         :param acquisition: Acquisition object representing a utility function optimized over the domain
         :param optimizer: (optional) Optimizer object used to optimize acquisition. If not specified, SciPyOptimizer
          is used. This optimizer will run on the same domain as the BayesianOptimizer object.
-        :param initial: (optional) Design object used as initial set of candidates evaluated before the optimization 
-         loop runs. Note that if the underlying data already contain some data from an initial design, this design is 
-         evaluated on top of that.
+        :param initial: (optional) Design object used as initial set of candidates evaluated before the optimization
+         loop runs. Note that if the underlying model already some data from an initial design, it is augmented with the
+         evaluations obtained by evaluating the points as specified by the design
+        :param scaling: (boolean, default true) if set to true, the outputs are normalized, and the inputs are
+          scaled to a unit cube. This only affects model training: calls to acquisition.data, as well as
+          returned optima are unscaled (see :class:`.DataScaler` for more details.)
         """
         assert isinstance(acquisition, Acquisition)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
         self.acquisition = acquisition
-        initial = initial or EmptyDesign(domain)
-        self.set_initial(initial.generate())
+        if scaling:
+            self.acquisition.enable_scaling(domain)
+
         self.optimizer = optimizer or SciPyOptimizer(domain)
         self.optimizer.domain = domain
+
+        initial = initial or EmptyDesign(domain)
+        self.set_initial(initial.generate())
 
     def _update_model_data(self, newX, newY):
         """

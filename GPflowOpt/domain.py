@@ -188,3 +188,10 @@ class ContinuousParameter(Parameter):
         Html row representation of a ContinuousParameter.
         """
         return "<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>".format(self.label, 'Continuous', str(self._range))
+
+
+class UnitCube(Domain):
+    def __init__(self, n_inputs):
+        params = [ContinuousParameter('u{0}'.format(i), 0, 1) for i in np.arange(n_inputs)]
+        super(UnitCube, self).__init__(params)
+

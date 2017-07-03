@@ -15,6 +15,8 @@
 from GPflow.param import Parameterized, AutoFlow, ParamList, DataHolder
 from GPflow.model import Model
 from GPflow import settings
+from .scaling import DataScaler
+from .domain import UnitCube
 
 import numpy as np
 
@@ -34,7 +36,8 @@ class Acquisition(Parameterized):
 
     An object of this class holds a list of GPflow models. For single objective optimization this is typically a 
     single model. Subclasses implement a build_acquisition function which computes the acquisition function (usually 
-    from the predictive distribution) using TensorFlow. 
+    from the predictive distribution) using TensorFlow. Each model is automatically optimized when an acquisition object
+    is constructed or when set_data is called.
 
     Acquisition functions can be combined through addition or multiplication to construct joint criteria 
     (for instance for constrained optimization)
@@ -42,7 +45,7 @@ class Acquisition(Parameterized):
 
     def __init__(self, models=[], optimize_restarts=5):
         super(Acquisition, self).__init__()
-        self.models = ParamList(np.atleast_1d(models).tolist())
+        self.models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
         self._default_params = list(map(lambda m: m.get_free_state(), self.models))
 
         assert (optimize_restarts >= 0)
@@ -72,27 +75,26 @@ class Acquisition(Parameterized):
                 try:
                     result = model.optimize()
                     runs.append(result)
-                except tf.errors.InvalidArgumentError:
+                except tf.errors.InvalidArgumentError:  # pragma: no cover
                     print("Warning: optimization restart {0}/{1} failed".format(i + 1, self._optimize_restarts))
             best_idx = np.argmin(map(lambda r: r.fun, runs))
             model.set_state(runs[best_idx].x)
 
-    def _build_acquisition_wrapper(self, Xcand, gradients=True):
-        """
-        Build the graph to compute the acquisition function.
-
-        :param Xcand: candidate points to compute the acquisition function for
-        :param gradients: (True/False) should the wrapper return only the score, or also the gradient?
-        :return: acquisition function evaluated on Xcand, gradient of the acquisition function (if gradients=True)
-        """
-        acq = self.build_acquisition(Xcand)
-        if gradients:
-            return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
-        else:
-            return acq
-
     def build_acquisition(self):
         raise NotImplementedError
+
+    def enable_scaling(self, domain):
+        """
+        Enables and configures the :class:`.DataScaler` objects wrapping the GP models.
+        :param domain: :class:`.Domain` object, the input transform of the data scalers is configured as a transform
+         from domain to the unit cube with the same dimensionality.
+        """
+        n_inputs = self.data[0].shape[1]
+        assert (domain.size == n_inputs)
+        for m in self.models:
+            m.input_transform = domain >> UnitCube(n_inputs)
+            m.normalize_output = True
+        self._optimize_models()
 
     def set_data(self, X, Y):
         """
@@ -172,14 +174,15 @@ class Acquisition(Parameterized):
         """
         AutoFlow method to compute the acquisition scores for candidates, also returns the gradients.
         """
-        return self._build_acquisition_wrapper(Xcand, gradients=True)
+        acq = self.build_acquisition(Xcand)
+        return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
     @AutoFlow((float_type, [None, None]))
     def evaluate(self, Xcand):
         """
         AutoFlow method to compute the acquisition scores for candidates, without returning the gradients.
         """
-        return self._build_acquisition_wrapper(Xcand, gradients=False)
+        return self.build_acquisition(Xcand)
 
     def __add__(self, other):
         """
@@ -393,6 +396,10 @@ class AcquisitionAggregation(Acquisition):
         else:
             return X, np.hstack(Ys)
 
+    def enable_scaling(self, domain):
+        for oper in self.operands:
+            oper.enable_scaling(domain)
+
     def set_data(self, X, Y):
         offset = 0
         for operand in self.operands:
@@ -425,6 +432,7 @@ class AcquisitionSum(AcquisitionAggregation):
     """
     Sum of acquisition functions
     """
+
     def __init__(self, operands):
         super(AcquisitionSum, self).__init__(operands, tf.reduce_sum)
 
@@ -434,10 +442,12 @@ class AcquisitionSum(AcquisitionAggregation):
         else:
             return AcquisitionSum(self.operands.sorted_params + [other])
 
+
 class AcquisitionProduct(AcquisitionAggregation):
     """
     Product of acquisition functions
     """
+
     def __init__(self, operands):
         super(AcquisitionProduct, self).__init__(operands, tf.reduce_prod)
 

@@ -30,3 +30,9 @@ Design
 .. autoclass:: GPflowOpt.design.Design
    :special-members:
 
+Transform
+---------
+.. automodule:: GPflowOpt.transforms
+   :special-members:
+.. autoclass:: GPflowOpt.transforms.DataTransform
+   :special-members:
