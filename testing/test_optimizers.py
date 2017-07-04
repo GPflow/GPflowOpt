@@ -207,8 +207,7 @@ class TestBayesianOptimizerConfigurations(unittest.TestCase):
         self.assertEqual(len(optimizer.acquisition.operands), 10)
         self.assertEqual(optimizer.acquisition.operands[0], self.acquisition)
 
-        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=30)
-        print(result)
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=20)
         self.assertTrue(result.success)
         self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
         self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
