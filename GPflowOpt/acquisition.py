@@ -461,6 +461,13 @@ class AcquisitionProduct(AcquisitionAggregation):
 
 
 class MCMCAcquistion(AcquisitionSum):
+    """
+    Acquisition object to apply MCMC over the hyperparameters of the models. The models of the acquisition object passed
+    into an object of this class is optimized with MLE, and then sampled with HMC. These hyperparameter samples are then
+    set in copies of the acquisition.
+
+    To compute the acquisition, the predictions of the acquisition copies are averaged.
+    """
     def __init__(self, acquisition, n_slices, **kwargs):
         assert isinstance(acquisition, Acquisition)
         assert n_slices > 0
@@ -469,8 +476,10 @@ class MCMCAcquistion(AcquisitionSum):
         for c in copies:
             c._optimize_restarts = 0
 
+        # the call to the constructor of the parent classes, will optimize acquisition, so it obtains the MLE solution.
         super(MCMCAcquistion, self).__init__([acquisition] + copies)
         self._sample_opt = kwargs
+        # Update the hyperparameters of the copies using HMC
         self._update_hyper_draws()
 
     def _update_hyper_draws(self):
@@ -478,17 +487,18 @@ class MCMCAcquistion(AcquisitionSum):
         hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
 
         # Now visit all copies, and set state
-        for draw, idx in zip(self.operands, range(0, len(self.operands))):
+        for idx, draw in enumerate(self.operands):
             draw.set_state(hypers[idx, :])
 
     @Acquisition.models.getter
     def models(self):
+        # Only return the models of the first operand, the copies remain hidden.
         return self.operands[0].models
 
     def set_data(self, X, Y):
         for operand in self.operands:
-            # this triggers model.optimimze() on self.operands[0]
-            # All copies have optimization disabled.
+            # This triggers model.optimize() on self.operands[0]
+            # All copies have optimization disabled, but must have update data.
             offset = operand.set_data(X, Y)
         self._update_hyper_draws()
         if self.highest_parent == self:
@@ -496,4 +506,5 @@ class MCMCAcquistion(AcquisitionSum):
         return offset
 
     def build_acquisition(self, Xcand):
+        # Average the predictions of the copies.
         return 1. / len(self.operands) * super(MCMCAcquistion, self).build_acquisition(Xcand)
