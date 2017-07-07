@@ -243,7 +243,7 @@ class ExpectedImprovement(Acquisition):
     but adds a multiplication with the improvement w.r.t the current best observation to the integral.
 
     .. math::
-       \\alpha(\\mathbf x_{\\star}) = \\int \\max(f_{\\min} - f_{\\star}, 0) \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
+       \\alpha(\\mathbf x_{\\star}) = \\int \\max(f_{\\min} - f_{\\star}, 0) \\, p( f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
     """
 
     def __init__(self, model):
@@ -294,7 +294,7 @@ class ProbabilityOfFeasibility(Acquisition):
     The acquisition function measures the probability of the latent function being smaller than 0 for a candidate point.
     
     .. math::
-       \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{0} \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
+       \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{0} \\, p(f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
     """
 
     def __init__(self, model, threshold=0.0, minimum_pof=0.5):
@@ -341,7 +341,7 @@ class ProbabilityOfImprovement(Acquisition):
     Probability of Improvement acquisition function for single-objective global optimization.
 
     .. math::
-       \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{f_{\\min}} \\, p(\\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d\\mathbf f_{\\star}
+       \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{f_{\\min}} \\, p( f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
     """
 
     def __init__(self, model):
@@ -366,8 +366,8 @@ class LowerConfidenceBound(Acquisition):
     Lower confidence bound acquisition function for single-objective global optimization.
 
     .. math::
-       \\alpha(\\mathbf x_{\\star}) =\\mathbb{E} \\left[ \\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
-       - \\sigma \\mbox{Var} \\left[ \\mathbf f^{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
+       \\alpha(\\mathbf x_{\\star}) =\\mathbb{E} \\left[ f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
+       - \\sigma \\mbox{Var} \\left[ f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
     """
 
     def __init__(self, model, sigma=2.0):
