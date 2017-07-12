@@ -16,19 +16,24 @@ from GPflow.param import Parameterized, DataHolder, AutoFlow
 from GPflow import settings
 from scipy.spatial.distance import pdist, squareform
 import numpy as np
-import copy
 import tensorflow as tf
 
 np_int_type = np_float_type = np.int32 if settings.dtypes.int_type is tf.int32 else np.int64
 float_type = settings.dtypes.float_type
 
 
-class Bounded(Parameterized):
+class BoundedVolumes(Parameterized):
+
+    @classmethod
+    def empty(cls, dim, dtype):
+        setup_arr = np.zeros((0, dim), dtype=dtype)
+        return cls(setup_arr.copy(), setup_arr.copy())
+
     def __init__(self, lb, ub):
-        super(Bounded, self).__init__()
+        super(BoundedVolumes, self).__init__()
         assert np.all(lb.shape == lb.shape)
-        self.lb = DataHolder(lb, 'pass')
-        self.ub = DataHolder(ub, 'pass')
+        self.lb = DataHolder(np.atleast_2d(lb), 'pass')
+        self.ub = DataHolder(np.atleast_2d(ub), 'pass')
 
     def append(self, lb, ub):
         self.lb = np.vstack((self.lb.value, lb))
@@ -41,7 +46,7 @@ class Bounded(Parameterized):
         self.ub = np.zeros((0, outdim), dtype=dtype)
 
     def size(self):
-        return np.prod(self.ub.value - self.lb.value)
+        return np.prod(self.ub.value - self.lb.value, axis=1)
 
 
 def setdiffrows(a1, a2):
@@ -50,13 +55,13 @@ def setdiffrows(a1, a2):
     return np.setdiff1d(a1_rows, a2_rows).view(a1.dtype).reshape(-1, a1.shape[1])
 
 
-def uniquerows(a):
+def unique_rows(a):
     b = np.ascontiguousarray(a).view(np.dtype((np.void, a.dtype.itemsize * a.shape[1])))
     _, idx = np.unique(b, return_index=True)
     return a[idx]
 
 
-def nonDominatedSort(objectives):
+def non_dominated_sort(objectives):
     objectives = objectives - np.minimum(np.min(objectives, axis=0), 0)
 
     # Ranking based on three different metrics.
@@ -96,8 +101,8 @@ class Pareto(Parameterized):
         self.Y = Y
 
         # Setup data structures
-        self.bounds = Bounded(np.zeros((0, Y.shape[1]), dtype=np_int_type), np.zeros((0, Y.shape[1]), dtype=np_int_type))
-        self.idx_dom_augm = Bounded(np.zeros((0, Y.shape[1]), dtype=np_int_type), np.zeros((0, Y.shape[1]), dtype=np_int_type))
+        self.bounds = BoundedVolumes.empty(Y.shape[1], np_int_type)
+        self.idx_dom_augm = BoundedVolumes.empty(Y.shape[1], np_int_type)
         self.front = DataHolder(np.zeros((0, Y.shape[1])), 'pass')
 
         # Initialize
@@ -118,8 +123,8 @@ class Pareto(Parameterized):
 
     def _update_front(self):
         current = self.front.value
-        idx, idx_dom, _ = nonDominatedSort(self.Y)
-        pf = uniquerows(self.Y[idx_dom == 0, :])
+        idx, idx_dom, _ = non_dominated_sort(self.Y)
+        pf = unique_rows(self.Y[idx_dom == 0, :])
         self.front = pf[pf[:, 0].argsort(), :]
         return setdiffrows(self.front.value, current).size > 0
 
@@ -133,7 +138,7 @@ class Pareto(Parameterized):
         self._idx = levels.shape[1] - 1
 
     def update(self, Y=None):
-        self.Y = Y or self.Y
+        self.Y = Y if Y is not None else self.Y
         outdim = self.Y.shape[1]
 
         # Attempt to update pareto front
@@ -159,16 +164,16 @@ class Pareto(Parameterized):
                                     pf_idx + 1,
                                     np.ones(outdim, dtype=np_int_type) * self.front.shape[0] + 1))
 
-            dc = Bounded(np.zeros((1, outdim), dtype=np_int_type),
-                         (pf_idx_ext.shape[0] -1) * np.ones((1, outdim), dtype=np_int_type))
+            dc = BoundedVolumes(np.zeros((1, outdim), dtype=np_int_type),
+                                (pf_idx_ext.shape[0] -1) * np.ones((1, outdim), dtype=np_int_type))
             total_size = np.prod(max_pf - min_pf)
 
             # Clear data containers
             self.bounds.clear()
             self.idx_dom_augm.clear()
+
             while dc.lb.shape[0] > 0:
-                dc_new = copy.deepcopy(dc)
-                dc_new.clear()
+                dc_new = BoundedVolumes.empty(dc.lb.shape[1], np_int_type)
 
                 for i in np.arange(dc.lb.shape[0]):
                     # Need full test?
@@ -178,9 +183,9 @@ class Pareto(Parameterized):
                         self.idx_dom_augm.append(self.bounds.lb.value[-1, :], self.bounds.ub.value[-1, :])
                     elif self._is_test_required((dc.lb.value[i, :] + 0.5) < pseudo_pf):
                             dc_dist = dc.ub.value[i, :] - dc.lb.value[i, :]
-                            hc = Bounded(pf_ext[pf_idx_ext[dc.lb.value[i, :], np.arange(outdim)], np.arange(outdim)],
-                                         pf_ext[pf_idx_ext[dc.ub.value[i, :], np.arange(outdim)], np.arange(outdim)])
-                            if np.any(dc_dist > 1) and np.all((hc.size() / total_size) > self.threshold):
+                            hc = BoundedVolumes(pf_ext[pf_idx_ext[dc.lb.value[i, :], np.arange(outdim)], np.arange(outdim)],
+                                                pf_ext[pf_idx_ext[dc.ub.value[i, :], np.arange(outdim)], np.arange(outdim)])
+                            if np.any(dc_dist > 1) and np.all((hc.size()[0] / total_size) > self.threshold):
                                 edge_size, idx = np.max(dc_dist), np.argmax(dc_dist)
                                 edge_size1 = int(np.round(edge_size / 2.0))
                                 edge_size2 = edge_size - edge_size1
