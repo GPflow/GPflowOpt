@@ -18,6 +18,8 @@ class _TestAcquisition(object):
     Defines some basic verifications for all acquisition functions. Test classes can derive from this
     """
 
+    _multiprocess_can_split_ = True
+
     @property
     def domain(self):
         return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
@@ -51,9 +53,9 @@ class _TestAcquisition(object):
             with self.acquisition.tf_mode():
                 tens = self.acquisition.build_acquisition(x_tf)
                 self.assertTrue(isinstance(tens, tf.Tensor), msg="no Tensor was returned")
-                tf_shape = tens.get_shape().as_list()
-                self.assertEqual(tf_shape[0], 50, msg="Tensor of incorrect shape returned")
-                self.assertTrue(tf_shape[1] == 1 or tf_shape[1] is None)
+                # tf_shape = tens.get_shape().as_list()
+                # self.assertEqual(tf_shape[0], 50, msg="Tensor of incorrect shape returned")
+                # self.assertTrue(tf_shape[1] == 1 or tf_shape[1] is None)
 
         res = self.acquisition.evaluate(design.generate())
         self.assertTupleEqual(res.shape, (50, 1),
@@ -83,8 +85,8 @@ class _TestAcquisition(object):
         X = np.vstack((self.acquisition.data[0], design.generate()))
         Y = np.hstack([parabola2d(X)] * self.acquisition.data[1].shape[1])
         self.acquisition.set_data(X, Y)
-        np.testing.assert_allclose(self.acquisition.data[0], X, err_msg="Samples not updated")
-        np.testing.assert_allclose(self.acquisition.data[1], Y, err_msg="Values not updated")
+        np.testing.assert_allclose(self.acquisition.data[0], X, atol=1e-5, err_msg="Samples not updated")
+        np.testing.assert_allclose(self.acquisition.data[1], Y, atol=1e-5, err_msg="Values not updated")
 
     def test_data_indices(self):
         self.assertTupleEqual(self.acquisition.feasible_data_index().shape, (self.acquisition.data[0].shape[0],),
@@ -97,6 +99,13 @@ class _TestAcquisition(object):
         self.assertTrue(
             np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413] * 4)), atol=1e-2),
             msg="Initial hypers improperly stored")
+
+    def test_enable_scaling(self):
+        self.assertFalse(
+            any(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
+        self.acquisition.enable_scaling(self.domain)
+        self.assertTrue(
+            all(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
 
 
 class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
@@ -116,8 +125,8 @@ class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
 
         # Now add the actual minimum
         p = np.array([[0.0, 0.0]])
-        self.acquisition.set_data(np.vstack((self.model.X.value, p)),
-                                  np.vstack((self.model.Y.value, parabola2d(p))))
+        self.acquisition.set_data(np.vstack((self.acquisition.data[0], p)),
+                                  np.vstack((self.acquisition.data[1], parabola2d(p))))
         self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-1), msg="fmin not updated")
 
     def test_EI_validity(self):
@@ -149,8 +158,8 @@ class TestProbabilityOfImprovement(_TestAcquisition, unittest.TestCase):
 
         # Now add the actual minimum
         p = np.array([[0.0, 0.0]])
-        self.acquisition.set_data(np.vstack((self.model.X.value, p)),
-                                  np.vstack((self.model.Y.value, parabola2d(p))))
+        self.acquisition.set_data(np.vstack((self.acquisition.data[0], p)),
+                                  np.vstack((self.acquisition.data[1], parabola2d(p))))
         self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-1), msg="fmin not updated")
 
 
@@ -188,14 +197,14 @@ class TestLowerConfidenceBound(_TestAcquisition, unittest.TestCase):
 
     def test_LCB_validity(self):
         design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
-        p = self.model.predict_f(design)[0]
+        p = self.acquisition.models[0].predict_f(design)[0]
         q = self.acquisition.evaluate(design)
         np.testing.assert_array_less(q, p)
 
     def test_LCB_validity_2(self):
         design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
         self.acquisition.sigma = 0
-        p = self.model.predict_f(design)[0]
+        p = self.acquisition.models[0].predict_f(design)[0]
         q = self.acquisition.evaluate(design)
         np.testing.assert_allclose(q, p)
 
@@ -206,6 +215,7 @@ class _TestAcquisitionAggregation(_TestAcquisition):
             self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
                             msg="All operands should be an acquisition object")
         self.assertEqual(len(self.acquisition._default_params), 0)
+        self.assertListEqual(self.acquisition.models.sorted_params, self.models)
 
     def test_data(self):
         super(_TestAcquisitionAggregation, self).test_data()
@@ -214,9 +224,16 @@ class _TestAcquisitionAggregation(_TestAcquisition):
         np.testing.assert_allclose(self.acquisition.data[0], self.acquisition[1].data[0],
                                    err_msg="Samples should be equal for all operands")
 
-        Y = np.hstack(map(lambda oper: oper.data[1], self.acquisition.operands))
+        Y = np.hstack(map(lambda model: model.Y.value, self.acquisition.models))
         np.testing.assert_allclose(self.acquisition.data[1], Y,
                                    err_msg="Value should be horizontally concatenated")
+
+    def test_enable_scaling(self):
+        for oper in self.acquisition.operands:
+            self.assertFalse(any(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in oper.models))
+        self.acquisition.enable_scaling(self.domain)
+        for oper in self.acquisition.operands:
+            self.assertTrue(all(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in oper.models))
 
 
 class TestAcquisitionSum(_TestAcquisitionAggregation, unittest.TestCase):
@@ -278,7 +295,29 @@ class TestAcquisitionProduct(_TestAcquisitionAggregation, unittest.TestCase):
                                    err_msg="Product of two EI should return no constraints")
 
 
+class TestMCMCAcquisition(_TestAcquisitionAggregation, unittest.TestCase):
+    def setUp(self):
+        super(TestMCMCAcquisition, self).setUp()
+        self.models = [self.create_parabola_model()]
+        self.acquisition = GPflowOpt.acquisition.MCMCAcquistion(GPflowOpt.acquisition.ExpectedImprovement(self.models[0]), 5)
+
+    def test_hyper_updates(self):
+        orig_hypers = [c.get_free_state() for c in self.acquisition.operands[1:]]
+        self.acquisition._update_hyper_draws()
+        for co, cn in zip(orig_hypers, [c.get_free_state() for c in self.acquisition.operands[1:]]):
+            self.assertFalse(np.allclose(co, cn))
+
+    def test_marginalized_score(self):
+        Xt = np.random.rand(20, 2) * 2 - 1
+        ei_mle = self.acquisition.operands[0].evaluate(Xt)
+        ei_mcmc = self.acquisition.evaluate(Xt)
+        np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
+
+
 class TestJointAcquisition(unittest.TestCase):
+
+    _multiprocessing_can_split_ = True
+
     @property
     def domain(self):
         return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
@@ -303,10 +342,8 @@ class TestJointAcquisition(unittest.TestCase):
 
         np.testing.assert_allclose(joint.objective_indices(), np.array([0], dtype=int))
         np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
-        print(joint.data[1])
-        print(pof.feasible_data_index())
-        self.assertGreater(ei.fmin.value, np.min(Yo), msg="The best objective value is in an infeasible area")
-        self.assertTrue(np.allclose(ei.fmin.value, np.min(Yo[pof.feasible_data_index(), :]), atol=1e-3),
+        self.assertGreater(ei.fmin.value, np.min(ei.data[1]), msg="The best objective value is in an infeasible area")
+        self.assertTrue(np.allclose(ei.fmin.value, np.min(ei.data[1][pof.feasible_data_index(), :]), atol=1e-3),
                         msg="fmin computed incorrectly")
 
     def test_hierarchy(self):

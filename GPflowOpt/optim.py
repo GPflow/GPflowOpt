@@ -16,6 +16,9 @@ import numpy as np
 from scipy.optimize import OptimizeResult, minimize
 from GPflow import model
 from GPflow import settings
+import contextlib
+import sys
+import os
 
 from .design import RandomDesign
 
@@ -45,9 +48,18 @@ class Optimizer(object):
 
     def __init__(self, domain, exclude_gradient=False):
         super(Optimizer, self).__init__()
-        self.domain = domain
-        self._wrapper_args = dict(exclude_gradient=exclude_gradient)
+        self._domain = domain
         self._initial = domain.value
+        self._wrapper_args = dict(exclude_gradient=exclude_gradient)
+
+    @property
+    def domain(self):
+        return self._domain
+
+    @domain.setter
+    def domain(self, dom):
+        self._domain = dom
+        self.set_initial(dom.value)
 
     def optimize(self, objectivefx, **kwargs):
         """
@@ -95,6 +107,22 @@ class Optimizer(object):
         """
         return not self._wrapper_args['exclude_gradient']
 
+    @contextlib.contextmanager
+    def silent(self):
+        """
+        Context for performing actions on an optimizer (such as optimize) with all stdout discarded.
+        Usage example:
+
+        >>> opt = BayesianOptimizer(domain, acquisition, optimizer)
+        >>> with opt.silent():
+        >>>     # Run without printing anything
+        >>>     opt.optimize(fx, n_iter=2)
+        """
+        save_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+        yield
+        sys.stdout = save_stdout
+
 
 class CandidateOptimizer(Optimizer):
     """
@@ -116,6 +144,14 @@ class CandidateOptimizer(Optimizer):
         assert(candidates in domain)
         self.candidates = candidates
         self._batch_mode = batch
+
+    @Optimizer.domain.setter
+    def domain(self, dom):
+        # Attempt to transform candidates
+        t = self.domain >> dom
+        self.candidates = t.forward(self.candidates)
+        self._domain = dom
+        self.set_initial(dom.value)
 
     def get_initial(self):
         return np.vstack((super(CandidateOptimizer, self).get_initial(), self.candidates))
@@ -147,10 +183,10 @@ class MCOptimizer(CandidateOptimizer):
 
     def __init__(self, domain, nsamples, batch=False):
         super(MCOptimizer, self).__init__(domain, np.empty((0, domain.size)), batch=batch)
-        self._design = RandomDesign(nsamples, domain)
+        self._nsamples = nsamples
 
     def _optimize(self, objective):
-        self.candidates = self._design.generate()
+        self.candidates = RandomDesign(self._nsamples, self.domain).generate()
         return super(MCOptimizer, self)._optimize(objective)
 
 

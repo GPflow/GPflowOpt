@@ -14,29 +14,30 @@
 
 
 from GPflow import settings
+from GPflow.param import Parameterized, DataHolder, AutoFlow
 import numpy as np
-import scipy
 import tensorflow as tf
 
 float_type = settings.dtypes.float_type
 
 
-class DataTransform(object):
+class DataTransform(Parameterized):
     """
-    Maps data in domain U to domain V.
+    Maps data in :class:`.Domain` U to :class:`.Domain` V.
 
     Useful for scaling of data between domains.
     """
 
+    @AutoFlow((float_type, [None, None]))
     def forward(self, X):
         """
-        Performs the numpy transformation of U -> V
+        Performs the transformation of U -> V
         """
-        raise NotImplementedError
+        return self.build_forward(X)
 
     def build_forward(self, X):
         """
-        Performs the Tensorflow transformation of U -> V
+        Tensorflow graph for the transformation of U -> V
         :param X: N x P tensor
         :return: N x Q tensor
         """
@@ -44,31 +45,17 @@ class DataTransform(object):
 
     def backward(self, Y):
         """
-        Performs the numpy transformation of V -> U.
-
-        By default, calls the `forward` transform on the inverted transform object which
-        requires implementation of __invert__. The method can be overwritten in subclasses if a more efficient 
-        (direct) transformation is  possible.
+        Performs the transformation of V -> U. By default, calls the :func:`.forward` transform on the inverted
+        transform object which requires implementation of __invert__. The method can be overwritten in subclasses if a
+        more efficient (direct) transformation is  possible.
         :param Y: N x Q matrix
         :return: N x P matrix
         """
         return (~self).forward(Y)
 
-    def build_backward(self, Y):
-        """
-        Performs numpy transformation of V -> U.
-
-        By default, calls the tf_forward transform on the inverted transform object which
-        requires implementation of __invert__. The method can be overwritten in subclasses if a more efficient 
-        (direct) transformation is  possible.
-        :param Y: N x Q tensor
-        :return: N x P tensor
-                """
-        return (~self).build_forward(Y)
-
     def __invert__(self):
         """
-        Return a DataTransform object implementing the reverse transform V -> U
+        Return a :class:`.DataTransform` object implementing the reverse transform V -> U
         """
         raise NotImplementedError
 
@@ -93,38 +80,74 @@ class LinearTransform(DataTransform):
         A is not invertible, hence inverse and backward are not supported.
         :param b: A P-dimensional offset vector.
         """
-        self.b = np.atleast_1d(b)
-        self.A = np.atleast_1d(A)
-        if len(self.A.shape) == 1:
-            self.A = np.diag(self.A)
+        super(LinearTransform, self).__init__()
+        assert A is not None
+        assert b is not None
 
-        assert (len(self.b.shape) == 1)
-        assert (len(self.A.shape) == 2)
+        b = np.atleast_1d(b)
+        A = np.atleast_1d(A)
+        if len(A.shape) == 1:
+            A = np.diag(A)
 
-    def forward(self, X):
-        return np.dot(np.atleast_2d(X), self.A.T) + self.b
+        assert (len(b.shape) == 1)
+        assert (len(A.shape) == 2)
 
-    def backward(self, Y):
-        """
-        Overwrites the default backward approach, it avoids an explicit matrix inversion.
-        """
-        L = scipy.linalg.cholesky(self.A.T)
-        return scipy.linalg.cho_solve((L, False), (Y - self.b).T).T
+        self.A = DataHolder(A)
+        self.b = DataHolder(b)
 
     def build_forward(self, X):
-        return tf.matmul(X, self.A.T) + self.b
+        return tf.matmul(X, tf.transpose(self.A)) + self.b
+
+    @AutoFlow((float_type, [None, None]))
+    def backward(self, Y):
+        """
+        Overwrites the default backward approach, to avoid an explicit matrix inversion.
+        """
+        return self.build_backward(Y)
 
     def build_backward(self, Y):
         """
-        Overwrites the default backward approach, it avoids an explicit matrix inversion.
+        TensorFlow implementation of the inverse mapping
         """
-        L = tf.cholesky(self.A.T)
-        XT = tf.matrix_triangular_solve(tf.transpose(L), tf.matrix_triangular_solve(L, tf.transpose(Y - self.b)))
+        L = tf.cholesky(tf.transpose(self.A))
+        XT = tf.cholesky_solve(L, tf.transpose(Y-self.b))
         return tf.transpose(XT)
 
+    def build_backward_variance(self, Yvar):
+        """
+        Additional method for scaling variance backward (used in :class:`.Normalizer`). Can process both the diagonal
+        variances returned by predict_f, as well as full covariance matrices.
+        :param Yvar: N x N x P or N x P
+        :return: Yvar scaled, same rank and dimensionality as input
+        """
+        rank = tf.rank(Yvar)
+        # Because TensorFlow evaluates both fn1 and fn2, the transpose can't be in the same line. If a full cov
+        # matrix is provided fn1 turns it into a rank 4, then tries to transpose it as a rank 3.
+        # Splitting it in two steps however works fine.
+        Yvar = tf.cond(tf.equal(rank, 2), lambda: tf.matrix_diag(tf.transpose(Yvar)), lambda: Yvar)
+        Yvar = tf.cond(tf.equal(rank, 2), lambda: tf.transpose(Yvar, perm=[1, 2, 0]), lambda: Yvar)
+
+        N = tf.shape(Yvar)[0]
+        D = tf.shape(Yvar)[2]
+        L = tf.cholesky(tf.square(tf.transpose(self.A)))
+        Yvar = tf.reshape(Yvar, [N * N, D])
+        scaled_var = tf.reshape(tf.transpose(tf.cholesky_solve(L, tf.transpose(Yvar))), [N, N, D])
+        return tf.cond(tf.equal(rank, 2), lambda: tf.reduce_sum(scaled_var, axis=1), lambda: scaled_var)
+
+    def assign(self, other):
+        """
+        Assign the parameters of another  to this transform. Can be useful to avoid graph
+        re-compilation.
+        :param other: :class:`.LinearTransform` object
+        """
+        assert other is not None
+        assert isinstance(other, LinearTransform)
+        self.A.set_data(other.A.value)
+        self.b.set_data(other.b.value)
+
     def __invert__(self):
-        A_inv = np.linalg.inv(self.A.T)
-        return LinearTransform(A_inv, -np.dot(self.b, A_inv))
+        A_inv = np.linalg.inv(self.A.value.T)
+        return LinearTransform(A_inv, -np.dot(self.b.value, A_inv))
 
     def __str__(self):
         return 'XA + b'

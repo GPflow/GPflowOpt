@@ -2,6 +2,10 @@ import GPflowOpt
 import unittest
 import numpy as np
 import GPflow
+import six
+import sys
+from contextlib import contextmanager
+from scipy.optimize import OptimizeResult
 
 
 def parabola2d(X):
@@ -25,6 +29,8 @@ class KeyboardRaiser:
 
 
 class _TestOptimizer(object):
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         self.optimizer = None
 
@@ -42,6 +48,12 @@ class _TestOptimizer(object):
         self.assertTupleEqual(self.optimizer._initial.shape, (1, 2), msg="Invalid shape of initial points array")
         self.assertTrue(np.allclose(self.optimizer._initial, 1), msg="Specified initial point not loaded.")
 
+    def test_set_domain(self):
+        self.optimizer.domain = GPflowOpt.domain.UnitCube(3)
+        self.assertNotEqual(self.optimizer.domain, self.domain)
+        self.assertEqual(self.optimizer.domain, GPflowOpt.domain.UnitCube(3))
+        self.assertTrue(np.allclose(self.optimizer.get_initial(), 0.5))
+
 
 class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
@@ -53,6 +65,15 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertTupleEqual(self.optimizer.candidates.shape, (16, 2), msg="Invalid shape of candidate property.")
         self.assertTupleEqual(self.optimizer.get_initial().shape, (17, 2), msg="Invalid shape of initial points")
         self.assertFalse(self.optimizer.gradient_enabled(), msg="CandidateOptimizer supports no gradients.")
+
+    def test_set_domain(self):
+        with self.assertRaises(AssertionError):
+            super(TestCandidateOptimizer, self).test_set_domain()
+        self.optimizer.domain = GPflowOpt.domain.UnitCube(2)
+        self.assertNotEqual(self.optimizer.domain, self.domain)
+        self.assertEqual(self.optimizer.domain, GPflowOpt.domain.UnitCube(2))
+        rescaled_candidates = GPflowOpt.design.FactorialDesign(4, GPflowOpt.domain.UnitCube(2)).generate()
+        self.assertTrue(np.allclose(self.optimizer.get_initial(), np.vstack((0.5*np.ones((1,2)), rescaled_candidates))))
 
     def test_optimize(self):
         result = self.optimizer.optimize(parabola2d)
@@ -132,10 +153,9 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
 class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
         super(TestBayesianOptimizer, self).setUp()
-        design = GPflowOpt.design.FactorialDesign(4, self.domain)
+        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
         X, Y = design.generate(), parabola2d(design.generate())[0]
-        model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.var(axis=0)))
-        model.kern.variance.prior = GPflow.priors.Gamma(3, 1.0 / 3.0)
+        model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
         acquisition = GPflowOpt.acquisition.ExpectedImprovement(model)
         self.optimizer = GPflowOpt.BayesianOptimizer(self.domain, acquisition)
 
@@ -155,9 +175,19 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
                                              "non-succesfull result expected.")
         self.assertTrue(np.allclose(result.x, 0.0), msg="The optimum will not be identified nonetheless")
 
+
+class TestBayesianOptimizerConfigurations(unittest.TestCase):
+    def setUp(self):
+        self.domain = GPflowOpt.domain.ContinuousParameter("x1", 0.0, 1.0) + \
+                      GPflowOpt.domain.ContinuousParameter("x2", 0.0, 1.0)
+        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
+        X, Y = design.generate(), parabola2d(design.generate())[0]
+        model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.var(axis=0)))
+        self.acquisition = GPflowOpt.acquisition.ExpectedImprovement(model)
+
     def test_initial_design(self):
         design = GPflowOpt.design.RandomDesign(5, self.domain)
-        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.optimizer.acquisition, initial=design)
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, initial=design)
 
         result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=0)
         self.assertTrue(result.success)
@@ -170,3 +200,50 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertEqual(result.nfev, 0, "Initial was not reset")
         self.assertTupleEqual(optimizer.acquisition.data[0].shape, (21, 2))
         self.assertTupleEqual(optimizer.acquisition.data[1].shape, (21, 1))
+
+    def test_mcmc(self):
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, hyper_draws=10)
+        self.assertIsInstance(optimizer.acquisition, GPflowOpt.acquisition.MCMCAcquistion)
+        self.assertEqual(len(optimizer.acquisition.operands), 10)
+        self.assertEqual(optimizer.acquisition.operands[0], self.acquisition)
+
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=20)
+        self.assertTrue(result.success)
+        self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
+        self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
+
+
+class TestSilentOptimization(unittest.TestCase):
+    @contextmanager
+    def captured_output(self):
+        # Captures all stdout/stderr
+        new_out, new_err = six.StringIO(), six.StringIO()
+        old_out, old_err = sys.stdout, sys.stderr
+        try:
+            sys.stdout, sys.stderr = new_out, new_err
+            yield sys.stdout, sys.stderr
+        finally:
+            sys.stdout, sys.stderr = old_out, old_err
+
+    def test_silent(self):
+        class EmittingOptimizer(GPflowOpt.optim.Optimizer):
+            def __init__(self):
+                super(EmittingOptimizer, self).__init__(GPflowOpt.domain.ContinuousParameter('x0', 0, 1))
+
+            def _optimize(self, objective):
+                print('hello world!')
+                return OptimizeResult(x=np.array([0.5]))
+
+        # First, optimize with silent mode off. Should return the stdout of the optimizer
+        opt = EmittingOptimizer()
+        with self.captured_output() as (out, err):
+            opt.optimize(None)
+            output = out.getvalue().strip()
+            self.assertEqual(output, 'hello world!')
+
+        # Now with silent mode on
+        with self.captured_output() as (out, err):
+            with opt.silent():
+                opt.optimize(None)
+                output = out.getvalue().strip()
+                self.assertEqual(output, '')

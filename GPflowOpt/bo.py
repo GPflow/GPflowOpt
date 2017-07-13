@@ -15,9 +15,9 @@
 import numpy as np
 from scipy.optimize import OptimizeResult
 
-from .acquisition import Acquisition
+from .acquisition import Acquisition, MCMCAcquistion
 from .optim import Optimizer, SciPyOptimizer, ObjectiveWrapper
-from .design import EmptyDesign
+from .design import Design, EmptyDesign
 
 
 class BayesianOptimizer(Optimizer):
@@ -25,26 +25,40 @@ class BayesianOptimizer(Optimizer):
     A Bayesian Optimizer.
 
     Like other optimizers, this optimizer is constructed for optimization over a domain. Additionally, it is configured
-    with a seperate optimizer for the acquisition function.
+    with a separate optimizer for the acquisition function.
     """
 
-    def __init__(self, domain, acquisition, optimizer=None, initial=None):
+    def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=None):
         """
         :param domain: Domain object defining the optimization space
         :param acquisition: Acquisition object representing a utility function optimized over the domain
         :param optimizer: (optional) Optimizer object used to optimize acquisition. If not specified, SciPyOptimizer
          is used. This optimizer will run on the same domain as the BayesianOptimizer object.
-        :param initial: (optional) Design object used as initial set of candidates evaluated before the optimization 
-         loop runs. Note that if the underlying data already contain some data from an initial design, this design is 
-         evaluated on top of that.
+        :param initial: (optional) Design object used as initial set of candidates evaluated before the optimization
+         loop runs. Note that if the underlying model already some data from an initial design, it is augmented with the
+         evaluations obtained by evaluating the points as specified by the design
+        :param scaling: (boolean, default true) if set to true, the outputs are normalized, and the inputs are
+          scaled to a unit cube. This only affects model training: calls to acquisition.data, as well as
+          returned optima are unscaled (see :class:`.DataScaler` for more details.)
+        :param hyper_draws: (optional) Enable marginalization of model hyperparameters. By default, point estimates are
+          used. If this parameter set to n, n hyperparameter draws from the likelihood distribution are obtained using
+          Hamiltonian MC (see GPflow documentation for details) for each model. The acquisition score is computed for
+          each draw, and averaged.
         """
         assert isinstance(acquisition, Acquisition)
+        assert hyper_draws is None or hyper_draws > 0
+        assert optimizer is None or isinstance(optimizer, Optimizer)
+        assert initial is None or isinstance(initial, Design)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
-        self.acquisition = acquisition
-        initial = initial or EmptyDesign(domain)
-        self.set_initial(initial.generate())
+
+        if scaling:
+            acquisition.enable_scaling(domain)
+        self.acquisition = acquisition if hyper_draws is None else MCMCAcquistion(acquisition, hyper_draws)
+
         self.optimizer = optimizer or SciPyOptimizer(domain)
         self.optimizer.domain = domain
+        initial = initial or EmptyDesign(domain)
+        self.set_initial(initial.generate())
 
     def _update_model_data(self, newX, newY):
         """

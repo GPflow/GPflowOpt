@@ -5,6 +5,8 @@ import numpy as np
 
 class TestContinuousParameter(unittest.TestCase):
 
+    _multiprocess_can_split_ = True
+
     def test_simple(self):
         p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
         self.assertTrue(np.allclose(p._range, [0,1]), msg="Internal storage of object incorrect")
@@ -55,6 +57,8 @@ class TestContinuousParameter(unittest.TestCase):
 
 
 class TestHypercubeDomain(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1,4)])
@@ -115,7 +119,7 @@ class TestHypercubeDomain(unittest.TestCase):
 
     def test_transformation(self):
         X = np.random.rand(50,3)*2-1
-        target = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), 0, 1) for i in range(1,4)])
+        target = GPflowOpt.domain.UnitCube(3)
         transform = self.domain >> target
         self.assertTrue(np.allclose(transform.forward(X), (X + 1) / 2), msg="Transformation to [0,1] incorrect")
         self.assertTrue(np.allclose(transform.backward(transform.forward(X)), X),
@@ -125,6 +129,12 @@ class TestHypercubeDomain(unittest.TestCase):
         self.assertTrue(np.allclose(transform.backward(transform.forward(X)),
                                     inv_transform.forward(transform.forward(X))),
                         msg="Inverse transform yields different results")
-        self.assertTrue(np.allclose((~transform).A, inv_transform.A))
-        self.assertTrue(np.allclose((~transform).b, inv_transform.b))
+        self.assertTrue(np.allclose((~transform).A.value, inv_transform.A.value))
+        self.assertTrue(np.allclose((~transform).b.value, inv_transform.b.value))
+
+    def test_unitcube(self):
+        domain = GPflowOpt.domain.UnitCube(3)
+        self.assertTrue(np.allclose(domain.lower, 0))
+        self.assertTrue(np.allclose(domain.upper, 1))
+        self.assertEqual(domain.size, 3)
 

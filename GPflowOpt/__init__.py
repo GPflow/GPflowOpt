@@ -18,3 +18,4 @@ from .bo import BayesianOptimizer
 from . import optim
 from . import design
 from . import transforms
+from . import scaling
