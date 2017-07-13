@@ -22,6 +22,8 @@ from .pareto import Pareto
 import numpy as np
 import tensorflow as tf
 
+import copy
+
 float_type = settings.dtypes.float_type
 stability = settings.numerics.jitter_level
 
@@ -45,8 +47,8 @@ class Acquisition(Parameterized):
 
     def __init__(self, models=[], optimize_restarts=5):
         super(Acquisition, self).__init__()
-        self.models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
-        self._default_params = list(map(lambda m: m.get_free_state(), self.models))
+        self._models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
+        self._default_params = list(map(lambda m: m.get_free_state(), self._models))
 
         assert (optimize_restarts >= 0)
         self._optimize_restarts = optimize_restarts
@@ -65,19 +67,19 @@ class Acquisition(Parameterized):
         As a special case, if optimize_restarts is set to zero, the hyperparameters of the models are not optimized.
         This is useful when the hyperparameters are sampled using MCMC.
         """
+        if self._optimize_restarts == 0:
+            return
+
         for model, hypers in zip(self.models, self._default_params):
             runs = []
-            # Start from supplied hyperparameters
-            model.set_state(hypers)
             for i in range(self._optimize_restarts):
-                if i > 0:
-                    model.randomize()
+                model.randomize() if i > 0 else model.set_state(hypers)
                 try:
                     result = model.optimize()
                     runs.append(result)
                 except tf.errors.InvalidArgumentError:  # pragma: no cover
                     print("Warning: optimization restart {0}/{1} failed".format(i + 1, self._optimize_restarts))
-            best_idx = np.argmin(map(lambda r: r.fun, runs))
+            best_idx = np.argmin([r.fun for r in runs])
             model.set_state(runs[best_idx].x)
 
     def build_acquisition(self):
@@ -121,6 +123,10 @@ class Acquisition(Parameterized):
         if self.highest_parent == self:
             self.setup()
         return num_outputs_sum
+
+    @property
+    def models(self):
+        return self._models
 
     @property
     def data(self):
@@ -479,18 +485,12 @@ class AcquisitionAggregation(Acquisition):
         self._oper = oper
         self.setup()
 
-    @Acquisition.data.getter
-    def data(self):
-        if not self._tf_mode:
-            assert (all(np.allclose(x.data[0], self.operands[0].data[0]) for x in self.operands))
+    def _optimize_models(self):
+        pass
 
-        X = self.operands[0].data[0]
-        Ys = map(lambda operand: operand.data[1], self.operands)
-
-        if self._tf_mode:
-            return X, tf.concat(list(Ys), 1)
-        else:
-            return X, np.hstack(Ys)
+    @Acquisition.models.getter
+    def models(self):
+        return ParamList([model for acq in self.operands for model in acq.models.sorted_params])
 
     def enable_scaling(self, domain):
         for oper in self.operands:
@@ -500,10 +500,13 @@ class AcquisitionAggregation(Acquisition):
         offset = 0
         for operand in self.operands:
             offset += operand.set_data(X, Y[:, offset:])
+        if self.highest_parent == self:
+            self.setup()
         return offset
 
     def setup(self):
-        _ = [oper.setup() for oper in self.operands]
+        for oper in self.operands:
+            oper.setup()
 
     def constraint_indices(self):
         offset = [0]
@@ -552,3 +555,53 @@ class AcquisitionProduct(AcquisitionAggregation):
             return AcquisitionProduct(self.operands.sorted_params + other.operands.sorted_params)
         else:
             return AcquisitionProduct(self.operands.sorted_params + [other])
+
+
+class MCMCAcquistion(AcquisitionSum):
+    """
+    Acquisition object to apply MCMC over the hyperparameters of the models. The models of the acquisition object passed
+    into an object of this class is optimized with MLE, and then sampled with HMC. These hyperparameter samples are then
+    set in copies of the acquisition.
+
+    To compute the acquisition, the predictions of the acquisition copies are averaged.
+    """
+    def __init__(self, acquisition, n_slices, **kwargs):
+        assert isinstance(acquisition, Acquisition)
+        assert n_slices > 0
+
+        copies = [copy.deepcopy(acquisition) for _ in range(n_slices - 1)]
+        for c in copies:
+            c._optimize_restarts = 0
+
+        # the call to the constructor of the parent classes, will optimize acquisition, so it obtains the MLE solution.
+        super(MCMCAcquistion, self).__init__([acquisition] + copies)
+        self._sample_opt = kwargs
+        # Update the hyperparameters of the copies using HMC
+        self._update_hyper_draws()
+
+    def _update_hyper_draws(self):
+        # Sample each model of the acquisition function - results in a list of 2D ndarrays.
+        hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
+
+        # Now visit all copies, and set state
+        for idx, draw in enumerate(self.operands):
+            draw.set_state(hypers[idx, :])
+
+    @Acquisition.models.getter
+    def models(self):
+        # Only return the models of the first operand, the copies remain hidden.
+        return self.operands[0].models
+
+    def set_data(self, X, Y):
+        for operand in self.operands:
+            # This triggers model.optimize() on self.operands[0]
+            # All copies have optimization disabled, but must have update data.
+            offset = operand.set_data(X, Y)
+        self._update_hyper_draws()
+        if self.highest_parent == self:
+            self.setup()
+        return offset
+
+    def build_acquisition(self, Xcand):
+        # Average the predictions of the copies.
+        return 1. / len(self.operands) * super(MCMCAcquistion, self).build_acquisition(Xcand)
