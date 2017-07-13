@@ -394,6 +394,18 @@ class HVProbabilityOfImprovement(Acquisition):
             publisher={Springer}
         }
 
+    For a Pareto front :math:`\\mathcal{P}`, the non dominated section of the objective space is denoted by :math:`A`.
+    The hypervolume of the dominated part of the space is denoted by :math:`\\mathcal{H}` and can be used as indicator.
+    
+    .. math::
+       \\boldsymbol{\\mu} &= \\left[ \\mathbb{E} \\left[ f^{(1)}_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right],
+       ..., \\mathbb{E} \\left[ f^{(p)}_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]\\right] \\\\
+       I\\left(\\boldsymbol{\\mu}, \\mathcal{P}\\right) &=
+       \\begin{cases} \\left( \\mathcal{H} \\left( \\mathcal{P} \\cup \\boldsymbol{\\mu} \\right) - \\mathcal{H}
+       \\left( \\mathcal{P} \\right)) \\right) ~ \\boldsymbol{\\mu} \\in A
+       \\\\ 0 ~ \\mbox{otherwise} \\end{cases} \\\\
+       \\alpha(\\mathbf x_{\\star}) &= I\\left(\\boldsymbol{\\mu}, \\mathcal{P}\\right) p\\left(\\mathbf x_{\\star} \\in A \\right)
+
     """
 
     def __init__(self, models):

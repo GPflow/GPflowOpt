@@ -9,5 +9,5 @@ Transforms
 
 Normalizer
 ----------
-.. automodule:: GPflowOpt.normalizer
-.. autoclass:: GPflowOpt.normalizer.Normalizer
+.. automodule:: GPflowOpt.scaling
+.. autoclass:: GPflowOpt.scaling.DataScaler
