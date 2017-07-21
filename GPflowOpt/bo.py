@@ -170,6 +170,14 @@ class BayesianOptimizer(Optimizer):
 
     @contextmanager
     def failsafe(self):
+        """
+        Context to provide a safe way for optimization. If a RuntimeError is generated, the data of the acquisition
+        object is saved to the disc in the current directory. This allows the data to be re-used (which makes sense
+        for expensive data).
+
+        The data can also be used to try to fit a GPflow model first (set sensible initial
+        hyperparameter values and hyperpriors) before retrying Bayesian Optimization again.
+        """
         try:
             yield
         except RuntimeError as e:
