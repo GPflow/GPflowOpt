@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import contextmanager
+
 import numpy as np
 from scipy.optimize import OptimizeResult
 
@@ -165,3 +167,12 @@ class BayesianOptimizer(Optimizer):
             self._update_model_data(result.x, fx(result.x))
 
         return self._create_bo_result(True, "OK")
+
+    @contextmanager
+    def failsafe(self):
+        try:
+            yield
+        except RuntimeError as e:
+            print(id(e))
+            np.savez('failed_bopt_{0}'.format(id(e)), X=self.acquisition.data[0], Y=self.acquisition.data[1])
+            raise
