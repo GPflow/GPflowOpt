@@ -8,6 +8,19 @@ float_type = GPflow.settings.dtypes.float_type
 
 
 class MGP(Parameterized):
+    """
+    Marginalisation of the hyperparameters during evaluation time using a Laplace Approximation
+    Key reference:
+
+    ::
+
+       @article{garnett2013active,
+          title={Active learning of linear embeddings for Gaussian processes},
+          author={Garnett, Roman and Osborne, Michael A and Hennig, Philipp},
+          journal={arXiv preprint arXiv:1310.6740},
+          year={2013}
+        }
+    """
     def __init__(self, obj):
         assert isinstance(obj, GPModel), "Class has to be a GP model"
         assert isinstance(obj.likelihood, Gaussian), "Likelihood has to be Gaussian"
