@@ -76,23 +76,6 @@ class MGP(GPModel):
 
         super(MGP, self).__setattr__(key, value)
 
-    def _unwrap(self, p, c):
-        """
-        Unwrap all the parameters captured in the model
-        """
-        if isinstance(p, Param):
-            c.append(p._tf_array)
-        elif isinstance(p, Parameterized):
-            for p2 in p.sorted_params:
-                self._unwrap(p2, c)
-
-    def _compute_hessian(self, x, y):
-        l = tf.unstack(tf.gradients(x, y)[0])
-        lll=[]
-        for ll in l:
-            lll.append(tf.gradients(ll, y))
-        return tf.stack(lll, axis=1)
-
     def build_predict(self, Xnew, full_cov=False):
         fmean, fvar = self.wrapped.build_predict(Xnew=Xnew, full_cov=full_cov)
 
