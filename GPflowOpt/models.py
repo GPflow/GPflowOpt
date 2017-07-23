@@ -1,5 +1,5 @@
 from GPflow.param import Parameterized, AutoFlow, Param
-from GPflow.model import GPModel
+from GPflow.model import Model, GPModel
 from GPflow.likelihoods import Gaussian
 import GPflow
 import tensorflow as tf
@@ -31,7 +31,7 @@ def rowwise_gradients(Y, X):
     return grads
 
 
-class MGP(GPModel):
+class MGP(Model):
     """
     Marginalisation of the hyperparameters during evaluation time using a Laplace Approximation
     Key reference:
@@ -51,13 +51,7 @@ class MGP(GPModel):
         assert isinstance(obj.likelihood, Gaussian), "Likelihood has to be Gaussian"
         assert obj.Y.shape[1] == 1, "Only one dimensional functions are allowed"
         self.wrapped = obj
-        self.cov_chol = None
-        super(MGP, self).__init__(None, None, None, None, 1, name=obj.name + "_MGP")
-        del self.kern
-        del self.mean_function
-        del self.likelihood
-        del self.X
-        del self.Y
+        super(MGP, self).__init__(name=obj.name + "_MGP")
 
     def __getattr__(self, item):
         """
@@ -76,17 +70,34 @@ class MGP(GPModel):
 
         super(MGP, self).__setattr__(key, value)
 
-    def build_predict(self, Xnew, full_cov=False):
-        fmean, fvar = self.wrapped.build_predict(Xnew=Xnew, full_cov=full_cov)
-
-        c = self._predict_f_AF_storage['free_vars']
-        h = tf.hessians(self.build_likelihood() + self.build_prior(), c)[0]
+    def build_predict(self, fmean, fvar, theta):
+        h = tf.hessians(self.build_likelihood() + self.build_prior(), theta)[0]
         L = tf.cholesky(-h)
 
-        Dfmean = rowwise_gradients(fmean, c)
-        Dfvar = rowwise_gradients(fvar, c)
+        Dfmean = rowwise_gradients(fmean, theta)
+        Dfvar = rowwise_gradients(fvar, theta)
 
         tmp1 = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(Dfmean)))
         tmp2 = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(Dfvar)))
         return fmean, 4 / 3 * fvar + tf.expand_dims(tf.reduce_sum(tf.square(tmp1), axis=1), 1) \
                + 1 / 3 / (fvar + 1E-3) * tf.expand_dims(tf.reduce_sum(tf.square(tmp2), axis=1), 1)
+
+    @AutoFlow((float_type, [None, None]))
+    def predict_f(self, Xnew):
+        """
+        Compute the mean and variance of the latent function(s) at the points
+        Xnew.
+        """
+        theta = self._predict_f_AF_storage['free_vars']
+        fmean, fvar =  self.wrapped.build_predict(Xnew)
+        return self.build_predict(fmean, fvar, theta)
+
+    @AutoFlow((float_type, [None, None]))
+    def predict_y(self, Xnew):
+        """
+        Compute the mean and variance of held-out data at the points Xnew
+        """
+        theta = self._predict_y_AF_storage['free_vars']
+        pred_f_mean, pred_f_var = self.wrapped.build_predict(Xnew)
+        fmean, fvar= self.wrapped.likelihood.predict_mean_and_var(pred_f_mean, pred_f_var)
+        return self.build_predict(fmean, fvar, theta)
