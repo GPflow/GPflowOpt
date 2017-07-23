@@ -20,7 +20,7 @@ print(m)
 print('Trained')
 
 X = np.array(np.linspace(-4, 4, 100)[:, None])
-fms, fvs = m.predict_f(X)
+fms, fvs = m.predict_y(X)
 print(fms, fvs)
 print('Evaluated')
 
