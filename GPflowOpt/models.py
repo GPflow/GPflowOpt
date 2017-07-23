@@ -7,7 +7,30 @@ import tensorflow as tf
 float_type = GPflow.settings.dtypes.float_type
 
 
-class MGP(Parameterized):
+def rowwise_gradients(Y, X):
+    """
+    For a 2D Tensor Y, compute the derivatiave of each columns w.r.t  a 2D tensor X.
+
+    This is done with while_loop, because of a known incompatibility between map_fn and gradients.
+    """
+    num_rows = tf.shape(Y)[0]
+
+    def body(old_grads, row):
+        g = tf.stack(tf.gradients(Y[row], X), axis=1)
+        new_grads = tf.concat([old_grads, g], axis=0)
+        return new_grads, row + 1
+
+    def cond(_, row):
+        return tf.less(row, num_rows)
+
+    shape_invariants = [tf.TensorShape([None, len(X)]), tf.TensorShape([])]
+    grads, _ = tf.while_loop(cond, body, [tf.zeros([0, len(X)], float_type), tf.constant(0)],
+                             shape_invariants=shape_invariants)
+
+    return grads
+
+
+class MGP(GPModel):
     """
     Marginalisation of the hyperparameters during evaluation time using a Laplace Approximation
     Key reference:
@@ -21,13 +44,19 @@ class MGP(Parameterized):
           year={2013}
         }
     """
+
     def __init__(self, obj):
         assert isinstance(obj, GPModel), "Class has to be a GP model"
         assert isinstance(obj.likelihood, Gaussian), "Likelihood has to be Gaussian"
         assert obj.Y.shape[1] == 1, "Only one dimensional functions are allowed"
         self.wrapped = obj
         self.cov_chol = None
-        super(MGP, self).__init__()
+        super(MGP, self).__init__(None, None, None, None, 1, name=obj.name + "_MGP")
+        del self.kern
+        del self.mean_function
+        del self.likelihood
+        del self.X
+        del self.Y
 
     def __getattr__(self, item):
         """
@@ -45,14 +74,6 @@ class MGP(Parameterized):
             return
 
         super(MGP, self).__setattr__(key, value)
-
-    @AutoFlow((float_type, [None, None]))
-    def predict_f(self, Xnew):
-        """
-        Compute the mean and variance of the latent function(s) at the points
-        Xnew.
-        """
-        return self.build_predict(Xnew)
 
     def _unwrap(self, p, c):
         """
@@ -82,24 +103,15 @@ class MGP(Parameterized):
         fmean, fvar = self.wrapped.build_predict(Xnew=Xnew, full_cov=full_cov)
         c = []
         self._unwrap(self.wrapped, c)
-        L = self.cov_chol
-        Dfmean = tf.stack(tf.gradients(fmean, c))
-        Dfvar = tf.stack(tf.gradients(fvar, c))
+        C = tf.expand_dims(tf.stack(c, axis=0), 1)
 
-        tmp1 = tf.matrix_triangular_solve(L, Dfmean)
-        tmp2 = tf.matrix_triangular_solve(L, Dfvar)
-        return fmean, 4 / 3 * fvar + tf.reduce_sum(tf.square(tmp1)) + 1 / 3 / (fvar+1E-3) * tf.reduce_sum(tf.square(tmp2))
+        Dfmean = rowwise_gradients(fmean, c)
+        Dfvar = rowwise_gradients(fvar, c)
 
-    @AutoFlow()
-    def _variance_cholesky(self):
-        c = []
-        self._unwrap(self.wrapped, c)
-        h = -self._compute_hessian(self.build_likelihood(), c)
-        diag = tf.expand_dims(tf.matrix_diag_part(h), -1)
-        h = 1/diag*h/tf.transpose(diag) +tf.eye(len(c), dtype=float_type)*1E-3
-        L = diag*tf.cholesky(h)
-        return L
+        h = -self._compute_hessian(self.build_likelihood() + self.build_prior(), c)
+        L = tf.cholesky(h)
 
-    def optimize(self, **kwargs):
-        self.wrapped.optimize(**kwargs)
-        self.cov_chol = Param(self._variance_cholesky())
+        tmp1 = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(Dfmean)))
+        tmp2 = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(Dfvar)))
+        return fmean, 4 / 3 * fvar + tf.expand_dims(tf.reduce_sum(tf.square(tmp1), axis=1), 1) \
+               + 1 / 3 / (fvar + 1E-3) * tf.expand_dims(tf.reduce_sum(tf.square(tmp2), axis=1), 1)
