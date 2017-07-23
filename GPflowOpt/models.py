@@ -14,17 +14,18 @@ def rowwise_gradients(Y, X):
     This is done with while_loop, because of a known incompatibility between map_fn and gradients.
     """
     num_rows = tf.shape(Y)[0]
+    num_feat = tf.shape(X)[0]
 
     def body(old_grads, row):
-        g = tf.stack(tf.gradients(Y[row], X), axis=1)
+        g = tf.expand_dims(tf.gradients(Y[row], X)[0], axis=0)
         new_grads = tf.concat([old_grads, g], axis=0)
         return new_grads, row + 1
 
     def cond(_, row):
         return tf.less(row, num_rows)
 
-    shape_invariants = [tf.TensorShape([None, len(X)]), tf.TensorShape([])]
-    grads, _ = tf.while_loop(cond, body, [tf.zeros([0, len(X)], float_type), tf.constant(0)],
+    shape_invariants = [tf.TensorShape([None, None]), tf.TensorShape([])]
+    grads, _ = tf.while_loop(cond, body, [tf.zeros([0, num_feat], float_type), tf.constant(0)],
                              shape_invariants=shape_invariants)
 
     return grads
@@ -86,30 +87,21 @@ class MGP(GPModel):
                 self._unwrap(p2, c)
 
     def _compute_hessian(self, x, y):
-        mat = []
-        for v1 in y:
-            temp = []
-            for v2 in y:
-                # computing derivative twice, first w.r.t v2 and then w.r.t v1
-                temp.append(tf.gradients(tf.gradients(x, v2)[0], v1)[0])
-            temp = [tf.constant(0, dtype=float_type) if t is None else t for t in
-                    temp]
-            temp = tf.stack(temp)
-            mat.append(temp)
-        mat = tf.squeeze(tf.stack(mat))
-        return mat
+        l = tf.unstack(tf.gradients(x, y)[0])
+        lll=[]
+        for ll in l:
+            lll.append(tf.gradients(ll, y))
+        return tf.stack(lll, axis=1)
 
     def build_predict(self, Xnew, full_cov=False):
         fmean, fvar = self.wrapped.build_predict(Xnew=Xnew, full_cov=full_cov)
-        c = []
-        self._unwrap(self.wrapped, c)
-        C = tf.expand_dims(tf.stack(c, axis=0), 1)
+
+        c = self._predict_f_AF_storage['free_vars']
+        h = tf.hessians(self.build_likelihood() + self.build_prior(), c)[0]
+        L = tf.cholesky(-h)
 
         Dfmean = rowwise_gradients(fmean, c)
         Dfvar = rowwise_gradients(fvar, c)
-
-        h = -self._compute_hessian(self.build_likelihood() + self.build_prior(), c)
-        L = tf.cholesky(h)
 
         tmp1 = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(Dfmean)))
         tmp2 = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(Dfvar)))
