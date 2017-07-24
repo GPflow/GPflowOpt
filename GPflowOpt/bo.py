@@ -16,7 +16,8 @@ import numpy as np
 from scipy.optimize import OptimizeResult
 
 from .acquisition import Acquisition, MCMCAcquistion
-from .optim import Optimizer, SciPyOptimizer, ObjectiveWrapper
+from .optim import Optimizer, SciPyOptimizer
+from .objective import ObjectiveWrapper
 from .design import Design, EmptyDesign
 
 
