@@ -42,6 +42,12 @@ def triple_objective(Xflat):
     return np.hstack((f1, f2, f3)), np.vstack((g1, g2, g3)).T
 
 
+@GPflowOpt.objective.batch_apply
+def add_batch_apply_no_grad(Xflat):
+    f, g = ref_function(Xflat)
+    return f
+
+
 class TestDecorators(unittest.TestCase):
 
     @staticmethod
@@ -79,4 +85,10 @@ class TestDecorators(unittest.TestCase):
         self.__class__.check_reference(f[:, [0]], g[..., 0], X)
         self.__class__.check_reference(f[:, [1]], g[..., 1], 2*X)
         self.__class__.check_reference(f[:, [2]], g[..., 2], 0.5*X)
+
+    def test_no_grad(self):
+        X = np.random.rand(5, 2)
+        f = add_batch_apply_no_grad(X)
+        self.assertTupleEqual(f.shape, (5, 1))
+        np.testing.assert_almost_equal(f, ref_function(X)[0])
 
