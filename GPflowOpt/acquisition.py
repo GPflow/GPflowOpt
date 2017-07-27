@@ -416,7 +416,7 @@ class HVProbabilityOfImprovement(Acquisition):
 
     def __init__(self, models):
         super(HVProbabilityOfImprovement, self).__init__(models)
-        assert len(self.models) > 1
+        assert self.data[1].shape[1] > 1
         self.pareto = Pareto(np.hstack((m.predict_f(self.data[0])[0] for m in self.models)))
         self.reference = DataHolder(self._estimate_reference())
 
@@ -427,6 +427,7 @@ class HVProbabilityOfImprovement(Acquisition):
 
     def setup(self):
         super(HVProbabilityOfImprovement, self).setup()
+
         # Obtain hypervolume cell bounds, use prediction mean
         F = np.hstack((m.predict_f(self.data[0])[0] for m in self.models))
         self.pareto.update(F)
