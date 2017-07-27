@@ -180,7 +180,6 @@ class BayesianOptimizer(Optimizer):
         """
         try:
             yield
-        except RuntimeError as e:
-            print(id(e))
+        except Exception as e:
             np.savez('failed_bopt_{0}'.format(id(e)), X=self.acquisition.data[0], Y=self.acquisition.data[1])
             raise
