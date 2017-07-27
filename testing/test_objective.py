@@ -9,10 +9,18 @@ def ref_function(X):
     X = np.atleast_2d(X)
     return np.sum(X, axis=1, keepdims=True), X
 
+# For to_kwargs
+domain = GPflowOpt.domain.ContinuousParameter('x', 0, 1) + GPflowOpt.domain.ContinuousParameter('y', 0, 1)
+
 
 # Some versions
 @GPflowOpt.objective.to_args
 def add_to_args(x, y):
+    return ref_function(np.vstack((x, y)).T)
+
+
+@GPflowOpt.objective.to_kwargs(domain)
+def add_to_kwargs(x=None, y=None):
     return ref_function(np.vstack((x, y)).T)
 
 
@@ -30,6 +38,13 @@ def add_batch_apply_no_dims(Xflat):
 @GPflowOpt.objective.batch_apply
 @GPflowOpt.objective.to_args
 def add_batch_apply_to_args(x, y):
+    f, g = ref_function(np.vstack((x, y)).T)
+    return f, g[0, :]
+
+
+@GPflowOpt.objective.batch_apply
+@GPflowOpt.objective.to_kwargs(domain)
+def add_batch_apply_to_kwargs(x=None, y=None):
     f, g = ref_function(np.vstack((x, y)).T)
     return f, g[0, :]
 
@@ -56,9 +71,11 @@ class TestDecorators(unittest.TestCase):
         np.testing.assert_almost_equal(g, ref_function(X)[1])
 
     @parameterized.expand([(add_to_args,),
+                           (add_to_kwargs,),
                            (add_batch_apply,),
                            (add_batch_apply_no_dims,),
-                           (add_batch_apply_to_args,)])
+                           (add_batch_apply_to_args,),
+                           (add_batch_apply_to_kwargs,)])
     def test_one_point(self, fun):
         X = np.random.rand(2)
         f, g = fun(X)
@@ -67,9 +84,11 @@ class TestDecorators(unittest.TestCase):
         self.__class__.check_reference(f, g, X)
 
     @parameterized.expand([(add_to_args,),
+                           (add_to_kwargs,),
                            (add_batch_apply,),
                            (add_batch_apply_no_dims,),
-                           (add_batch_apply_to_args,)])
+                           (add_batch_apply_to_args,),
+                           (add_batch_apply_to_kwargs,)])
     def test_multiple_points(self, fun):
         X = np.random.rand(5, 2)
         f, g = fun(X)

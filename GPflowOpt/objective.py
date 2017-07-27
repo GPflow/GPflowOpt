@@ -61,6 +61,34 @@ def to_args(fun):
     return args_wrapper
 
 
+class to_kwargs(object):
+    """
+    Decorator for calling an objective function which has each feature as seperate keyword argument.
+    The 2d input ndarray is split column wise and passed as keyword arguments. Can be combined with batch apply.
+
+    This decorator is particularly useful for fixing parameters of the optimization domain to fixed values. This can
+    be achieved by assigning default values to the keyword arguments. By adding/removing a parameter from the
+    optimization domain, the parameter is included or excluded.
+
+    :param domain: optimization domain, labels of the parameters are as keys to calling the objective function.
+    """
+    def __init__(self, domain):
+        self.labels = [p.label for p in domain]
+
+    def __call__(self, fun):
+        """
+        :param fun: function accepting d n-dimensional vectors as keyword arguments (each representing a feature,
+         and returns a a matrix of dimensionality n x p and optionally a gradient of size n x d x p (or n x d if p == 1)
+        :return: a function wrapper which splits a given input ndarray into its columns to call fun.
+        """
+        @wraps(fun)
+        def kwargs_wrapper(X):
+            X = np.atleast_2d(X)
+            return fun(**dict(zip(self.labels, X.T)))
+
+        return kwargs_wrapper
+
+
 class ObjectiveWrapper(model.ObjectiveWrapper):
     def __init__(self, objective, exclude_gradient):
         super(ObjectiveWrapper, self).__init__(objective)
