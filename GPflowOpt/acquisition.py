@@ -78,6 +78,8 @@ class Acquisition(Parameterized):
                     runs.append(result)
                 except tf.errors.InvalidArgumentError:  # pragma: no cover
                     print("Warning: optimization restart {0}/{1} failed".format(i + 1, self._optimize_restarts))
+            if not runs:
+                raise RuntimeError("All model hyperparameter optimization restarts failed, exiting.")
             best_idx = np.argmin([r.fun for r in runs])
             model.set_state(runs[best_idx].x)
 
