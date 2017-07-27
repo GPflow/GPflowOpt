@@ -19,15 +19,13 @@ from GPflow import model
 def batch_apply(fun):
     """
     Decorator which applies a function along the first dimension of a given ndarray as argument (the batch dimension)
-    the most common use case is a function which is to convert a function designed to operate on an input vector, and
+    the most common use case is to convert a function designed to operate on a single input vector, and
     to compute its response (and possibly gradient) for each row of a matrix.
 
     :param fun: function accepting an input vector of dimensionality d and returns a vector of dimensionality p (the
-       output dimensionality, usually one) and (optionally) a gradient of size d x p. If p is 1, the extra dimension is
-       not supposed to be returned.
+       output dimensionality) and (optionally) a gradient of size d x p (or d if p == 1)
     :return: a function wrapper which calls fun on each row of a given n x d matrix. Here n represents the batch
-       dimension. the wrapper returns n x p and optionally a n x d x p matrix (again, if p is 1 the extra dimension is
-       not returned)
+       dimension. the wrapper returns n x p and optionally a n x d x p matrix (or n x d if p == 1)
     """
     @wraps(fun)
     def batch_wrapper(X):
