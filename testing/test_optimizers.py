@@ -12,6 +12,15 @@ def parabola2d(X):
     return np.atleast_2d(np.sum(X ** 2, axis=1)).T, 2 * X
 
 
+def vlmop2(x):
+    transl = 1 / np.sqrt(2)
+    part1 = (x[:, [0]] - transl) ** 2 + (x[:, [1]] - transl) ** 2
+    part2 = (x[:, [0]] + transl) ** 2 + (x[:, [1]] + transl) ** 2
+    y1 = 1 - np.exp(-1 * part1)
+    y2 = 1 - np.exp(-1 * part2)
+    return np.hstack((y1, y2))
+
+
 class KeyboardRaiser:
     """
     This wraps a function and makes it raise a KeyboardInterrupt after some number of calls
@@ -159,6 +168,15 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         acquisition = GPflowOpt.acquisition.ExpectedImprovement(model)
         self.optimizer = GPflowOpt.BayesianOptimizer(self.domain, acquisition)
 
+    def setup_multi_objective(self):
+        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
+        X = design.generate()
+        Y = vlmop2(X)
+        m1 = GPflow.gpr.GPR(X, Y[:,[0]], GPflow.kernels.RBF(2, ARD=True))
+        m2 = GPflow.gpr.GPR(X.copy(), Y[:,[1]], GPflow.kernels.RBF(2, ARD=True))
+        acquisition = GPflowOpt.acquisition.ExpectedImprovement(m1) + GPflowOpt.acquisition.ExpectedImprovement(m2)
+        return GPflowOpt.BayesianOptimizer(self.domain, acquisition)
+
     def test_default_initial(self):
         self.assertTupleEqual(self.optimizer._initial.shape, (0, 2), msg="Invalid shape of initial points array")
 
@@ -168,6 +186,16 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertEqual(result.nfev, 20, "Only 20 evaluations permitted")
         self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
         self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
+
+    def test_optimize_multi_objective(self):
+        optimizer = self.setup_multi_objective()
+        result = optimizer.optimize(vlmop2, n_iter=2)
+        self.assertTrue(result.success)
+        self.assertEqual(result.nfev, 2, "Only 2 evaluations permitted")
+        self.assertTupleEqual(result.x.shape, (8, 2))
+        self.assertTupleEqual(result.fun.shape, (8, 2))
+        _, dom, _ = GPflowOpt.pareto.non_dominated_sort(result.fun)
+        self.assertTrue(np.all(dom==0))
 
     def test_optimizer_interrupt(self):
         result = self.optimizer.optimize(KeyboardRaiser(3, lambda X: parabola2d(X)[0]), n_iter=20)
