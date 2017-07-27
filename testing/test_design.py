@@ -81,6 +81,4 @@ class TestLatinHyperCubeDesign(_TestDesign, unittest.TestCase):
         lhds = map(lambda file: groundtruth[file], groundtruth.files)
         idx = np.argsort([lhd.shape[-1] for lhd in lhds])
         for generated, real in zip(points, map(lambda file: groundtruth[file], np.array(groundtruth.files)[idx])):
-            print(generated)
-            print(real)
             self.assertTrue(np.allclose(generated, real), msg="Generated LHD does not correspond to the groundtruth")
