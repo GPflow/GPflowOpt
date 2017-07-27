@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import contextmanager
+
 import numpy as np
 from scipy.optimize import OptimizeResult
 
@@ -166,3 +168,19 @@ class BayesianOptimizer(Optimizer):
             self._update_model_data(result.x, fx(result.x))
 
         return self._create_bo_result(True, "OK")
+
+    @contextmanager
+    def failsafe(self):
+        """
+        Context to provide a safe way for optimization. If a RuntimeError is generated, the data of the acquisition
+        object is saved to the disc in the current directory. This allows the data to be re-used (which makes sense
+        for expensive data).
+
+        The data can also be used to try to fit a GPflow model first (set sensible initial
+        hyperparameter values and hyperpriors) before retrying Bayesian Optimization again.
+        """
+        try:
+            yield
+        except Exception as e:
+            np.savez('failed_bopt_{0}'.format(id(e)), X=self.acquisition.data[0], Y=self.acquisition.data[1])
+            raise
