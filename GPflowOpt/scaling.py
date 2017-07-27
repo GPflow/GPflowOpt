@@ -75,7 +75,7 @@ class DataScaler(GPModel):
         self._output_transform = LinearTransform(np.ones(n_outputs), np.zeros(n_outputs))
 
         # The assignments in the constructor of GPModel take care of initial re-scaling of model data.
-        super(DataScaler, self).__init__(model.X.value, model.Y.value, None, None, None, name=model.name+"_datascaler")
+        super(DataScaler, self).__init__(model.X.value, model.Y.value, None, None, 1, name=model.name+"_datascaler")
         del self.kern
         del self.mean_function
         del self.likelihood
