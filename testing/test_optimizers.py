@@ -195,7 +195,7 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertEqual(result.nfev, 2, "Only 2 evaluations permitted")
         self.assertTupleEqual(result.x.shape, (8, 2))
         self.assertTupleEqual(result.fun.shape, (8, 2))
-        _, dom, _ = GPflowOpt.pareto.non_dominated_sort(result.fun)
+        _, dom = GPflowOpt.pareto.non_dominated_sort(result.fun)
         self.assertTrue(np.all(dom==0))
 
     def test_optimizer_interrupt(self):
