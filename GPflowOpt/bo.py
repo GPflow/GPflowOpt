@@ -113,7 +113,7 @@ class BayesianOptimizer(Optimizer):
 
         # Differentiate between single- and multiobjective optimization results
         if valid_Y.shape[1] > 1:
-            _, dom, _ = non_dominated_sort(valid_Yo)
+            _, dom = non_dominated_sort(valid_Yo)
             idx = dom == 0  # Return the non-dominated points
         else:
             idx = np.argmin(valid_Yo)

@@ -49,46 +49,13 @@ class BoundedVolumes(Parameterized):
         return np.prod(self.ub.value - self.lb.value, axis=1)
 
 
-def setdiffrows(a1, a2):
-    a1_rows = a1.view([('', a1.dtype)] * a1.shape[1])
-    a2_rows = a2.view([('', a2.dtype)] * a2.shape[1])
-    return np.setdiff1d(a1_rows, a2_rows).view(a1.dtype).reshape(-1, a1.shape[1])
-
-
-def unique_rows(a):
-    b = np.ascontiguousarray(a).view(np.dtype((np.void, a.dtype.itemsize * a.shape[1])))
-    _, idx = np.unique(b, return_index=True)
-    return a[idx]
-
-
 def non_dominated_sort(objectives):
-    objectives = objectives - np.minimum(np.min(objectives, axis=0), 0)
-
-    # Ranking based on three different metrics.
-    # 1) Dominance
+    # Dominance
     extended = np.tile(objectives, (objectives.shape[0], 1, 1))
     dominance = np.sum(np.logical_and(np.all(extended <= np.swapaxes(extended, 0, 1), axis=2),
                                       np.any(extended < np.swapaxes(extended, 0, 1), axis=2)), axis=1)
 
-    # 2) minimum distance to other points on the same front
-    # Used to promote diversity
-    distance = np.inf * np.ones(objectives.shape[0])
-    dist = squareform(pdist(objectives)) + np.diag(distance)
-    for dom in np.unique(dominance):
-        idx = dominance == dom
-        distance[idx] = np.min(dist[idx, :][:, idx], axis=1)
-
-    # 3) euclidean distance to origin (zero)
-    distance_from_zero = np.sum(np.power(objectives, 2), axis=1)
-
-    # Compute two rankings. Use the first, except for the first front.
-    scores = np.vstack((dominance, -distance, distance_from_zero)).T
-    ixa = np.lexsort((scores[:, 2], scores[:, 1], scores[:, 0]))
-    ixb = np.lexsort((scores[:, 1], scores[:, 2], scores[:, 0]))
-    first_pf_size = np.sum(np.min(dominance) == dominance)
-    ixa[:first_pf_size] = ixb[:first_pf_size]
-
-    return ixa, dominance, distance
+    return objectives[dominance == 0], dominance
 
 
 class Pareto(Parameterized):
@@ -104,7 +71,8 @@ class Pareto(Parameterized):
         # Initialize
         self.update()
 
-    def _is_test_required(self, smaller):
+    @staticmethod
+    def _is_test_required(smaller):
         # Test if test point augments or dominates the Pareto set
         # <=> test point is at least in one dimension smaller for every point in the Pareto set
         idx_dom_augm = np.any(smaller, axis=1)
@@ -118,12 +86,10 @@ class Pareto(Parameterized):
         :return: whether the Pareto set has actually changed since the last iteration
         """
         current = self.front.value
-        idx, dom, _ = non_dominated_sort(self.Y)
+        pf, _ = non_dominated_sort(self.Y)
 
-        pf = unique_rows(self.Y[dom == 0, :])
         self.front = pf[pf[:, 0].argsort(), :]
 
-        assert (setdiffrows(self.front.value, current).size > 0) == (not np.array_equal(current, self.front.value))
         return not np.array_equal(current, self.front.value)
 
     def update(self, Y=None):
@@ -140,7 +106,7 @@ class Pareto(Parameterized):
 
     def divide_conquer(self):
         """
-        Divide and conquer strategy to compute the cells needed for integrating
+        Divide and conquer strategy to compute the cells covering the non-dominated region
 
         Generic version, works for an arbitrary number of objectives
         """
@@ -206,7 +172,9 @@ class Pareto(Parameterized):
 
     def pareto2d_bounds(self):
         """
-        Computes the cell bounds for the specific case of only two objectives
+        Computes the cell bounds covering the non-dominated region
+
+        for the specific case of only two objectives
         """
 
         for i, idx in enumerate(self.pareto.front.value):
