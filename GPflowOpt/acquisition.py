@@ -22,9 +22,19 @@ import numpy as np
 import tensorflow as tf
 
 import copy
+from collections import namedtuple
 
 float_type = settings.dtypes.float_type
 stability = settings.numerics.jitter_level
+
+
+class Data(namedtuple('Data', ['X', 'Y'])):
+    def save(self, fname):
+        np.savez(fname, **self._asdict())
+
+    def update_model(self, model, Ycols):
+        model.X = self.X
+        model.Y = self.Y[:, np.atleast_1d(Ycols)]
 
 
 class Acquisition(Parameterized):
@@ -92,7 +102,7 @@ class Acquisition(Parameterized):
         :param domain: :class:`.Domain` object, the input transform of the data scalers is configured as a transform
          from domain to the unit cube with the same dimensionality.
         """
-        n_inputs = self.data[0].shape[1]
+        n_inputs = self.data.X.shape[1]
         assert (domain.size == n_inputs)
         for m in self.models:
             m.input_transform = domain >> UnitCube(n_inputs)
@@ -111,14 +121,12 @@ class Acquisition(Parameterized):
         :param Y: Responses N x M (M >= Q)
         :return: Q (sum of output dimensions of contained models)
         """
+        data = Data(X=X,Y=Y)
         num_outputs_sum = 0
         for model in self.models:
             num_outputs = model.Y.shape[1]
-            Ypart = Y[:, num_outputs_sum:num_outputs_sum + num_outputs]
+            data.update_model(model, np.arange(num_outputs)+num_outputs_sum)
             num_outputs_sum += num_outputs
-
-            model.X = X
-            model.Y = Ypart
 
         self._optimize_models()
         if self.highest_parent == self:
@@ -139,10 +147,12 @@ class Acquisition(Parameterized):
 
         :return: X, Y tensors (if in tf_mode) or X, Y numpy arrays.
         """
+
         if self._tf_mode:
-            return self.models[0].X, tf.concat(list(map(lambda model: model.Y, self.models)), 1)
+            X, Y = self.models[0].X, tf.concat(list(map(lambda model: model.Y, self.models)), 1)
         else:
-            return self.models[0].X.value, np.hstack(map(lambda model: model.Y.value, self.models))
+            X, Y = self.models[0].X.value, np.hstack(map(lambda model: model.Y.value, self.models))
+        return Data(X=X, Y=Y)
 
     def constraint_indices(self):
         """
@@ -156,7 +166,7 @@ class Acquisition(Parameterized):
         Method returning the indices of the model outputs which are objective functions.
         By default all outputs are objectives
         """
-        return np.setdiff1d(np.arange(self.data[1].shape[1]), self.constraint_indices())
+        return np.setdiff1d(np.arange(self.data.Y.shape[1]), self.constraint_indices())
 
     def feasible_data_index(self):
         """
@@ -165,7 +175,7 @@ class Acquisition(Parameterized):
         By default all data is considered feasible
         :return: boolean ndarray, N
         """
-        return np.ones(self.data[0].shape[0], dtype=bool)
+        return np.ones(self.data.X.shape[0], dtype=bool)
 
     def setup(self):
         """
@@ -257,7 +267,7 @@ class ExpectedImprovement(Acquisition):
     def setup(self):
         super(ExpectedImprovement, self).setup()
         # Obtain the lowest posterior mean for the previous - feasible - evaluations
-        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
+        feasible_samples = self.data.X[self.highest_parent.feasible_data_index(), :]
         samples_mean, _ = self.models[0].predict_f(feasible_samples)
         self.fmin.set_data(np.min(samples_mean, axis=0))
 
@@ -312,7 +322,7 @@ class ProbabilityOfFeasibility(Acquisition):
         self.minimum_pof = minimum_pof
 
     def constraint_indices(self):
-        return np.arange(self.data[1].shape[1])
+        return np.arange(self.data.Y.shape[1])
 
     def feasible_data_index(self):
         """
@@ -328,7 +338,7 @@ class ProbabilityOfFeasibility(Acquisition):
         :return: boolean ndarray, size N
         """
         # In
-        pred = self.evaluate(self.data[0])
+        pred = self.evaluate(self.data.X)
         return pred.ravel() > self.minimum_pof
 
     def build_acquisition(self, Xcand):
@@ -353,7 +363,8 @@ class ProbabilityOfImprovement(Acquisition):
 
     def setup(self):
         super(ProbabilityOfImprovement, self).setup()
-        samples_mean, _ = self.models[0].predict_f(self.data[0])
+        feasible_samples = self.data.X[self.highest_parent.feasible_data_index(), :]
+        samples_mean, _ = self.models[0].predict_f(feasible_samples)
         self.fmin.set_data(np.min(samples_mean, axis=0))
 
     def build_acquisition(self, Xcand):
@@ -418,7 +429,7 @@ class AcquisitionAggregation(Acquisition):
         idx = []
         for operand in self.operands:
             idx.append(operand.constraint_indices())
-            offset.append(operand.data[1].shape[1])
+            offset.append(operand.data.Y.shape[1])
         return np.hstack([i + o for i, o in zip(idx, offset[:-1])])
 
     def feasible_data_index(self):

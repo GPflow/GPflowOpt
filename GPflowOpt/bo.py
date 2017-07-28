@@ -69,11 +69,11 @@ class BayesianOptimizer(Optimizer):
         :param newX: samples (# new samples x indim)
         :param newY: values obtained by evaluating the objective and constraint functions (# new samples x # targets)
         """
-        assert self.acquisition.data[0].shape[1] == newX.shape[-1]
-        assert self.acquisition.data[1].shape[1] == newY.shape[-1]
+        assert self.acquisition.data.X.shape[1] == newX.shape[-1]
+        assert self.acquisition.data.Y.shape[1] == newY.shape[-1]
         assert newX.shape[0] == newY.shape[0]
-        X = np.vstack((self.acquisition.data[0], newX))
-        Y = np.vstack((self.acquisition.data[1], newY))
+        X = np.vstack((self.acquisition.data.X, newX))
+        Y = np.vstack((self.acquisition.data.Y, newY))
         self.acquisition.set_data(X, Y)
 
     def _evaluate_objectives(self, X, fxs):
@@ -91,7 +91,7 @@ class BayesianOptimizer(Optimizer):
             assert evaluations.shape[1] == self.acquisition.data[1].shape[1]
             return evaluations, np.zeros((X.shape[0], 0))
         else:
-            return np.empty((0, self.acquisition.data[1].shape[1])), np.zeros((0, 0))
+            return np.empty((0, self.acquisition.data.Y.shape[1])), np.zeros((0, 0))
 
     def _create_bo_result(self, success, message):
         """
@@ -182,5 +182,5 @@ class BayesianOptimizer(Optimizer):
         try:
             yield
         except Exception as e:
-            np.savez('failed_bopt_{0}'.format(id(e)), X=self.acquisition.data[0], Y=self.acquisition.data[1])
+            self.acquisition.data.save('failed_bopt_{0}'.format(id(e)))
             raise
