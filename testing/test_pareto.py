@@ -61,6 +61,6 @@ class TestPareto(unittest.TestCase):
         np.testing.assert_almost_equal(self.p.front.value, np.array([[0.1419, 0.9340], [0.1576, 0.7922],
                                                                      [0.4854, 0.0357]]), decimal=4,
                                        err_msg='PF incorrect.')
-        
+
     def test_hypervolume(self):
         np.testing.assert_almost_equal(self.p.hypervolume([2, 2]), 3.3878, decimal=2, err_msg='hypervolume incorrect.')

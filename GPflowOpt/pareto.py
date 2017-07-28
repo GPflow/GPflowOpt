@@ -99,6 +99,7 @@ class Pareto(Parameterized):
         changed = self._update_front()
 
         # Recompute cell bounds if required
+        # Note: if the Pareto set is based on model predictions it will almost always change in between optimizations
         if changed:
             # Clear data containers
             self.bounds.clear()
@@ -127,48 +128,42 @@ class Pareto(Parameterized):
                                 np.ones(outdim, dtype=np_int_type) * self.front.shape[0] + 1))
 
         # Start with one cell covering the whole front
-        dc = BoundedVolumes(np.zeros((1, outdim), dtype=np_int_type),
-                            (pf_ext_idx.shape[0] - 1) * np.ones((1, outdim), dtype=np_int_type))
+        dc = [(np.zeros(outdim, dtype=np_int_type),
+               (int(pf_ext_idx.shape[0]) - 1) * np.ones(outdim, dtype=np_int_type))]
         total_size = np.prod(max_pf - min_pf)
 
         # Start divide and conquer until we processed all cells
-        while dc.lb.shape[0] > 0:
-            dc_new = BoundedVolumes.empty(outdim, np_int_type)
+        while dc:
+            # Process test cell
+            cell = dc.pop()
 
-            # Process test cell i
-            for i in np.arange(dc.lb.shape[0]):
+            # Acceptance test:
+            if self._is_test_required((cell[1] - 0.5) < pseudo_pf):
+                # Cell is a valid integral bound: store
+                self.bounds.append(pf_ext_idx[cell[0], np.arange(outdim)],
+                                   pf_ext_idx[cell[1], np.arange(outdim)])
+            # Reject test:
+            elif self._is_test_required((cell[0] + 0.5) < pseudo_pf):
+                # Cell can not be discarded: calculate the size of the cell
+                dc_dist = cell[1] - cell[0]
+                hc = BoundedVolumes(pf_ext[pf_ext_idx[cell[0], np.arange(outdim)], np.arange(outdim)],
+                                    pf_ext[pf_ext_idx[cell[1], np.arange(outdim)], np.arange(outdim)])
 
-                # Acceptance test:
-                if self._is_test_required((dc.ub.value[i, :] - 0.5) < pseudo_pf):
-                    # Cell is a valid integral bound: store
-                    self.bounds.append(pf_ext_idx[dc.lb.value[i, :], np.arange(outdim)],
-                                       pf_ext_idx[dc.ub.value[i, :], np.arange(outdim)])
-                # Reject test:
-                elif self._is_test_required((dc.lb.value[i, :] + 0.5) < pseudo_pf):
-                    # Cell can not be discarded: calculate the size of the cell
-                    dc_dist = dc.ub.value[i, :] - dc.lb.value[i, :]
-                    hc = BoundedVolumes(pf_ext[pf_ext_idx[dc.lb.value[i, :], np.arange(outdim)], np.arange(outdim)],
-                                        pf_ext[pf_ext_idx[dc.ub.value[i, :], np.arange(outdim)], np.arange(outdim)])
+                # Only divide when it is not an unit cell and the volume is above the approx. threshold
+                if np.any(dc_dist > 1) and np.all((hc.size()[0] / total_size) > self.threshold):
+                    # Divide the test cell over its largest dimension
+                    edge_size, idx = np.max(dc_dist), np.argmax(dc_dist)
+                    edge_size1 = int(np.round(edge_size / 2.0))
+                    edge_size2 = edge_size - edge_size1
 
-                    # Only divide when it is not an unit cell and the volume is above the approx. threshold
-                    if np.any(dc_dist > 1) and np.all((hc.size()[0] / total_size) > self.threshold):
-                        # Divide the test cell over its largest dimension
-                        edge_size, idx = np.max(dc_dist), np.argmax(dc_dist)
-                        edge_size1 = int(np.round(edge_size / 2.0))
-                        edge_size2 = edge_size - edge_size1
+                    # Store divided cells
+                    ub = np.copy(cell[1])
+                    ub[idx] -= edge_size1
+                    dc.append((np.copy(cell[0]), ub))
 
-                        # Store divided cells
-                        ub = np.copy(dc.ub.value[i, :])
-                        ub[idx] -= edge_size1
-                        dc_new.append(np.copy(dc.lb.value[i, :]), ub)
-
-                        lb = np.copy(dc.lb.value[i, :])
-                        lb[idx] += edge_size2
-                        dc_new.append(lb, np.copy(dc.ub.value[i, :]))
-
-            # All cells processed.
-            # Assign newly divided cells for the next generation (if any)
-            dc = dc_new
+                    lb = np.copy(cell[0])
+                    lb[idx] += edge_size2
+                    dc.append((lb, np.copy(cell[1])))
 
     def pareto2d_bounds(self):
         """

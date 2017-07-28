@@ -84,7 +84,7 @@ class Acquisition(Parameterized):
             best_idx = np.argmin([r.fun for r in runs])
             model.set_state(runs[best_idx].x)
 
-    def build_acquisition(self):
+    def build_acquisition(self, Xcand):
         raise NotImplementedError
 
     def enable_scaling(self, domain):
@@ -419,6 +419,7 @@ class HVProbabilityOfImprovement(Acquisition):
     def __init__(self, models):
         super(HVProbabilityOfImprovement, self).__init__(models)
         assert self.data[1].shape[1] > 1
+
         self.pareto = Pareto(np.hstack((m.predict_f(self.data[0])[0] for m in self.models)))
         self.reference = DataHolder(self._estimate_reference())
 
@@ -442,6 +443,7 @@ class HVProbabilityOfImprovement(Acquisition):
         # Obtain hypervolume cell bounds, use prediction mean
         F = np.hstack((m.predict_f(self.data[0])[0] for m in self.models))
         self.pareto.update(F)
+
         # Calculate reference point.
         self.reference = self._estimate_reference()
 
