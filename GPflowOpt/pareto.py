@@ -103,7 +103,7 @@ class Pareto(Parameterized):
         if changed:
             # Clear data containers
             self.bounds.clear()
-            self.divide_conquer()
+            self.pareto2d_bounds() if self.Y.shape[1] == 2 else self.divide_conquer()
 
     def divide_conquer(self):
         """
@@ -171,10 +171,16 @@ class Pareto(Parameterized):
 
         for the specific case of only two objectives
         """
+        outdim = self.Y.shape[1]
 
-        for i, idx in enumerate(self.pareto.front.value):
-            self.bounds.append(pf_ext_idx[dc.lb.value[i, :], np.arange(outdim)],
-                               pf_ext_idx[dc.ub.value[i, :], np.arange(outdim)])
+        pf_idx = np.argsort(self.front.value, axis=0)
+        pf_ext_idx = np.vstack((np.zeros(outdim, dtype=np_int_type),
+                                pf_idx + 1,
+                                np.ones(outdim, dtype=np_int_type) * self.front.shape[0] + 1))
+
+        for i in range(pf_ext_idx[-1, 0]):
+            self.bounds.append((i, 0),
+                               (i+1, pf_ext_idx[-i-1, 1]))
 
     @AutoFlow((float_type, [None]))
     def hypervolume(self, reference):
