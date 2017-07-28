@@ -1,9 +1,9 @@
 import unittest
-import GPflow
 import GPflowOpt
 import tensorflow as tf
 from GPflow import settings
 import numpy as np
+from parameterized import parameterized
 
 float_type = settings.dtypes.float_type
 np_float_type = np.float32 if float_type is tf.float32 else np.float64
@@ -29,6 +29,9 @@ class DummyTransform(GPflowOpt.transforms.DataTransform):
         return '(dummy)'
 
 
+transforms = [DummyTransform(2.0), GPflowOpt.transforms.LinearTransform([2.0, 3.5], [1.2, 0.7])]
+
+
 class LinearTransformTests(unittest.TestCase):
     """
     Tests are inspired on GPflow transform tests.
@@ -38,23 +41,21 @@ class LinearTransformTests(unittest.TestCase):
 
     def setUp(self):
         self.x_np = np.random.rand(10, 2).astype(np_float_type)
-        self.transforms = [DummyTransform(2.0), GPflowOpt.transforms.LinearTransform([2.0, 3.5], [1.2, 0.7])]
 
-    def test_forward_backward(self):
-        ys_np = [t.forward(self.x_np) for t in self.transforms]
-        xs_np = [t.backward(y) for t, y in zip(self.transforms, ys_np)]
-        for x in xs_np:
-            self.assertTrue(np.allclose(x, self.x_np))
+    @parameterized.expand(list(zip(transforms)))
+    def test_forward_backward(self, t):
+        y = t.forward(self.x_np)
+        x = t.backward(y)
+        self.assertTrue(np.allclose(x, self.x_np))
 
-    def test_invert_np(self):
-        ys_np = [t.forward(self.x_np) for t in self.transforms]
-        xs_np = [t.backward(y) for t, y in zip(self.transforms, ys_np)]
-        xsi_np = [(~t).forward(y) for t, y in zip(self.transforms, ys_np)]
-
-        for x in zip(xs_np, xsi_np):
-            self.assertTrue(np.allclose(x[0], self.x_np))
-            self.assertTrue(np.allclose(x[1], self.x_np))
-            self.assertTrue(np.allclose(x[0], x[1]))
+    @parameterized.expand(list(zip(transforms)))
+    def test_invert_np(self, t):
+        y = t.forward(self.x_np)
+        x = t.backward(y)
+        xi = (~t).forward(y)
+        self.assertTrue(np.allclose(x, self.x_np))
+        self.assertTrue(np.allclose(xi, self.x_np))
+        self.assertTrue(np.allclose(x, xi))
 
     def test_backward_variance_full_cov(self):
         tf.reset_default_graph()

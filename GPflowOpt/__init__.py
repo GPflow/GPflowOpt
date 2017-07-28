@@ -19,4 +19,5 @@ from . import optim
 from . import design
 from . import transforms
 from . import scaling
+from . import objective
 from . import pareto
