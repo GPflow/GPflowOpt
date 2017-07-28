@@ -26,20 +26,42 @@ class BoundedVolumes(Parameterized):
 
     @classmethod
     def empty(cls, dim, dtype):
+        """
+        Returns an empty bounded volume (hypercube)
+
+        :param dim: dimension of the volume
+        :param dtype: dtype of the coordinates
+        :return: an empty BoundedVolumes
+        """
         setup_arr = np.zeros((0, dim), dtype=dtype)
         return cls(setup_arr.copy(), setup_arr.copy())
 
     def __init__(self, lb, ub):
+        """
+        Construct bounded volumes
+
+        :param lb: the lowerbounds of the volumes
+        :param ub: the upperbounds of the volumes
+        """
         super(BoundedVolumes, self).__init__()
         assert np.all(lb.shape == lb.shape)
         self.lb = DataHolder(np.atleast_2d(lb), 'pass')
         self.ub = DataHolder(np.atleast_2d(ub), 'pass')
 
     def append(self, lb, ub):
+        """
+        Add new bounded volumes
+
+        :param lb: the lowerbounds of the volumes
+        :param ub: the upperbounds of the volumes
+        """
         self.lb = np.vstack((self.lb.value, lb))
         self.ub = np.vstack((self.ub.value, ub))
 
     def clear(self):
+        """
+        Clears all stored bounded volumes
+        """
         dtype = self.lb.value.dtype
         outdim = self.lb.shape[1]
         self.lb = np.zeros((0, outdim), dtype=dtype)
@@ -50,7 +72,13 @@ class BoundedVolumes(Parameterized):
 
 
 def non_dominated_sort(objectives):
-    # Dominance
+    """
+    Computes the non-dominated sort for a set of data points
+
+    :param objectives: data points
+    :return: the non-dominated set and the degree of dominance
+    dominances gives the number of dominated points for each data point
+    """
     extended = np.tile(objectives, (objectives.shape[0], 1, 1))
     dominance = np.sum(np.logical_and(np.all(extended <= np.swapaxes(extended, 0, 1), axis=2),
                                       np.any(extended < np.swapaxes(extended, 0, 1), axis=2)), axis=1)
@@ -60,6 +88,15 @@ def non_dominated_sort(objectives):
 
 class Pareto(Parameterized):
     def __init__(self, Y, threshold=0):
+        """
+        Construct a Pareto set.
+
+        Computes and stores the current Pareto set and calculates the cell bounds covering the non-dominated region.
+        The latter is needed for certain multiobjective acquisition funnctions. E.g., `HVProbabilityOfImprovement`
+
+        :param Y: output data poiints
+        :param threshold: approximation threshold for the generic divide and conquer strategy (default 0: exact calculation)
+        """
         super(Pareto, self).__init__()
         self.threshold = threshold
         self.Y = Y
@@ -73,7 +110,12 @@ class Pareto(Parameterized):
 
     @staticmethod
     def _is_test_required(smaller):
-        # Test if test point augments or dominates the Pareto set
+        """
+        Tests if test point augments or dominates the Pareto set
+
+        :param smaller: a boolean ndarray storing test point < Pareto front
+        :return: True if the test point dominates or augments the Pareto front (boolean)
+        """
         # <=> test point is at least in one dimension smaller for every point in the Pareto set
         idx_dom_augm = np.any(smaller, axis=1)
         is_dom_augm = np.all(idx_dom_augm)
@@ -83,7 +125,8 @@ class Pareto(Parameterized):
     def _update_front(self):
         """
         Calculate non-dominated set of points based on the latest data
-        :return: whether the Pareto set has actually changed since the last iteration
+
+        :return: whether the Pareto set has actually changed since the last iteration (boolean)
         """
         current = self.front.value
         pf, _ = non_dominated_sort(self.Y)
@@ -93,6 +136,12 @@ class Pareto(Parameterized):
         return not np.array_equal(current, self.front.value)
 
     def update(self, Y=None, generic_strategy=False):
+        """
+        Update with new output data
+
+        :param Y: output data points
+        :param generic_strategy: True to force the generic divide and conquer strategy regardless of the output dimension (default False)
+        """
         self.Y = Y if Y is not None else self.Y
 
         # Find (new) set of non-dominated points
@@ -101,7 +150,7 @@ class Pareto(Parameterized):
         # Recompute cell bounds if required
         # Note: if the Pareto set is based on model predictions it will almost always change in between optimizations
         if changed:
-            # Clear data containers
+            # Clear data container
             self.bounds.clear()
             if generic_strategy:
                 self.divide_conquer()
@@ -137,7 +186,7 @@ class Pareto(Parameterized):
         # Start divide and conquer until we processed all cells
         while dc:
             # Process test cell
-            cell = dc.pop(0)
+            cell = dc.pop()
 
             # Acceptance test:
             if self._is_test_required((cell[1] - 0.5) < pseudo_pf):
@@ -186,6 +235,16 @@ class Pareto(Parameterized):
 
     @AutoFlow((float_type, [None]))
     def hypervolume(self, reference):
+        """
+        Autoflow method to calculate the hypervolume indicator
+
+        The hypervolume indicator is the volume of the dominating region
+
+        :param reference: reference point to use
+        Should be equal or bigger than the anti-ideal point of the Pareto set
+        For comparing results across runs the same reference point must be used
+        :return: hypervolume indicator (positive: the higher the better)
+        """
 
         min_pf = tf.reduce_min(self.front, 0, keep_dims=True)
         R = tf.expand_dims(reference, 0)
