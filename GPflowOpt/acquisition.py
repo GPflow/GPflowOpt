@@ -421,6 +421,15 @@ class HVProbabilityOfImprovement(Acquisition):
         self.reference = DataHolder(self._estimate_reference())
 
     def _estimate_reference(self):
+        """
+        Estimates the reference point R
+
+        The choice of R is very important in how much focus the algorithm will put into finding points that
+        (i) dominate the complete front: R is set too high
+        (ii) dominate only subsections: R is set too small
+
+        Here we choose R so that both choices are somewhat balanced.
+        """
         pf = self.pareto.front.value
         f = np.max(pf, 0, keepdims=True) - np.min(pf, 0, keepdims=True)
         return np.max(pf, 0, keepdims=True) + 2 * f / pf.shape[0]
@@ -435,30 +444,37 @@ class HVProbabilityOfImprovement(Acquisition):
         self.reference = self._estimate_reference()
 
     def build_acquisition(self, Xcand):
+        """
+        Builds the tensorflow graph that computes the hypervolume-based probability of improvement.
+
+        by integrating over all cells.
+        :param Xcand: candidate points
+        :return: hyper-volume probability of improvement
+        """
         outdim = tf.shape(self.data[1])[1]
         num_cells = tf.shape(self.pareto.bounds.lb)[0]
         N = tf.shape(Xcand)[0]
 
-        # Extended Pareto front
+        # Extended Pareto front: (pf_size+2) x outdim
         pf_ext = tf.concat([-np.inf * tf.ones([1, outdim], dtype=float_type), self.pareto.front, self.reference], 0)
 
         # Predictions for candidates, concatenate columns
         preds = [m.build_predict(Xcand) for m in self.models]
         candidate_mean, candidate_var = (tf.concat(moment, 1) for moment in zip(*preds))
-        candidate_var = tf.maximum(candidate_var, stability) # avoid zeros
+        candidate_var = tf.maximum(candidate_var, stability)  # avoid zeros
 
         # Calculate the cdf's for all candidates for every predictive distribution in the data points
         normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        Phi = tf.transpose(normal.cdf(tf.expand_dims(pf_ext, 1)), [1, 0, 2]) # N x pf_ext_size x outdim
+        Phi = tf.transpose(normal.cdf(tf.expand_dims(pf_ext, 1)), [1, 0, 2])  # N x pf_ext_size x outdim
 
         # tf.gather_nd indices for bound points
         col_idx = tf.tile(tf.range(outdim), (num_cells,))
-        ub_idx = tf.stack((tf.reshape(self.pareto.bounds.ub, [-1]), col_idx), axis=1) # (num_cells*outdim x 2)
-        lb_idx = tf.stack((tf.reshape(self.pareto.bounds.lb, [-1]), col_idx), axis=1) # (num_cells*outdim x 2)
+        ub_idx = tf.stack((tf.reshape(self.pareto.bounds.ub, [-1]), col_idx), axis=1)  # (num_cells*outdim x 2)
+        lb_idx = tf.stack((tf.reshape(self.pareto.bounds.lb, [-1]), col_idx), axis=1)  # (num_cells*outdim x 2)
 
         # Calculate PoI
-        P1 = tf.transpose(tf.gather_nd(tf.transpose(Phi, perm=[1, 2, 0]), ub_idx)) # N x num_cell*outdim
-        P2 = tf.transpose(tf.gather_nd(tf.transpose(Phi, perm=[1, 2, 0]), lb_idx)) # N x num_cell*outdim
+        P1 = tf.transpose(tf.gather_nd(tf.transpose(Phi, perm=[1, 2, 0]), ub_idx))  # N x num_cell*outdim
+        P2 = tf.transpose(tf.gather_nd(tf.transpose(Phi, perm=[1, 2, 0]), lb_idx))  # N x num_cell*outdim
         P = tf.reshape(P1 - P2, [N, num_cells, outdim])
         PoI = tf.reduce_sum(tf.reduce_prod(P, axis=2), axis=1, keep_dims=True)  # N x 1
 
@@ -466,7 +482,7 @@ class HVProbabilityOfImprovement(Acquisition):
         ub_points = tf.reshape(tf.gather_nd(pf_ext, ub_idx), [num_cells, outdim])
         lb_points = tf.reshape(tf.gather_nd(pf_ext, lb_idx), [num_cells, outdim])
 
-        splus_valid = tf.reduce_all(tf.tile(tf.expand_dims(ub_points, 1), [1, N, 1]) > candidate_mean, axis=2) # num_cells x N
+        splus_valid = tf.reduce_all(tf.tile(tf.expand_dims(ub_points, 1), [1, N, 1]) > candidate_mean, axis=2)  # num_cells x N
         splus_idx = tf.expand_dims(tf.cast(splus_valid, dtype=float_type), -1) # num_cells x N x 1
         splus_lb = tf.tile(tf.expand_dims(lb_points, 1), [1, N, 1]) # num_cells x N x outdim
         splus_lb = tf.maximum(splus_lb, candidate_mean) # num_cells x N x outdim
