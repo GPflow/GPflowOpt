@@ -14,28 +14,13 @@
 
 import numpy as np
 from scipy.optimize import OptimizeResult, minimize
-from GPflow import model
 from GPflow import settings
 import contextlib
 import sys
 import os
 
 from .design import RandomDesign
-
-
-class ObjectiveWrapper(model.ObjectiveWrapper):
-    def __init__(self, objective, exclude_gradient):
-        super(ObjectiveWrapper, self).__init__(objective)
-        self._no_gradient = exclude_gradient
-        self.counter = 0
-
-    def __call__(self, x):
-        x = np.atleast_2d(x)
-        f, g = super(ObjectiveWrapper, self).__call__(x)
-        self.counter += x.shape[0]
-        if self._no_gradient:
-            return f
-        return f, g
+from .objective import ObjectiveWrapper
 
 
 class Optimizer(object):
