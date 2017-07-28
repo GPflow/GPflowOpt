@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from . import acquisition
+from . import data
 from . import domain
 from .bo import BayesianOptimizer
 from . import optim

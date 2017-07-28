@@ -65,6 +65,8 @@ def add_batch_apply_no_grad(Xflat):
 
 class TestDecorators(unittest.TestCase):
 
+    _multiprocess_can_split = True
+
     @staticmethod
     def check_reference(f, g, X):
         np.testing.assert_almost_equal(f, ref_function(X)[0])

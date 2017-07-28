@@ -63,18 +63,15 @@ class BayesianOptimizer(Optimizer):
         initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
 
-    def _update_model_data(self, newX, newY):
+    def _update_model_data(self, *args):
         """
         Update the underlying models of the acquisition function with new data
         :param newX: samples (# new samples x indim)
         :param newY: values obtained by evaluating the objective and constraint functions (# new samples x # targets)
         """
-        assert self.acquisition.data.X.shape[1] == newX.shape[-1]
-        assert self.acquisition.data.Y.shape[1] == newY.shape[-1]
-        assert newX.shape[0] == newY.shape[0]
-        X = np.vstack((self.acquisition.data.X, newX))
-        Y = np.vstack((self.acquisition.data.Y, newY))
-        self.acquisition.set_data(X, Y)
+        assert all(d.shape[0] == args[0].shape[0] for d in args)
+        updated_data = self.acquisition.data.add(*args)
+        self.acquisition.set_data(updated_data)
 
     def _evaluate_objectives(self, X, fxs):
         """
@@ -88,7 +85,7 @@ class BayesianOptimizer(Optimizer):
         """
         if X.size > 0:
             evaluations = np.hstack(map(lambda f: f(X), fxs))
-            assert evaluations.shape[1] == self.acquisition.data[1].shape[1]
+            assert evaluations.shape[1] == self.acquisition.data.Y.shape[1]
             return evaluations, np.zeros((X.shape[0], 0))
         else:
             return np.empty((0, self.acquisition.data.Y.shape[1])), np.zeros((0, 0))
@@ -154,18 +151,21 @@ class BayesianOptimizer(Optimizer):
         # Evaluate and add the initial design (if any)
         initial = self.get_initial()
         values = fx(initial)
-        self._update_model_data(initial, values)
+        values = values if isinstance(values, tuple) else (values,)
+        self._update_model_data(initial, *values)
 
         # Remove initial design for additional calls to optimize to proceed optimization
         self.set_initial(EmptyDesign(self.domain).generate())
 
+        # Negate (maximize vs minimize)
         def inverse_acquisition(x):
             return tuple(map(lambda r: -r, self.acquisition.evaluate_with_gradients(np.atleast_2d(x))))
 
         # Optimization loop
         for i in range(n_iter):
             result = self.optimizer.optimize(inverse_acquisition)
-            self._update_model_data(result.x, fx(result.x))
+            values = fx(result.x)
+            self._update_model_data(result.x, *(values if isinstance(values, tuple) else (values,)))
 
         return self._create_bo_result(True, "OK")
 

@@ -17,24 +17,15 @@ from GPflow.model import Model
 from GPflow import settings
 from .scaling import DataScaler
 from .domain import UnitCube
+from .data import Data
 
 import numpy as np
 import tensorflow as tf
 
 import copy
-from collections import namedtuple
 
 float_type = settings.dtypes.float_type
 stability = settings.numerics.jitter_level
-
-
-class Data(namedtuple('Data', ['X', 'Y'])):
-    def save(self, fname):
-        np.savez(fname, **self._asdict())
-
-    def update_model(self, model, Ycols):
-        model.X = self.X
-        model.Y = self.Y[:, np.atleast_1d(Ycols)]
 
 
 class Acquisition(Parameterized):
@@ -54,10 +45,11 @@ class Acquisition(Parameterized):
     (for instance for constrained optimization)
     """
 
-    def __init__(self, models=[], optimize_restarts=5):
+    def __init__(self, models=[], optimize_restarts=5, data_buffer_type=Data):
         super(Acquisition, self).__init__()
         self._models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
         self._default_params = list(map(lambda m: m.get_free_state(), self._models))
+        self._data_buffer_type = data_buffer_type
 
         assert (optimize_restarts >= 0)
         self._optimize_restarts = optimize_restarts
@@ -109,7 +101,7 @@ class Acquisition(Parameterized):
             m.normalize_output = True
         self._optimize_models()
 
-    def set_data(self, X, Y):
+    def set_data(self, data):
         """
         Update the training data of the contained models. Automatically triggers a hyperparameter optimization
         step by calling _optimize_all() and an update of pre-computed quantities by calling setup().
@@ -121,7 +113,6 @@ class Acquisition(Parameterized):
         :param Y: Responses N x M (M >= Q)
         :return: Q (sum of output dimensions of contained models)
         """
-        data = Data(X=X,Y=Y)
         num_outputs_sum = 0
         for model in self.models:
             num_outputs = model.Y.shape[1]
@@ -140,19 +131,12 @@ class Acquisition(Parameterized):
     @property
     def data(self):
         """
-        Property for accessing the training data of the models.
+        Property for accessing the training data of the models. The data_buffer type is used to condense the contained
+        models into a notion of training data (e.g. X/Y).
 
-        Corresponds to the input data X which is the same for every model,
-        and column-wise concatenation of the Y data over all models
-
-        :return: X, Y tensors (if in tf_mode) or X, Y numpy arrays.
+        :return: object of type passed as data buffer_type.
         """
-
-        if self._tf_mode:
-            X, Y = self.models[0].X, tf.concat(list(map(lambda model: model.Y, self.models)), 1)
-        else:
-            X, Y = self.models[0].X.value, np.hstack(map(lambda model: model.Y.value, self.models))
-        return Data(X=X, Y=Y)
+        return self._data_buffer_type.create(self.models, tf_mode=self._tf_mode)
 
     def constraint_indices(self):
         """
@@ -412,10 +396,10 @@ class AcquisitionAggregation(Acquisition):
         for oper in self.operands:
             oper.enable_scaling(domain)
 
-    def set_data(self, X, Y):
+    def set_data(self, data):
         offset = 0
         for operand in self.operands:
-            offset += operand.set_data(X, Y[:, offset:])
+            offset += operand.set_data(data)
         if self.highest_parent == self:
             self.setup()
         return offset
@@ -508,11 +492,11 @@ class MCMCAcquistion(AcquisitionSum):
         # Only return the models of the first operand, the copies remain hidden.
         return self.operands[0].models
 
-    def set_data(self, X, Y):
+    def set_data(self, data):
         for operand in self.operands:
             # This triggers model.optimize() on self.operands[0]
             # All copies have optimization disabled, but must have update data.
-            offset = operand.set_data(X, Y)
+            offset = operand.set_data(data)
         self._update_hyper_draws()
         if self.highest_parent == self:
             self.setup()

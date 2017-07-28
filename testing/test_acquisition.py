@@ -53,9 +53,6 @@ class _TestAcquisition(object):
             with self.acquisition.tf_mode():
                 tens = self.acquisition.build_acquisition(x_tf)
                 self.assertTrue(isinstance(tens, tf.Tensor), msg="no Tensor was returned")
-                # tf_shape = tens.get_shape().as_list()
-                # self.assertEqual(tf_shape[0], 50, msg="Tensor of incorrect shape returned")
-                # self.assertTrue(tf_shape[1] == 1 or tf_shape[1] is None)
 
         res = self.acquisition.evaluate(design.generate())
         self.assertTupleEqual(res.shape, (50, 1),
@@ -74,22 +71,22 @@ class _TestAcquisition(object):
             free_vars = tf.placeholder(tf.float64, [None])
             l = self.acquisition.make_tf_array(free_vars)
             with self.acquisition.tf_mode():
-                self.assertTrue(isinstance(self.acquisition.data[0], tf.Tensor),
+                self.assertTrue(isinstance(self.acquisition.data.X, tf.Tensor),
                                 msg="data property should return Tensors")
-                self.assertTrue(isinstance(self.acquisition.data[1], tf.Tensor),
+                self.assertTrue(isinstance(self.acquisition.data.Y, tf.Tensor),
                                 msg="data property should return Tensors")
 
-    def test_data_update(self):
+    def test_set_data(self):
         # Verify a data update
         design = GPflowOpt.design.RandomDesign(10, self.domain)
-        X = np.vstack((self.acquisition.data[0], design.generate()))
-        Y = np.hstack([parabola2d(X)] * self.acquisition.data[1].shape[1])
-        self.acquisition.set_data(X, Y)
-        np.testing.assert_allclose(self.acquisition.data[0], X, atol=1e-5, err_msg="Samples not updated")
-        np.testing.assert_allclose(self.acquisition.data[1], Y, atol=1e-5, err_msg="Values not updated")
+        X = np.vstack((self.acquisition.data.X, design.generate()))
+        Y = np.hstack([parabola2d(X)] * self.acquisition.data.Y.shape[1])
+        self.acquisition.set_data(GPflowOpt.data.Data(X=X, Y=Y))
+        np.testing.assert_allclose(self.acquisition.data.X, X, atol=1e-5, err_msg="Samples not updated")
+        np.testing.assert_allclose(self.acquisition.data.Y, Y, atol=1e-5, err_msg="Values not updated")
 
     def test_data_indices(self):
-        self.assertTupleEqual(self.acquisition.feasible_data_index().shape, (self.acquisition.data[0].shape[0],),
+        self.assertTupleEqual(self.acquisition.feasible_data_index().shape, (self.acquisition.data.X.shape[0],),
                               msg="Incorrect shape returned.")
 
     def test_object_integrity(self):
@@ -119,14 +116,14 @@ class TestExpectedImprovement(_TestAcquisition, unittest.TestCase):
                          msg="ExpectedImprovement returns all objectives")
 
     def test_setup(self):
-        fmin = np.min(self.acquisition.data[1])
+        fmin = np.min(self.acquisition.data.Y)
         self.assertGreater(self.acquisition.fmin.value, 0, msg="The minimum (0) is not amongst the design.")
         self.assertTrue(np.allclose(self.acquisition.fmin.value, fmin, atol=1e-2), msg="fmin computed incorrectly")
 
         # Now add the actual minimum
         p = np.array([[0.0, 0.0]])
-        self.acquisition.set_data(np.vstack((self.acquisition.data[0], p)),
-                                  np.vstack((self.acquisition.data[1], parabola2d(p))))
+        data = self.acquisition.data.add(p, parabola2d(p))
+        self.acquisition.set_data(data)
         self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-1), msg="fmin not updated")
 
     def test_EI_validity(self):
@@ -152,14 +149,14 @@ class TestProbabilityOfImprovement(_TestAcquisition, unittest.TestCase):
                          msg="PoI returns all objectives")
 
     def test_setup(self):
-        fmin = np.min(self.acquisition.data[1])
+        fmin = np.min(self.acquisition.data.Y)
         self.assertGreater(self.acquisition.fmin.value, 0, msg="The minimum (0) is not amongst the design.")
         self.assertTrue(np.allclose(self.acquisition.fmin.value, fmin, atol=1e-2), msg="fmin computed incorrectly")
 
         # Now add the actual minimum
         p = np.array([[0.0, 0.0]])
-        self.acquisition.set_data(np.vstack((self.acquisition.data[0], p)),
-                                  np.vstack((self.acquisition.data[1], parabola2d(p))))
+        data = self.acquisition.data.add(p, parabola2d(p))
+        self.acquisition.set_data(data)
         self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-1), msg="fmin not updated")
 
 
@@ -219,13 +216,13 @@ class _TestAcquisitionAggregation(_TestAcquisition):
 
     def test_data(self):
         super(_TestAcquisitionAggregation, self).test_data()
-        np.testing.assert_allclose(self.acquisition.data[0], self.acquisition[0].data[0],
+        np.testing.assert_allclose(self.acquisition.data.X, self.acquisition[0].data.X,
                                    err_msg="Samples should be equal for all operands")
-        np.testing.assert_allclose(self.acquisition.data[0], self.acquisition[1].data[0],
+        np.testing.assert_allclose(self.acquisition.data.X, self.acquisition[1].data.X,
                                    err_msg="Samples should be equal for all operands")
 
         Y = np.hstack(map(lambda model: model.Y.value, self.acquisition.models))
-        np.testing.assert_allclose(self.acquisition.data[1], Y,
+        np.testing.assert_allclose(self.acquisition.data.Y, Y,
                                    err_msg="Value should be horizontally concatenated")
 
     def test_enable_scaling(self):
@@ -342,8 +339,8 @@ class TestJointAcquisition(unittest.TestCase):
 
         np.testing.assert_allclose(joint.objective_indices(), np.array([0], dtype=int))
         np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
-        self.assertGreater(ei.fmin.value, np.min(ei.data[1]), msg="The best objective value is in an infeasible area")
-        self.assertTrue(np.allclose(ei.fmin.value, np.min(ei.data[1][pof.feasible_data_index(), :]), atol=1e-3),
+        self.assertGreater(ei.fmin.value, np.min(ei.data.Y), msg="The best objective value is in an infeasible area")
+        self.assertTrue(np.allclose(ei.fmin.value, np.min(ei.data.Y[pof.feasible_data_index(), :]), atol=1e-3),
                         msg="fmin computed incorrectly")
 
     def test_hierarchy(self):

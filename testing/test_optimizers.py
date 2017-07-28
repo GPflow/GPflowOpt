@@ -30,6 +30,7 @@ class KeyboardRaiser:
 
 
 class _TestOptimizer(object):
+
     _multiprocess_can_split_ = True
 
     def setUp(self):
@@ -185,13 +186,14 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         self.optimizer.acquisition.models[0]._needs_recompile = True
         with self.assertRaises(RuntimeError) as e:
             with self.optimizer.failsafe():
-                self.optimizer.acquisition.set_data(X, Y)
+                self.optimizer.acquisition.set_data(GPflowOpt.data.Data(X=X, Y=Y))
 
         fname = 'failed_bopt_{0}.npz'.format(id(e.exception))
         self.assertTrue(os.path.isfile(fname))
         data = np.load(fname)
         np.testing.assert_almost_equal(data['X'], X)
         np.testing.assert_almost_equal(data['Y'], Y)
+        os.remove(fname)
 
 
 class TestBayesianOptimizerConfigurations(unittest.TestCase):
