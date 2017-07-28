@@ -92,7 +92,7 @@ class Pareto(Parameterized):
 
         return not np.array_equal(current, self.front.value)
 
-    def update(self, Y=None):
+    def update(self, Y=None, generic_strategy=False):
         self.Y = Y if Y is not None else self.Y
 
         # Find (new) set of non-dominated points
@@ -103,7 +103,10 @@ class Pareto(Parameterized):
         if changed:
             # Clear data containers
             self.bounds.clear()
-            self.pareto2d_bounds() if self.Y.shape[1] == 2 else self.divide_conquer()
+            if generic_strategy:
+                self.divide_conquer()
+            else:
+                self.pareto2d_bounds() if self.Y.shape[1] == 2 else self.divide_conquer()
 
     def divide_conquer(self):
         """
@@ -115,16 +118,15 @@ class Pareto(Parameterized):
 
         # The divide and conquer algorithm operates on a pseudo Pareto set
         # that is a mapping of the real Pareto set to discrete values
-        pf_idx = np.argsort(self.front.value, axis=0)
-        pseudo_pf = np.argsort(pf_idx, axis=0) + 1  # +1 as index zero is reserved for the ideal point
+        pseudo_pf = np.argsort(self.front.value, axis=0) + 1  # +1 as index zero is reserved for the ideal point
 
         # Extend front with the ideal and anti-ideal point
         min_pf = np.min(self.front.value, axis=0) - 1
         max_pf = np.max(self.front.value, axis=0) + 1
 
-        pf_ext = np.vstack((min_pf, self.front.value, max_pf))
+        pf_ext = np.vstack((min_pf, self.front.value, max_pf))  # Needed for early stopping check (threshold)
         pf_ext_idx = np.vstack((np.zeros(outdim, dtype=np_int_type),
-                                pf_idx + 1,
+                                pseudo_pf,
                                 np.ones(outdim, dtype=np_int_type) * self.front.shape[0] + 1))
 
         # Start with one cell covering the whole front
@@ -135,7 +137,7 @@ class Pareto(Parameterized):
         # Start divide and conquer until we processed all cells
         while dc:
             # Process test cell
-            cell = dc.pop()
+            cell = dc.pop(0)
 
             # Acceptance test:
             if self._is_test_required((cell[1] - 0.5) < pseudo_pf):
