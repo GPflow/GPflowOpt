@@ -218,9 +218,11 @@ class Pareto(Parameterized):
 
     def pareto2d_bounds(self):
         """
-        Computes the cell bounds covering the non-dominated region
+        Computes the cells covering the non-dominated region
+        for the specific case of only two objectives.
 
-        for the specific case of only two objectives
+        Assumes the Pareto set has been sorted in ascending order on the first objective.
+        For non-dominated sets this implies the second objective is sorted in descending order.
         """
         outdim = self.Y.shape[1]
 
