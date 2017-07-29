@@ -4,6 +4,7 @@ import numpy as np
 import GPflow
 import six
 import sys
+import os
 from contextlib import contextmanager
 from scipy.optimize import OptimizeResult
 
@@ -174,6 +175,23 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertFalse(result.success, msg="After 2 evaluations, a keyboard interrupt is raised, "
                                              "non-succesfull result expected.")
         self.assertTrue(np.allclose(result.x, 0.0), msg="The optimum will not be identified nonetheless")
+
+    def test_failsafe(self):
+        X, Y = self.optimizer.acquisition.data[0], self.optimizer.acquisition.data[1]
+        # Provoke cholesky faillure
+        self.optimizer.acquisition._optimize_restarts = 1
+        self.optimizer.acquisition.models[0].likelihood.variance.transform = GPflow.transforms.Identity()
+        self.optimizer.acquisition.models[0].likelihood.variance = -5.0
+        self.optimizer.acquisition.models[0]._needs_recompile = True
+        with self.assertRaises(RuntimeError) as e:
+            with self.optimizer.failsafe():
+                self.optimizer.acquisition.set_data(X, Y)
+
+        fname = 'failed_bopt_{0}.npz'.format(id(e.exception))
+        self.assertTrue(os.path.isfile(fname))
+        data = np.load(fname)
+        np.testing.assert_almost_equal(data['X'], X)
+        np.testing.assert_almost_equal(data['Y'], Y)
 
 
 class TestBayesianOptimizerConfigurations(unittest.TestCase):
