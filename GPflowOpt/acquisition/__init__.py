@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import acquisition
-from . import domain
-from .bo import BayesianOptimizer
-from . import optim
-from . import design
-from . import transforms
-from . import scaling
-from . import pareto
-from . import objective
+# Framework components and interfaces
+from .acquisition import Acquisition, AcquisitionAggregation, AcquisitionProduct, AcquisitionSum, MCMCAcquistion
+
+# Single objective
+from .ei import ExpectedImprovement
+from .poi import ProbabilityOfImprovement
+from .lcb import LowerConfidenceBound
+
+# Multi-objective
+from .hvpoi import HVProbabilityOfImprovement
+
+# Black-box constraint
+from .pof import ProbabilityOfFeasibility

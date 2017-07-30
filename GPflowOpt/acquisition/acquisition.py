@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from GPflow.param import Parameterized, AutoFlow, ParamList, DataHolder
-from GPflow.model import Model
+from ..scaling import DataScaler
+from ..domain import UnitCube
+
+from GPflow.param import Parameterized, AutoFlow, ParamList
 from GPflow import settings
-from .scaling import DataScaler
-from .domain import UnitCube
-from .pareto import Pareto
 
 import numpy as np
 import tensorflow as tf
@@ -25,7 +24,6 @@ import tensorflow as tf
 import copy
 
 float_type = settings.dtypes.float_type
-stability = settings.numerics.jitter_level
 
 
 class Acquisition(Parameterized):
@@ -79,6 +77,8 @@ class Acquisition(Parameterized):
                     runs.append(result)
                 except tf.errors.InvalidArgumentError:  # pragma: no cover
                     print("Warning: optimization restart {0}/{1} failed".format(i + 1, self._optimize_restarts))
+            if not runs:
+                raise RuntimeError("All model hyperparameter optimization restarts failed, exiting.")
             best_idx = np.argmin([r.fun for r in runs])
             model.set_state(runs[best_idx].x)
 
@@ -217,265 +217,6 @@ class Acquisition(Parameterized):
         if isinstance(other, AcquisitionProduct):
             return AcquisitionProduct([self] + other.operands.sorted_params)
         return AcquisitionProduct([self, other])
-
-
-class ExpectedImprovement(Acquisition):
-    """
-    Expected Improvement acquisition function for single-objective global optimization. 
-    Introduced by (Mockus et al, 1975).
-
-    Key reference:
-    
-    ::
-    
-       @article{Jones:1998,
-            title={Efficient global optimization of expensive black-box functions},
-            author={Jones, Donald R and Schonlau, Matthias and Welch, William J},
-            journal={Journal of Global optimization},
-            volume={13},
-            number={4},
-            pages={455--492},
-            year={1998},
-            publisher={Springer}
-       }
-
-    This acquisition function is the expectation of the improvement over the current best observation
-    w.r.t. the predictive distribution. The definition is closely related to the Probability of Improvement,
-    but adds a multiplication with the improvement w.r.t the current best observation to the integral.
-
-    .. math::
-       \\alpha(\\mathbf x_{\\star}) = \\int \\max(f_{\\min} - f_{\\star}, 0) \\, p( f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
-    """
-
-    def __init__(self, model):
-        super(ExpectedImprovement, self).__init__(model)
-        assert (isinstance(model, Model))
-        self.fmin = DataHolder(np.zeros(1))
-        self.setup()
-
-    def setup(self):
-        super(ExpectedImprovement, self).setup()
-        # Obtain the lowest posterior mean for the previous - feasible - evaluations
-        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
-        samples_mean, _ = self.models[0].predict_f(feasible_samples)
-        self.fmin.set_data(np.min(samples_mean, axis=0))
-
-    def build_acquisition(self, Xcand):
-        # Obtain predictive distributions for candidates
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
-
-        # Compute EI
-        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        t1 = (self.fmin - candidate_mean) * normal.cdf(self.fmin)
-        t2 = candidate_var * normal.prob(self.fmin)
-        return tf.add(t1, t2, name=self.__class__.__name__)
-
-
-class ProbabilityOfFeasibility(Acquisition):
-    """
-    Probability of Feasibility acquisition function for sampling feasible regions. Standard acquisition function for
-    Bayesian Optimization with black-box expensive constraints. 
-
-    Key reference:
-    
-    ::
-    
-       @article{Parr:2012,
-            title={Infill sampling criteria for surrogate-based optimization with constraint handling},
-            author={Parr, JM and Keane, AJ and Forrester, Alexander IJ and Holden, CME},
-            journal={Engineering Optimization},
-            volume={44},
-            number={10},
-            pages={1147--1166},
-            year={2012},
-            publisher={Taylor & Francis}
-       }
-    
-    The acquisition function measures the probability of the latent function being smaller than 0 for a candidate point.
-    
-    .. math::
-       \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{0} \\, p(f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
-    """
-
-    def __init__(self, model, threshold=0.0, minimum_pof=0.5):
-        """
-
-        :param model: GPflow model (single output) for computing the PoF
-        :param threshold: threshold value. Observed values lower than this value are considered valid
-        :param minimum_pof: minimum pof score required for a point to be valid. For more information, see docstring
-        of feasible_data_index
-        """
-        super(ProbabilityOfFeasibility, self).__init__(model)
-        self.threshold = threshold
-        self.minimum_pof = minimum_pof
-
-    def constraint_indices(self):
-        return np.arange(self.data[1].shape[1])
-
-    def feasible_data_index(self):
-        """
-        Returns a boolean array indicating which points are feasible (True) and which are not (False)
-        Answering the question *which points are feasible?* is slightly troublesome in case noise is present.
-        Directly relying on the noisy data and comparing it to self.threshold does not make much sense.
-
-        Instead, we rely on the model belief. More specifically, we evaluate the PoF (score between 0 and 1).
-        As the implementation of the PoF corresponds to the cdf of the (normal) predictive distribution in
-        a point evaluated at the threshold, requiring a minimum pof of 0.5 implies the mean of the predictive
-        distribution is below the threshold, hence it is marked as feasible. A minimum pof of 0 marks all points valid.
-        Setting it to 1 results in all invalid.
-        :return: boolean ndarray, size N
-        """
-        # In
-        pred = self.evaluate(self.data[0])
-        return pred.ravel() > self.minimum_pof
-
-    def build_acquisition(self, Xcand):
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
-        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        return normal.cdf(tf.constant(self.threshold, dtype=float_type), name=self.__class__.__name__)
-
-
-class ProbabilityOfImprovement(Acquisition):
-    """
-    Probability of Improvement acquisition function for single-objective global optimization.
-
-    .. math::
-       \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{f_{\\min}} \\, p( f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
-    """
-
-    def __init__(self, model):
-        super(ProbabilityOfImprovement, self).__init__(model)
-        self.fmin = DataHolder(np.zeros(1))
-        self.setup()
-
-    def setup(self):
-        super(ProbabilityOfImprovement, self).setup()
-        samples_mean, _ = self.models[0].predict_f(self.data[0])
-        self.fmin.set_data(np.min(samples_mean, axis=0))
-
-    def build_acquisition(self, Xcand):
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
-        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        return normal.cdf(self.fmin, name=self.__class__.__name__)
-
-
-class LowerConfidenceBound(Acquisition):
-    """
-    Lower confidence bound acquisition function for single-objective global optimization.
-
-    .. math::
-       \\alpha(\\mathbf x_{\\star}) =\\mathbb{E} \\left[ f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
-       - \\sigma \\mbox{Var} \\left[ f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
-    """
-
-    def __init__(self, model, sigma=2.0):
-        super(LowerConfidenceBound, self).__init__(model)
-        self.sigma = sigma
-
-    def build_acquisition(self, Xcand):
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, 0)
-        return tf.subtract(candidate_mean, self.sigma * tf.sqrt(candidate_var), name=self.__class__.__name__)
-
-
-class HVProbabilityOfImprovement(Acquisition):
-    """
-    Hypervolume Probability of Improvement acquisition function for Pareto-based multi-objective optimization.
-
-    Key reference:
-
-     ::
-
-        @article{Couckuyt:2014,
-            title={Fast calculation of multiobjective probability of improvement and expected improvement criteria for Pareto optimization},
-            author={Couckuyt, Ivo and Deschrijver, Dirk and Dhaene, Tom},
-            journal={Journal of Global Optimization},
-            volume={60},
-            number={3},
-            pages={575--594},
-            year={2014},
-            publisher={Springer}
-        }
-
-    For a Pareto front :math:`\\mathcal{P}`, the non dominated section of the objective space is denoted by :math:`A`.
-    The hypervolume of the dominated part of the space is denoted by :math:`\\mathcal{H}` and can be used as indicator.
-    
-    .. math::
-       \\boldsymbol{\\mu} &= \\left[ \\mathbb{E} \\left[ f^{(1)}_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right],
-       ..., \\mathbb{E} \\left[ f^{(p)}_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]\\right] \\\\
-       I\\left(\\boldsymbol{\\mu}, \\mathcal{P}\\right) &=
-       \\begin{cases} \\left( \\mathcal{H} \\left( \\mathcal{P} \\cup \\boldsymbol{\\mu} \\right) - \\mathcal{H}
-       \\left( \\mathcal{P} \\right)) \\right) ~ \\boldsymbol{\\mu} \\in A
-       \\\\ 0 ~ \\mbox{otherwise} \\end{cases} \\\\
-       \\alpha(\\mathbf x_{\\star}) &= I\\left(\\boldsymbol{\\mu}, \\mathcal{P}\\right) p\\left(\\mathbf x_{\\star} \\in A \\right)
-
-    """
-
-    def __init__(self, models):
-        super(HVProbabilityOfImprovement, self).__init__(models)
-        assert self.data[1].shape[1] > 1
-        self.pareto = Pareto(np.hstack((m.predict_f(self.data[0])[0] for m in self.models)))
-        self.reference = DataHolder(self._estimate_reference())
-
-    def _estimate_reference(self):
-        pf = self.pareto.front.value
-        f = np.max(pf, 0, keepdims=True) - np.min(pf, 0, keepdims=True)
-        return np.max(pf, 0, keepdims=True) + 2 * f / pf.shape[0]
-
-    def setup(self):
-        super(HVProbabilityOfImprovement, self).setup()
-
-        # Obtain hypervolume cell bounds, use prediction mean
-        F = np.hstack((m.predict_f(self.data[0])[0] for m in self.models))
-        self.pareto.update(F)
-        # Calculate reference point.
-        self.reference = self._estimate_reference()
-
-    def build_acquisition(self, Xcand):
-        outdim = tf.shape(self.data[1])[1]
-        num_cells = tf.shape(self.pareto.bounds.lb)[0]
-        N = tf.shape(Xcand)[0]
-
-        # Extended Pareto front
-        pf_ext = tf.concat([-np.inf * tf.ones([1, outdim], dtype=float_type), self.pareto.front, self.reference], 0)
-
-        # Predictions for candidates, concatenate columns
-        preds = [m.build_predict(Xcand) for m in self.models]
-        candidate_mean, candidate_var = (tf.concat(moment, 1) for moment in zip(*preds))
-        candidate_var = tf.maximum(candidate_var, stability) # avoid zeros
-
-        # Calculate the cdf's for all candidates for every predictive distribution in the data points
-        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        Phi = tf.transpose(normal.cdf(tf.expand_dims(pf_ext, 1)), [1, 0, 2]) # N x pf_ext_size x outdim
-
-        # tf.gather_nd indices for bound points
-        col_idx = tf.tile(tf.range(outdim), (num_cells,))
-        ub_idx = tf.stack((tf.reshape(self.pareto.bounds.ub, [-1]), col_idx), axis=1) # (num_cells*outdim x 2)
-        lb_idx = tf.stack((tf.reshape(self.pareto.bounds.lb, [-1]), col_idx), axis=1) # (num_cells*outdim x 2)
-
-        # Calculate PoI
-        P1 = tf.transpose(tf.gather_nd(tf.transpose(Phi, perm=[1, 2, 0]), ub_idx)) # N x num_cell*outdim
-        P2 = tf.transpose(tf.gather_nd(tf.transpose(Phi, perm=[1, 2, 0]), lb_idx)) # N x num_cell*outdim
-        P = tf.reshape(P1 - P2, [N, num_cells, outdim])
-        PoI = tf.reduce_sum(tf.reduce_prod(P, axis=2), axis=1, keep_dims=True)  # N x 1
-
-        # Calculate Hypervolume contribution of points Y
-        ub_points = tf.reshape(tf.gather_nd(pf_ext, ub_idx), [num_cells, outdim])
-        lb_points = tf.reshape(tf.gather_nd(pf_ext, lb_idx), [num_cells, outdim])
-
-        splus_valid = tf.reduce_all(tf.tile(tf.expand_dims(ub_points, 1), [1, N, 1]) > candidate_mean, axis=2) # num_cells x N
-        splus_idx = tf.expand_dims(tf.cast(splus_valid, dtype=float_type), -1) # num_cells x N x 1
-        splus_lb = tf.tile(tf.expand_dims(lb_points, 1), [1, N, 1]) # num_cells x N x outdim
-        splus_lb = tf.maximum(splus_lb, candidate_mean) # num_cells x N x outdim
-        splus_ub = tf.tile(tf.expand_dims(ub_points, 1), [1, N, 1]) # num_cells x N x outdim
-        splus = tf.concat([splus_idx, splus_ub - splus_lb], axis=2) # num_cells x N x (outdim+1)
-        Hv = tf.transpose(tf.reduce_sum(tf.reduce_prod(splus, axis=2), axis=0, keep_dims=True))  # N x 1
-
-        # return HvPoI
-        return tf.multiply(Hv, PoI)
 
 
 class AcquisitionAggregation(Acquisition):
