@@ -50,7 +50,7 @@ class Acquisition(Parameterized):
         self._default_params = list(map(lambda m: m.get_free_state(), self._models))
 
         assert (optimize_restarts >= 0)
-        self._optimize_restarts = optimize_restarts
+        self.optimize_restarts = optimize_restarts
         self._optimize_models()
 
     def _optimize_models(self):
@@ -66,18 +66,18 @@ class Acquisition(Parameterized):
         As a special case, if optimize_restarts is set to zero, the hyperparameters of the models are not optimized.
         This is useful when the hyperparameters are sampled using MCMC.
         """
-        if self._optimize_restarts == 0:
+        if self.optimize_restarts == 0:
             return
 
         for model, hypers in zip(self.models, self._default_params):
             runs = []
-            for i in range(self._optimize_restarts):
+            for i in range(self.optimize_restarts):
                 model.randomize() if i > 0 else model.set_state(hypers)
                 try:
                     result = model.optimize()
                     runs.append(result)
                 except tf.errors.InvalidArgumentError:  # pragma: no cover
-                    print("Warning: optimization restart {0}/{1} failed".format(i + 1, self._optimize_restarts))
+                    print("Warning: optimization restart {0}/{1} failed".format(i + 1, self.optimize_restarts))
             if not runs:
                 raise RuntimeError("All model hyperparameter optimization restarts failed, exiting.")
             best_idx = np.argmin([r.fun for r in runs])
@@ -248,8 +248,8 @@ class ExpectedImprovement(Acquisition):
        \\alpha(\\mathbf x_{\\star}) = \\int \\max(f_{\\min} - f_{\\star}, 0) \\, p( f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
     """
 
-    def __init__(self, model, optimize_restarts=5):
-        super(ExpectedImprovement, self).__init__(model, optimize_restarts)
+    def __init__(self, model):
+        super(ExpectedImprovement, self).__init__(model)
         assert (isinstance(model, Model))
         self.fmin = DataHolder(np.zeros(1))
         self.setup()
@@ -299,7 +299,7 @@ class ProbabilityOfFeasibility(Acquisition):
        \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{0} \\, p(f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
     """
 
-    def __init__(self, model, threshold=0.0, minimum_pof=0.5, optimize_restarts=5):
+    def __init__(self, model, threshold=0.0, minimum_pof=0.5):
         """
 
         :param model: GPflow model (single output) for computing the PoF
@@ -307,7 +307,7 @@ class ProbabilityOfFeasibility(Acquisition):
         :param minimum_pof: minimum pof score required for a point to be valid. For more information, see docstring
         of feasible_data_index
         """
-        super(ProbabilityOfFeasibility, self).__init__(model, optimize_restarts)
+        super(ProbabilityOfFeasibility, self).__init__(model)
         self.threshold = threshold
         self.minimum_pof = minimum_pof
 
@@ -346,8 +346,8 @@ class ProbabilityOfImprovement(Acquisition):
        \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{f_{\\min}} \\, p( f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
     """
 
-    def __init__(self, model, optimize_restarts=5):
-        super(ProbabilityOfImprovement, self).__init__(model, optimize_restarts)
+    def __init__(self, model):
+        super(ProbabilityOfImprovement, self).__init__(model)
         self.fmin = DataHolder(np.zeros(1))
         self.setup()
 
@@ -372,8 +372,8 @@ class LowerConfidenceBound(Acquisition):
        - \\sigma \\mbox{Var} \\left[ f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
     """
 
-    def __init__(self, model, sigma=2.0, optimize_restarts=5):
-        super(LowerConfidenceBound, self).__init__(model, optimize_restarts)
+    def __init__(self, model, sigma=2.0):
+        super(LowerConfidenceBound, self).__init__(model)
         self.sigma = sigma
 
     def build_acquisition(self, Xcand):
@@ -485,7 +485,7 @@ class MCMCAcquistion(AcquisitionSum):
 
         copies = [copy.deepcopy(acquisition) for _ in range(n_slices - 1)]
         for c in copies:
-            c._optimize_restarts = 0
+            c.optimize_restarts = 0
 
         # the call to the constructor of the parent classes, will optimize acquisition, so it obtains the MLE solution.
         super(MCMCAcquistion, self).__init__([acquisition] + copies)
