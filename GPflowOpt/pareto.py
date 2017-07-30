@@ -26,20 +26,42 @@ class BoundedVolumes(Parameterized):
 
     @classmethod
     def empty(cls, dim, dtype):
+        """
+        Returns an empty bounded volume (hypercube)
+
+        :param dim: dimension of the volume
+        :param dtype: dtype of the coordinates
+        :return: an empty BoundedVolumes
+        """
         setup_arr = np.zeros((0, dim), dtype=dtype)
         return cls(setup_arr.copy(), setup_arr.copy())
 
     def __init__(self, lb, ub):
+        """
+        Construct bounded volumes
+
+        :param lb: the lowerbounds of the volumes
+        :param ub: the upperbounds of the volumes
+        """
         super(BoundedVolumes, self).__init__()
         assert np.all(lb.shape == lb.shape)
         self.lb = DataHolder(np.atleast_2d(lb), 'pass')
         self.ub = DataHolder(np.atleast_2d(ub), 'pass')
 
     def append(self, lb, ub):
+        """
+        Add new bounded volumes
+
+        :param lb: the lowerbounds of the volumes
+        :param ub: the upperbounds of the volumes
+        """
         self.lb = np.vstack((self.lb.value, lb))
         self.ub = np.vstack((self.ub.value, ub))
 
     def clear(self):
+        """
+        Clears all stored bounded volumes
+        """
         dtype = self.lb.value.dtype
         outdim = self.lb.shape[1]
         self.lb = np.zeros((0, outdim), dtype=dtype)
@@ -49,168 +71,192 @@ class BoundedVolumes(Parameterized):
         return np.prod(self.ub.value - self.lb.value, axis=1)
 
 
-def setdiffrows(a1, a2):
-    a1_rows = a1.view([('', a1.dtype)] * a1.shape[1])
-    a2_rows = a2.view([('', a2.dtype)] * a2.shape[1])
-    return np.setdiff1d(a1_rows, a2_rows).view(a1.dtype).reshape(-1, a1.shape[1])
-
-
-def unique_rows(a):
-    b = np.ascontiguousarray(a).view(np.dtype((np.void, a.dtype.itemsize * a.shape[1])))
-    _, idx = np.unique(b, return_index=True)
-    return a[idx]
-
-
 def non_dominated_sort(objectives):
-    objectives = objectives - np.minimum(np.min(objectives, axis=0), 0)
+    """
+    Computes the non-dominated sort for a set of data points
 
-    # Ranking based on three different metrics.
-    # 1) Dominance
+    :param objectives: data points
+    :return: the non-dominated set and the degree of dominance
+    dominances gives the number of dominated points for each data point
+    """
     extended = np.tile(objectives, (objectives.shape[0], 1, 1))
     dominance = np.sum(np.logical_and(np.all(extended <= np.swapaxes(extended, 0, 1), axis=2),
                                       np.any(extended < np.swapaxes(extended, 0, 1), axis=2)), axis=1)
 
-    # 2) minimum distance to other points on the same front
-    # Used to promote diversity
-    distance = np.inf * np.ones(objectives.shape[0])
-    dist = squareform(pdist(objectives)) + np.diag(distance)
-    for dom in np.unique(dominance):
-        idx = dominance == dom
-        distance[idx] = np.min(dist[idx, :][:, idx], axis=1)
-
-    # 3) euclidean distance to origin (zero)
-    distance_from_zero = np.sum(np.power(objectives, 2), axis=1)
-
-    # Compute two rankings. Use the first, except for the first front.
-    scores = np.vstack((dominance, -distance, distance_from_zero)).T
-    ixa = np.lexsort((scores[:, 2], scores[:, 1], scores[:, 0]))
-    ixb = np.lexsort((scores[:, 1], scores[:, 2], scores[:, 0]))
-    first_pf_size = np.sum(np.min(dominance) == dominance)
-    ixa[:first_pf_size] = ixb[:first_pf_size]
-
-    return ixa, dominance, distance
+    return objectives[dominance == 0], dominance
 
 
 class Pareto(Parameterized):
     def __init__(self, Y, threshold=0):
+        """
+        Construct a Pareto set.
+
+        Computes and stores the current Pareto set and calculates the cell bounds covering the non-dominated region.
+        The latter is needed for certain multiobjective acquisition funnctions. E.g., `HVProbabilityOfImprovement`
+
+        :param Y: output data poiints
+        :param threshold: approximation threshold for the generic divide and conquer strategy (default 0: exact calculation)
+        """
         super(Pareto, self).__init__()
-        self._loi = None
-        self._idx = None
-        self.loi = np.array([[0, np.inf]]).T
         self.threshold = threshold
         self.Y = Y
 
         # Setup data structures
         self.bounds = BoundedVolumes.empty(Y.shape[1], np_int_type)
-        self.idx_dom_augm = BoundedVolumes.empty(Y.shape[1], np_int_type)
         self.front = DataHolder(np.zeros((0, Y.shape[1])), 'pass')
 
         # Initialize
         self.update()
 
-    def _is_test_required(self, smaller):
-        idx_dom, idx_augm = np.all(smaller, axis=1), np.any(smaller, axis=1)
-        nr_dom = np.sum(idx_dom)
-        is_dom_augm = np.all(idx_augm)
-        is_dom = np.logical_and(nr_dom >= self.loi[0], nr_dom <= self.loi[1])
+    @staticmethod
+    def _is_test_required(smaller):
+        """
+        Tests if test point augments or dominates the Pareto set
 
-        if np.all(self.loi == 0):
-            return is_dom_augm and not np.any(np.all(smaller, axis=1))
-        elif self.loi[0] == 0:
-            return is_dom_augm and is_dom
-        else:
-            return is_dom
+        :param smaller: a boolean ndarray storing test point < Pareto front
+        :return: True if the test point dominates or augments the Pareto front (boolean)
+        """
+        # <=> test point is at least in one dimension smaller for every point in the Pareto set
+        idx_dom_augm = np.any(smaller, axis=1)
+        is_dom_augm = np.all(idx_dom_augm)
+
+        return is_dom_augm
 
     def _update_front(self):
+        """
+        Calculate non-dominated set of points based on the latest data
+
+        :return: whether the Pareto set has actually changed since the last iteration (boolean)
+        """
         current = self.front.value
-        idx, idx_dom, _ = non_dominated_sort(self.Y)
-        pf = unique_rows(self.Y[idx_dom == 0, :])
+        pf, _ = non_dominated_sort(self.Y)
+
         self.front = pf[pf[:, 0].argsort(), :]
-        return setdiffrows(self.front.value, current).size > 0
 
-    @property
-    def loi(self):
-        return self._loi[:, self._idx]
+        return not np.array_equal(current, self.front.value)
 
-    @loi.setter
-    def loi(self, levels):
-        self._loi = levels
-        self._idx = levels.shape[1] - 1
+    def update(self, Y=None, generic_strategy=False):
+        """
+        Update with new output data
 
-    def update(self, Y=None):
+        :param Y: output data points
+        :param generic_strategy: True to force the generic divide and conquer strategy regardless of the output dimension (default False)
+        """
         self.Y = Y if Y is not None else self.Y
+
+        # Find (new) set of non-dominated points
+        changed = self._update_front()
+
+        # Recompute cell bounds if required
+        # Note: if the Pareto set is based on model predictions it will almost always change in between optimizations
+        if changed:
+            # Clear data container
+            self.bounds.clear()
+            if generic_strategy:
+                self.divide_conquer()
+            else:
+                self.pareto2d_bounds() if self.Y.shape[1] == 2 else self.divide_conquer()
+
+    def divide_conquer(self):
+        """
+        Divide and conquer strategy to compute the cells covering the non-dominated region
+
+        Generic version, works for an arbitrary number of objectives
+        """
         outdim = self.Y.shape[1]
 
-        # Attempt to update pareto front
-        updated = self._update_front()
+        # The divide and conquer algorithm operates on a pseudo Pareto set
+        # that is a mapping of the real Pareto set to discrete values
+        pseudo_pf = np.argsort(self.front.value, axis=0) + 1  # +1 as index zero is reserved for the ideal point
 
-        # Do we need to refresh the cell bounds?
-        invalid = True if np.any(self._loi[:, self._idx - 1] != self.loi) or updated else False
+        # Extend front with the ideal and anti-ideal point
+        min_pf = np.min(self.front.value, axis=0) - 1
+        max_pf = np.max(self.front.value, axis=0) + 1
 
-        # Update LoI indices
-        candidates = np.array([0, self._idx + 1])
-        self._idx = candidates[np.argmax((self._idx, self._loi.shape[1] - 1))]
+        pf_ext = np.vstack((min_pf, self.front.value, max_pf))  # Needed for early stopping check (threshold)
+        pf_ext_idx = np.vstack((np.zeros(outdim, dtype=np_int_type),
+                                pseudo_pf,
+                                np.ones(outdim, dtype=np_int_type) * self.front.shape[0] + 1))
 
-        # Recompute bounds if required
-        if invalid:
-            pf_idx = np.argsort(self.front.value, axis=0)
-            pseudo_pf = np.argsort(pf_idx, axis=0) + 1
-            min_pf = np.min(self.front.value, axis=0) - 1
-            max_pf = np.max(self.front.value, axis=0) + 1
+        # Start with one cell covering the whole front
+        dc = [(np.zeros(outdim, dtype=np_int_type),
+               (int(pf_ext_idx.shape[0]) - 1) * np.ones(outdim, dtype=np_int_type))]
+        total_size = np.prod(max_pf - min_pf)
 
-            # Extend front
-            pf_ext = np.vstack((min_pf, self.front.value, max_pf))
-            pf_idx_ext = np.vstack((np.zeros(outdim, dtype=np_int_type),
-                                    pf_idx + 1,
-                                    np.ones(outdim, dtype=np_int_type) * self.front.shape[0] + 1))
+        # Start divide and conquer until we processed all cells
+        while dc:
+            # Process test cell
+            cell = dc.pop()
 
-            dc = BoundedVolumes(np.zeros((1, outdim), dtype=np_int_type),
-                                (pf_idx_ext.shape[0] -1) * np.ones((1, outdim), dtype=np_int_type))
-            total_size = np.prod(max_pf - min_pf)
+            # Acceptance test:
+            if self._is_test_required((cell[1] - 0.5) < pseudo_pf):
+                # Cell is a valid integral bound: store
+                self.bounds.append(pf_ext_idx[cell[0], np.arange(outdim)],
+                                   pf_ext_idx[cell[1], np.arange(outdim)])
+            # Reject test:
+            elif self._is_test_required((cell[0] + 0.5) < pseudo_pf):
+                # Cell can not be discarded: calculate the size of the cell
+                dc_dist = cell[1] - cell[0]
+                hc = BoundedVolumes(pf_ext[pf_ext_idx[cell[0], np.arange(outdim)], np.arange(outdim)],
+                                    pf_ext[pf_ext_idx[cell[1], np.arange(outdim)], np.arange(outdim)])
 
-            # Clear data containers
-            self.bounds.clear()
-            self.idx_dom_augm.clear()
+                # Only divide when it is not an unit cell and the volume is above the approx. threshold
+                if np.any(dc_dist > 1) and np.all((hc.size()[0] / total_size) > self.threshold):
+                    # Divide the test cell over its largest dimension
+                    edge_size, idx = np.max(dc_dist), np.argmax(dc_dist)
+                    edge_size1 = int(np.round(edge_size / 2.0))
+                    edge_size2 = edge_size - edge_size1
 
-            while dc.lb.shape[0] > 0:
-                dc_new = BoundedVolumes.empty(dc.lb.shape[1], np_int_type)
+                    # Store divided cells
+                    ub = np.copy(cell[1])
+                    ub[idx] -= edge_size1
+                    dc.append((np.copy(cell[0]), ub))
 
-                for i in np.arange(dc.lb.shape[0]):
-                    # Need full test?
-                    if self._is_test_required((dc.ub.value[i, :] - 0.5) < pseudo_pf):
-                        self.bounds.append(pf_idx_ext[dc.lb.value[i, :], np.arange(outdim)],
-                                           pf_idx_ext[dc.ub.value[i, :], np.arange(outdim)])
-                        self.idx_dom_augm.append(self.bounds.lb.value[-1, :], self.bounds.ub.value[-1, :])
-                    elif self._is_test_required((dc.lb.value[i, :] + 0.5) < pseudo_pf):
-                            dc_dist = dc.ub.value[i, :] - dc.lb.value[i, :]
-                            hc = BoundedVolumes(pf_ext[pf_idx_ext[dc.lb.value[i, :], np.arange(outdim)], np.arange(outdim)],
-                                                pf_ext[pf_idx_ext[dc.ub.value[i, :], np.arange(outdim)], np.arange(outdim)])
-                            if np.any(dc_dist > 1) and np.all((hc.size()[0] / total_size) > self.threshold):
-                                edge_size, idx = np.max(dc_dist), np.argmax(dc_dist)
-                                edge_size1 = int(np.round(edge_size / 2.0))
-                                edge_size2 = edge_size - edge_size1
+                    lb = np.copy(cell[0])
+                    lb[idx] += edge_size2
+                    dc.append((lb, np.copy(cell[1])))
 
-                                ub = np.copy(dc.ub.value[i, :])
-                                ub[idx] -= edge_size1
-                                dc_new.append(np.copy(dc.lb.value[i, :]), ub)
+    def pareto2d_bounds(self):
+        """
+        Computes the cells covering the non-dominated region
+        for the specific case of only two objectives.
 
-                                lb = np.copy(dc.lb.value[i, :])
-                                lb[idx] += edge_size2
-                                dc_new.append(lb, np.copy(dc.ub.value[i, :]))
+        Assumes the Pareto set has been sorted in ascending order on the first objective.
+        For non-dominated sets this implies the second objective is sorted in descending order.
+        """
+        outdim = self.Y.shape[1]
 
-                dc = dc_new
+        pf_idx = np.argsort(self.front.value, axis=0)
+        pf_ext_idx = np.vstack((np.zeros(outdim, dtype=np_int_type),
+                                pf_idx + 1,
+                                np.ones(outdim, dtype=np_int_type) * self.front.shape[0] + 1))
+
+        for i in range(pf_ext_idx[-1, 0]):
+            self.bounds.append((i, 0),
+                               (i+1, pf_ext_idx[-i-1, 1]))
 
     @AutoFlow((float_type, [None]))
     def hypervolume(self, reference):
+        """
+        Autoflow method to calculate the hypervolume indicator
+
+        The hypervolume indicator is the volume of the dominating region
+
+        :param reference: reference point to use
+        Should be equal or bigger than the anti-ideal point of the Pareto set
+        For comparing results across runs the same reference point must be used
+        :return: hypervolume indicator (positive: the higher the better)
+        """
+
         min_pf = tf.reduce_min(self.front, 0, keep_dims=True)
         R = tf.expand_dims(reference, 0)
         pseudo_pf = tf.concat((min_pf, self.front, R), 0)
         D = tf.shape(pseudo_pf)[1]
-        N = tf.shape(self.idx_dom_augm.ub)[0]
+        N = tf.shape(self.bounds.ub)[0]
 
         idx = tf.tile(tf.expand_dims(tf.range(D), -1),[1, N])
-        ub_idx = tf.reshape(tf.stack([tf.transpose(self.idx_dom_augm.ub), idx], axis=2), [N * D, 2])
-        lb_idx = tf.reshape(tf.stack([tf.transpose(self.idx_dom_augm.lb), idx], axis=2), [N * D, 2])
+        ub_idx = tf.reshape(tf.stack([tf.transpose(self.bounds.ub), idx], axis=2), [N * D, 2])
+        lb_idx = tf.reshape(tf.stack([tf.transpose(self.bounds.lb), idx], axis=2), [N * D, 2])
         ub = tf.reshape(tf.gather_nd(pseudo_pf, ub_idx), [D, N])
         lb = tf.reshape(tf.gather_nd(pseudo_pf, lb_idx), [D, N])
         hv = tf.reduce_sum(tf.reduce_prod(ub - lb, 0))

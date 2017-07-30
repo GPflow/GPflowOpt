@@ -82,7 +82,7 @@ class Acquisition(Parameterized):
             best_idx = np.argmin([r.fun for r in runs])
             model.set_state(runs[best_idx].x)
 
-    def build_acquisition(self):
+    def build_acquisition(self, Xcand):
         raise NotImplementedError
 
     def enable_scaling(self, domain):
