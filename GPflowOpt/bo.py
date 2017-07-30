@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from contextlib import contextmanager
+import copy
 
 import numpy as np
 from scipy.optimize import OptimizeResult
@@ -54,12 +55,20 @@ class BayesianOptimizer(Optimizer):
         assert initial is None or isinstance(initial, Design)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
 
+        batch_domain = np.sum([copy.deepcopy(domain) for i in range(acquisition.batch_size)])
+
+        # Configure scaling
         if scaling:
             acquisition.enable_scaling(domain)
+
+        # Configure MCMC
         self.acquisition = acquisition if hyper_draws is None else MCMCAcquistion(acquisition, hyper_draws)
 
-        self.optimizer = optimizer or SciPyOptimizer(domain)
-        self.optimizer.domain = domain
+        # Setup optimizer
+        self.optimizer = optimizer or SciPyOptimizer(batch_domain)
+        self.optimizer.domain = batch_domain
+
+        # Setup initial evaluations
         initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
 
@@ -165,7 +174,8 @@ class BayesianOptimizer(Optimizer):
         # Optimization loop
         for i in range(n_iter):
             result = self.optimizer.optimize(inverse_acquisition)
-            self._update_model_data(result.x, fx(result.x))
+            Xnew = np.vstack(np.split(result.x, self.acquisition.batch_size))
+            self._update_model_data(Xnew, fx(Xnew))
 
         return self._create_bo_result(True, "OK")
 

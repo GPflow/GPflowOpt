@@ -43,7 +43,7 @@ class Acquisition(Parameterized):
     (for instance for constrained optimization)
     """
 
-    def __init__(self, models=[], optimize_restarts=5):
+    def __init__(self, models=[], optimize_restarts=5, batch_size=1):
         super(Acquisition, self).__init__()
         self._models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
         self._default_params = list(map(lambda m: m.get_free_state(), self._models))
@@ -51,6 +51,7 @@ class Acquisition(Parameterized):
         assert (optimize_restarts >= 0)
         self._optimize_restarts = optimize_restarts
         self._optimize_models()
+        self.batch_size = batch_size
 
     def _optimize_models(self):
         """
@@ -82,7 +83,7 @@ class Acquisition(Parameterized):
             best_idx = np.argmin([r.fun for r in runs])
             model.set_state(runs[best_idx].x)
 
-    def build_acquisition(self):
+    def build_acquisition(self, *args):
         raise NotImplementedError
 
     def enable_scaling(self, domain):
@@ -180,7 +181,7 @@ class Acquisition(Parameterized):
         """
         AutoFlow method to compute the acquisition scores for candidates, also returns the gradients.
         """
-        acq = self.build_acquisition(Xcand)
+        acq = self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size))
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
     @AutoFlow((float_type, [None, None]))
@@ -188,7 +189,7 @@ class Acquisition(Parameterized):
         """
         AutoFlow method to compute the acquisition scores for candidates, without returning the gradients.
         """
-        return self.build_acquisition(Xcand)
+        return self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size))
 
     def __add__(self, other):
         """
@@ -261,8 +262,8 @@ class AcquisitionAggregation(Acquisition):
     def feasible_data_index(self):
         return np.all(np.vstack(map(lambda o: o.feasible_data_index(), self.operands)), axis=0)
 
-    def build_acquisition(self, Xcand):
-        return self._oper(tf.concat(list(map(lambda operand: operand.build_acquisition(Xcand), self.operands)), 1),
+    def build_acquisition(self, *args):
+        return self._oper(tf.concat(list(map(lambda operand: operand.build_acquisition(*args), self.operands)), 1),
                           axis=1, keep_dims=True, name=self.__class__.__name__)
 
     def __getitem__(self, item):
@@ -344,6 +345,6 @@ class MCMCAcquistion(AcquisitionSum):
             self.setup()
         return offset
 
-    def build_acquisition(self, Xcand):
+    def build_acquisition(self, *args):
         # Average the predictions of the copies.
-        return 1. / len(self.operands) * super(MCMCAcquistion, self).build_acquisition(Xcand)
+        return 1. / len(self.operands) * super(MCMCAcquistion, self).build_acquisition(*args)
