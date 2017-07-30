@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from GPflow.param import Parameterized, AutoFlow, ParamList, DataHolder
-from GPflow.model import Model
+from ..scaling import DataScaler
+from ..domain import UnitCube
+
+from GPflow.param import Parameterized, AutoFlow, ParamList
 from GPflow import settings
-from .scaling import DataScaler
-from .domain import UnitCube
 
 import numpy as np
 import tensorflow as tf
@@ -24,7 +24,6 @@ import tensorflow as tf
 import copy
 
 float_type = settings.dtypes.float_type
-stability = settings.numerics.jitter_level
 
 
 class Acquisition(Parameterized):
@@ -218,168 +217,6 @@ class Acquisition(Parameterized):
         if isinstance(other, AcquisitionProduct):
             return AcquisitionProduct([self] + other.operands.sorted_params)
         return AcquisitionProduct([self, other])
-
-
-class ExpectedImprovement(Acquisition):
-    """
-    Expected Improvement acquisition function for single-objective global optimization. 
-    Introduced by (Mockus et al, 1975).
-
-    Key reference:
-    
-    ::
-    
-       @article{Jones:1998,
-            title={Efficient global optimization of expensive black-box functions},
-            author={Jones, Donald R and Schonlau, Matthias and Welch, William J},
-            journal={Journal of Global optimization},
-            volume={13},
-            number={4},
-            pages={455--492},
-            year={1998},
-            publisher={Springer}
-       }
-
-    This acquisition function is the expectation of the improvement over the current best observation
-    w.r.t. the predictive distribution. The definition is closely related to the Probability of Improvement,
-    but adds a multiplication with the improvement w.r.t the current best observation to the integral.
-
-    .. math::
-       \\alpha(\\mathbf x_{\\star}) = \\int \\max(f_{\\min} - f_{\\star}, 0) \\, p( f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
-    """
-
-    def __init__(self, model):
-        super(ExpectedImprovement, self).__init__(model)
-        assert (isinstance(model, Model))
-        self.fmin = DataHolder(np.zeros(1))
-        self.setup()
-
-    def setup(self):
-        super(ExpectedImprovement, self).setup()
-        # Obtain the lowest posterior mean for the previous - feasible - evaluations
-        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
-        samples_mean, _ = self.models[0].predict_f(feasible_samples)
-        self.fmin.set_data(np.min(samples_mean, axis=0))
-
-    def build_acquisition(self, Xcand):
-        # Obtain predictive distributions for candidates
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
-
-        # Compute EI
-        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        t1 = (self.fmin - candidate_mean) * normal.cdf(self.fmin)
-        t2 = candidate_var * normal.prob(self.fmin)
-        return tf.add(t1, t2, name=self.__class__.__name__)
-
-
-class ProbabilityOfFeasibility(Acquisition):
-    """
-    Probability of Feasibility acquisition function for sampling feasible regions. Standard acquisition function for
-    Bayesian Optimization with black-box expensive constraints. 
-
-    Key reference:
-    
-    ::
-    
-       @article{parr2012infill,
-            title={Infill sampling criteria for surrogate-based optimization with constraint handling},
-            author={Parr, JM and Keane, AJ and Forrester, Alexander IJ and Holden, CME},
-            journal={Engineering Optimization},
-            volume={44},
-            number={10},
-            pages={1147--1166},
-            year={2012},
-            publisher={Taylor & Francis}
-       }
-    
-    The acquisition function measures the probability of the latent function being smaller than 0 for a candidate point.
-    
-    .. math::
-       \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{0} \\, p(f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
-    """
-
-    def __init__(self, model, threshold=0.0, minimum_pof=0.5):
-        """
-
-        :param model: GPflow model (single output) for computing the PoF
-        :param threshold: threshold value. Observed values lower than this value are considered valid
-        :param minimum_pof: minimum pof score required for a point to be valid. For more information, see docstring
-        of feasible_data_index
-        """
-        super(ProbabilityOfFeasibility, self).__init__(model)
-        self.threshold = threshold
-        self.minimum_pof = minimum_pof
-
-    def constraint_indices(self):
-        return np.arange(self.data[1].shape[1])
-
-    def feasible_data_index(self):
-        """
-        Returns a boolean array indicating which points are feasible (True) and which are not (False)
-        Answering the question *which points are feasible?* is slightly troublesome in case noise is present.
-        Directly relying on the noisy data and comparing it to self.threshold does not make much sense.
-
-        Instead, we rely on the model belief. More specifically, we evaluate the PoF (score between 0 and 1).
-        As the implementation of the PoF corresponds to the cdf of the (normal) predictive distribution in
-        a point evaluated at the threshold, requiring a minimum pof of 0.5 implies the mean of the predictive
-        distribution is below the threshold, hence it is marked as feasible. A minimum pof of 0 marks all points valid.
-        Setting it to 1 results in all invalid.
-        :return: boolean ndarray, size N
-        """
-        # In
-        pred = self.evaluate(self.data[0])
-        return pred.ravel() > self.minimum_pof
-
-    def build_acquisition(self, Xcand):
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
-        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        return normal.cdf(tf.constant(self.threshold, dtype=float_type), name=self.__class__.__name__)
-
-
-class ProbabilityOfImprovement(Acquisition):
-    """
-    Probability of Improvement acquisition function for single-objective global optimization.
-
-    .. math::
-       \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{f_{\\min}} \\, p( f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
-    """
-
-    def __init__(self, model):
-        super(ProbabilityOfImprovement, self).__init__(model)
-        self.fmin = DataHolder(np.zeros(1))
-        self.setup()
-
-    def setup(self):
-        super(ProbabilityOfImprovement, self).setup()
-        samples_mean, _ = self.models[0].predict_f(self.data[0])
-        self.fmin.set_data(np.min(samples_mean, axis=0))
-
-    def build_acquisition(self, Xcand):
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
-        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        return normal.cdf(self.fmin, name=self.__class__.__name__)
-
-
-class LowerConfidenceBound(Acquisition):
-    """
-    Lower confidence bound acquisition function for single-objective global optimization.
-
-    .. math::
-       \\alpha(\\mathbf x_{\\star}) =\\mathbb{E} \\left[ f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
-       - \\sigma \\mbox{Var} \\left[ f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
-    """
-
-    def __init__(self, model, sigma=2.0):
-        super(LowerConfidenceBound, self).__init__(model)
-        self.sigma = sigma
-
-    def build_acquisition(self, Xcand):
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, 0)
-        return tf.subtract(candidate_mean, self.sigma * tf.sqrt(candidate_var), name=self.__class__.__name__)
 
 
 class AcquisitionAggregation(Acquisition):
