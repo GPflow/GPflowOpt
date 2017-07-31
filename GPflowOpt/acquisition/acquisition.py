@@ -49,7 +49,7 @@ class Acquisition(Parameterized):
         self._default_params = list(map(lambda m: m.get_free_state(), self._models))
 
         assert (optimize_restarts >= 0)
-        self._optimize_restarts = optimize_restarts
+        self.optimize_restarts = optimize_restarts
         self._optimize_models()
 
     def _optimize_models(self):
@@ -65,18 +65,18 @@ class Acquisition(Parameterized):
         As a special case, if optimize_restarts is set to zero, the hyperparameters of the models are not optimized.
         This is useful when the hyperparameters are sampled using MCMC.
         """
-        if self._optimize_restarts == 0:
+        if self.optimize_restarts == 0:
             return
 
         for model, hypers in zip(self.models, self._default_params):
             runs = []
-            for i in range(self._optimize_restarts):
+            for i in range(self.optimize_restarts):
                 model.randomize() if i > 0 else model.set_state(hypers)
                 try:
                     result = model.optimize()
                     runs.append(result)
                 except tf.errors.InvalidArgumentError:  # pragma: no cover
-                    print("Warning: optimization restart {0}/{1} failed".format(i + 1, self._optimize_restarts))
+                    print("Warning: optimization restart {0}/{1} failed".format(i + 1, self.optimize_restarts))
             if not runs:
                 raise RuntimeError("All model hyperparameter optimization restarts failed, exiting.")
             best_idx = np.argmin([r.fun for r in runs])
@@ -220,7 +220,16 @@ class Acquisition(Parameterized):
 
 
 class AcquisitionAggregation(Acquisition):
+    """
+    Special acquisition implementation for aggregating multiple others, using a TensorFlow reduce operation.
+    """
+
     def __init__(self, operands, oper):
+        """
+        Constructor
+        :param operands: list of acquisition objects
+        :param oper: a tf.reduce operation (e.g., tf.reduce_sum) for aggregating the returned scores of each operand.
+        """
         super(AcquisitionAggregation, self).__init__()
         assert (all([isinstance(x, Acquisition) for x in operands]))
         self.operands = ParamList(operands)
@@ -313,7 +322,7 @@ class MCMCAcquistion(AcquisitionSum):
 
         copies = [copy.deepcopy(acquisition) for _ in range(n_slices - 1)]
         for c in copies:
-            c._optimize_restarts = 0
+            c.optimize_restarts = 0
 
         # the call to the constructor of the parent classes, will optimize acquisition, so it obtains the MLE solution.
         super(MCMCAcquistion, self).__init__([acquisition] + copies)
