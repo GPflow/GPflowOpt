@@ -220,6 +220,7 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         data = np.load(fname)
         np.testing.assert_almost_equal(data['X'], X)
         np.testing.assert_almost_equal(data['Y'], Y)
+        os.remove(fname)
 
 
 class TestBayesianOptimizerConfigurations(unittest.TestCase):
