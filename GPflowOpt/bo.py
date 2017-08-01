@@ -72,9 +72,10 @@ class BayesianOptimizer(Optimizer):
         assert self.acquisition.data[0].shape[1] == newX.shape[-1]
         assert self.acquisition.data[1].shape[1] == newY.shape[-1]
         assert newX.shape[0] == newY.shape[0]
-        X = np.vstack((self.acquisition.data[0], newX))
-        Y = np.vstack((self.acquisition.data[1], newY))
-        self.acquisition.set_data(X, Y)
+        if newX.shape[0] > 0:
+            X = np.vstack((self.acquisition.data[0], newX))
+            Y = np.vstack((self.acquisition.data[1], newY))
+            self.acquisition.set_data(X, Y)
 
     def _evaluate_objectives(self, X, fxs):
         """
