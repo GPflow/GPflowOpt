@@ -31,6 +31,18 @@ class TestContinuousParameter(unittest.TestCase):
         p.upper = 2
         self.assertEqual(p, pne, msg="Should be equal after adjusting bounds")
 
+    def test_indexing(self):
+        p = sum([GPflowOpt.domain.ContinuousParameter("x1", 0, 1),
+                 GPflowOpt.domain.ContinuousParameter("x2", 0, 1),
+                 GPflowOpt.domain.ContinuousParameter("x3", 0, 1),
+                 GPflowOpt.domain.ContinuousParameter("x4", 0, 1)])
+
+        subdomain = p[['x4', 'x1', 2]]
+        self.assertTrue(subdomain.size == 3, msg="Subdomain should have size 3")
+        self.assertTrue(subdomain[0].label == 'x4', msg="Subdomain's first parameter should be 'x4'")
+        self.assertTrue(subdomain[1].label == 'x1', msg="Subdomain's second parameter should be 'x1'")
+        self.assertTrue(subdomain[2].label == 'x3', msg="Subdomain's third parameter should be 'x3'")
+
     def test_containment(self):
         p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
         self.assertIn(0, p, msg="Point is within domain")

@@ -46,6 +46,12 @@ class Domain(Parentable):
         assert isinstance(other, Domain)
         return Domain(self._parameters + other._parameters)
 
+    def __radd__(self, other):
+        if other == 0:
+            return self
+
+        return other + self
+
     @property
     def size(self):
         """
@@ -76,8 +82,15 @@ class Domain(Parentable):
         for v in chain(*map(iter, self._parameters)):
             yield v
 
-    def __getitem__(self, item):
-        return self._parameters[item]
+    def __getitem__(self, items):
+        if isinstance(items, list):
+            return sum([self[item] for item in items])
+
+        if isinstance(items, str):
+            labels = [param.label for param in self._parameters]
+            items = labels.index(items)
+
+        return self._parameters[items]
 
     def __rshift__(self, other):
         assert(self.size == other.size)
