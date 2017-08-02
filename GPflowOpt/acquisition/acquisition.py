@@ -22,6 +22,8 @@ import numpy as np
 import tensorflow as tf
 
 import copy
+from contextlib import contextmanager
+from itertools import chain
 
 float_type = settings.dtypes.float_type
 
@@ -218,6 +220,25 @@ class Acquisition(Parameterized):
             return AcquisitionProduct([self] + other.operands.sorted_params)
         return AcquisitionProduct([self, other])
 
+    def _disable_optimization(self):
+        iters = [self.optimize_restarts]
+        self.optimize_restarts = 0
+        iters.extend(chain(*[c._disable_optimization() for c in self.sorted_params if isinstance(c, Acquisition)]))
+        return iters
+
+    def _restore_optimization(self, iters):
+        self.optimize_restarts = iters.pop(0)
+        for c in self.sorted_params:
+            if isinstance(c, Acquisition):
+                pop = c._restore_optimization()
+        return pop
+
+    @contextmanager
+    def delay_optimize(self):
+        r = self._disable_optimization()
+        yield
+        self._restore_optimization(r)
+        self._optimize_models()
 
 class AcquisitionAggregation(Acquisition):
     """
