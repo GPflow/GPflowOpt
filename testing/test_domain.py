@@ -19,6 +19,9 @@ class TestContinuousParameter(unittest.TestCase):
         p.lower = 1
         self.assertEqual(p.lower, 1, msg="After assignment, lower should equal 2")
 
+        p = np.sum([GPflowOpt.domain.ContinuousParameter("x1", 0, 1)])
+        self.assertTrue(p.size == 1, msg="Construction of domain by list using sum failed")
+
     def test_equality(self):
         p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
         pne = GPflowOpt.domain.ContinuousParameter("x1", 0, 2)
