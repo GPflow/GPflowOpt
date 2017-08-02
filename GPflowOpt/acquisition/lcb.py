@@ -29,6 +29,7 @@ class LowerConfidenceBound(Acquisition):
     def __init__(self, model, sigma=2.0):
         super(LowerConfidenceBound, self).__init__(model)
         self.sigma = sigma
+        self.setup()
 
     def build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0].build_predict(Xcand)

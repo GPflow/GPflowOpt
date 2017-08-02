@@ -60,6 +60,7 @@ class ProbabilityOfFeasibility(Acquisition):
         super(ProbabilityOfFeasibility, self).__init__(model)
         self.threshold = threshold
         self.minimum_pof = minimum_pof
+        self.setup()
 
     def constraint_indices(self):
         return np.arange(self.data[1].shape[1])
