@@ -35,7 +35,7 @@ class TestContinuousParameter(unittest.TestCase):
         self.assertEqual(p, pne, msg="Should be equal after adjusting bounds")
 
     def test_indexing(self):
-        p = sum([GPflowOpt.domain.ContinuousParameter("x1", 0, 1),
+        p = np.sum([GPflowOpt.domain.ContinuousParameter("x1", 0, 1),
                  GPflowOpt.domain.ContinuousParameter("x2", 0, 1),
                  GPflowOpt.domain.ContinuousParameter("x3", 0, 1),
                  GPflowOpt.domain.ContinuousParameter("x4", 0, 1)])
