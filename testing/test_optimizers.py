@@ -179,7 +179,7 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
     def test_failsafe(self):
         X, Y = self.optimizer.acquisition.data[0], self.optimizer.acquisition.data[1]
         # Provoke cholesky faillure
-        self.optimizer.acquisition._optimize_restarts = 1
+        self.optimizer.acquisition.optimize_restarts = 1
         self.optimizer.acquisition.models[0].likelihood.variance.transform = GPflow.transforms.Identity()
         self.optimizer.acquisition.models[0].likelihood.variance = -5.0
         self.optimizer.acquisition.models[0]._needs_recompile = True
