@@ -56,7 +56,7 @@ class Optimizer(object):
         The actual optimization routine is implemented in _optimize, to be implemented in subclasses.
 
         :param objectivefx: callable, taking one argument: a 2D numpy array. The number of columns correspond to the 
-        dimensionality of the input domain.
+            dimensionality of the input domain.
         :return: OptimizeResult reporting the results.
         """
         objective = ObjectiveWrapper(objectivefx, **self._wrapper_args)
@@ -79,7 +79,8 @@ class Optimizer(object):
     def set_initial(self, initial):
         """
         Set the initial set of points. The dimensionality should match the domain dimensionality, and all points should 
-        be within the domain
+        be within the domain.
+    
         :param initial: initial points, should all be within the domain of the optimizer.
         """
         initial = np.atleast_2d(initial)
@@ -123,7 +124,7 @@ class CandidateOptimizer(Optimizer):
         """
         :param domain: Optimization domain.
         :param candidates: candidate points, should be within the optimization domain. 
-        :param batch: bool, evaluate the objective function on all points at once or one by one?
+        :param batch: bool, if true evaluates the objective function on all points at once
         """
         super(CandidateOptimizer, self).__init__(domain, exclude_gradient=True)
         assert(candidates in domain)

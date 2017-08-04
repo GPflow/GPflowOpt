@@ -39,7 +39,7 @@ class Design(object):
     def generative_domain(self):
         """
         :return: Domain object representing the domain associated with the points generated in create_design().
-        Defaults to [0,1]^D, can be overwritten by subclasses
+            Defaults to [0,1]^D, can be overwritten by subclasses
         """
         return np.sum([ContinuousParameter('d{0}'.format(i), 0, 1) for i in np.arange(self.domain.size)])
 
@@ -48,6 +48,7 @@ class Design(object):
         Creates the design in the domain specified during construction.
 
         It is guaranteed that all data points satisfy this domain
+
         :return: 2D ndarray, N x D
         """
         Xs = self.create_design()
@@ -64,6 +65,7 @@ class Design(object):
         Returns a design generated in the `generative` domain.
 
         This method should be implemented in the subclasses.
+        
         :return: 2D ndarray, N x D
         """
         raise NotImplementedError
@@ -87,8 +89,8 @@ class FactorialDesign(Design):
     """
     A k-level grid-based design.
 
-    Design with the optimal minimal distance between points, however it risks collapsing points when
-    removing parameters. Also its size is not arbitrary but a power of the domain dimensionality.
+    Design with the optimal minimal distance between points (a simple grid), however it risks collapsing points when
+    removing parameters. Its size is a power of the domain dimensionality.
     """
 
     def __init__(self, levels, domain):
@@ -150,8 +152,8 @@ class LatinHyperCube(Design):
         :param size: requested size N for the LHD 
         :param domain: domain to generate the LHD for, must be continuous
         :param max_seed_size: the maximum size 1 <= S <= D for the seed, . If unspecified, equals the dimensionality D 
-        of the domain. During generation, S different designs are generated. Seeds with sizes 1,2,...S are used.
-        Each seed itself is a small LHD.
+            of the domain. During generation, S different designs are generated. Seeds with sizes 1,2,...S are used.
+            Each seed itself is a small LHD.
         """
         super(LatinHyperCube, self).__init__(size, domain)
         self._max_seed_size = np.round(max_seed_size or domain.size)
@@ -167,6 +169,7 @@ class LatinHyperCube(Design):
     def create_design(self):
         """
         Generate several LHDs with increasing seed. Maximum S = min(dimensionality,max_seed_size)
+
         :return: From S candidate designs, the one with the best intersite distance is returned. 2D ndarray, N x D.
         """
         candidates = []
@@ -190,8 +193,9 @@ class LatinHyperCube(Design):
 
     def _tplhd_design(self, seed):
         """
-        Creates an LHD with the Translational propagation algorithm with specified seed and design size specified during
-        construction (N).
+        Creates an LHD with the Translational propagation algorithm with specified seed and design size N specified during
+        construction.
+
         :param seed: 2D ndarray, the seed to use. S x D
         :return: LHD, 2D ndarray. N x D
         """
@@ -217,6 +221,7 @@ class LatinHyperCube(Design):
     def _rescale_seed(seed, npStar, ndStar):
         """
         Rescales the seed design
+
         :param seed: 2D ndarray, S x D
         :param npStar: size of the LHD to be generated. N* >= N
         :param ndStar: number of translation steps for the seed in each dimension
@@ -237,6 +242,7 @@ class LatinHyperCube(Design):
     def _translate_propagate(seed, npStar, ndStar):
         """
         Translates and propagates the seed design to a LHD of size npStar (which might exceed the requested size N)
+
         :param seed: seed design, 2D ndarray S x D
         :param npStar: size of the LHD to be generated (N*). 
         :param ndStar: number of translation steps for the seed in each dimension
@@ -265,6 +271,7 @@ class LatinHyperCube(Design):
         """
         When designs are generated that are larger than the requested number of points (N* > N), resize them.
         If the size was correct all along, the LHD is returned unchanged.
+
         :param X: Generated LHD, N* x D, with N* >= N
         :param npoints: What size to resize to (N)
         :return: LHD, 2D ndarray N x D

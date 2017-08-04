@@ -51,7 +51,7 @@ class ProbabilityOfFeasibility(Acquisition):
         :param model: GPflow model (single output) representing our belief of the constraint
         :param threshold: Observed values lower than the threshold are considered valid
         :param minimum_pof: minimum pof score required for a point to be valid.
-                            For more information, see docstring of feasible_data_index
+            For more information, see docstring of feasible_data_index
         """
         super(ProbabilityOfFeasibility, self).__init__(model)
         self.threshold = threshold
@@ -67,11 +67,12 @@ class ProbabilityOfFeasibility(Acquisition):
         Answering the question *which points are feasible?* is slightly troublesome in case noise is present.
         Directly relying on the noisy data and comparing it to self.threshold does not make much sense.
 
-        Instead, we rely on the model belief. More specifically, we evaluate the PoF (a probability between 0 and 1).
+        Instead, we rely on the model belief using the PoF (a probability between 0 and 1).
         As the implementation of the PoF corresponds to the cdf of the (normal) predictive distribution in
         a point evaluated at the threshold, requiring a minimum pof of 0.5 implies the mean of the predictive
         distribution is below the threshold, hence it is marked as feasible. A minimum pof of 0 marks all points valid.
         Setting it to 1 results in all invalid.
+    
         :return: boolean ndarray (size N)
         """
         pred = self.evaluate(self.data[0])

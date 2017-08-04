@@ -143,6 +143,7 @@ class Parameter(Domain):
     def size(self):
         """
         One parameter has a dimensionality of 1
+    
         :return: 1
         """
         return 1
