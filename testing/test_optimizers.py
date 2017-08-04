@@ -189,9 +189,9 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
 
         fname = 'failed_bopt_{0}.npz'.format(id(e.exception))
         self.assertTrue(os.path.isfile(fname))
-        data = np.load(fname)
-        np.testing.assert_almost_equal(data['X'], X)
-        np.testing.assert_almost_equal(data['Y'], Y)
+        with np.load(fname) as data:
+            np.testing.assert_almost_equal(data['X'], X)
+            np.testing.assert_almost_equal(data['Y'], Y)
         os.remove(fname)
 
 
