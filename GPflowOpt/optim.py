@@ -109,47 +109,27 @@ class Optimizer(object):
         sys.stdout = save_stdout
 
 
-class CandidateOptimizer(Optimizer):
+class MCOptimizer(Optimizer):
     """
-    Optimization of an objective function by evaluating a set of pre-defined candidate points.
+    Optimization of an objective function by evaluating a set of random points.
 
-    Returns the point with minimal objective value.
+    Note: each call to optimize, a different set of random points is evaluated.
 
     For compatibility with the StagedOptimizer, the candidate points are concatenated with
     the initial points and evaluated.
     """
 
-    def __init__(self, domain, candidates, batch=False):
-        """
-        :param domain: Optimization domain.
-        :param candidates: candidate points, should be within the optimization domain. 
-        :param batch: bool, evaluate the objective function on all points at once or one by one?
-        """
-        super(CandidateOptimizer, self).__init__(domain, exclude_gradient=True)
-        assert(candidates in domain)
-        self.candidates = candidates
-        self._batch_mode = batch
+    def __init__(self, domain, nsamples):
+        super(MCOptimizer, self).__init__(domain, exclude_gradient=True)
+        self._nsamples = nsamples
 
-    @Optimizer.domain.setter
-    def domain(self, dom):
-        # Attempt to transform candidates
-        t = self.domain >> dom
-        self.candidates = t.forward(self.candidates)
-        self._domain = dom
-        self.set_initial(dom.value)
-
-    def get_initial(self):
-        return np.vstack((super(CandidateOptimizer, self).get_initial(), self.candidates))
-
-    def _evaluate_one_by_one(self, objective, X):
-        """
-        Evaluates each row of X individually.
-        """
-        return np.vstack(map(lambda x: objective(x), X))
+    def _get_candidates(self):
+        initial = self.get_initial()
+        return np.vstack((initial, RandomDesign(self._nsamples - initial.shape[0], self.domain).generate()))
 
     def _optimize(self, objective):
-        points = self.get_initial()
-        evaluations = objective(points) if self._batch_mode else self._evaluate_one_by_one(objective, points)
+        points = self._get_candidates()
+        evaluations = objective(points)
         idx_best = np.argmin(evaluations, axis=0)
 
         return OptimizeResult(x=points[idx_best, :],
@@ -159,20 +139,33 @@ class CandidateOptimizer(Optimizer):
                               message="OK")
 
 
-class MCOptimizer(CandidateOptimizer):
+class CandidateOptimizer(MCOptimizer):
     """
-    Optimization of an objective function by evaluating a set of random points.
+    Optimization of an objective function by evaluating a set of pre-defined candidate points.
 
-    Note: each call to optimize, a different set of random points is evaluated.
+    Returns the point with minimal objective value.
     """
 
-    def __init__(self, domain, nsamples, batch=False):
-        super(MCOptimizer, self).__init__(domain, np.empty((0, domain.size)), batch=batch)
-        self._nsamples = nsamples
+    def __init__(self, domain, candidates):
+        """
+        :param domain: Optimization domain.
+        :param candidates: candidate points, should be within the optimization domain.
+        :param batch: bool, evaluate the objective function on all points at once or one by one?
+        """
+        super(CandidateOptimizer, self).__init__(domain, candidates.shape[0])
+        assert (candidates in domain)
+        self.candidates = candidates
+        # Clear the initial data points
+        self.set_initial(np.empty((0, candidates.shape[1])))
 
-    def _optimize(self, objective):
-        self.candidates = RandomDesign(self._nsamples, self.domain).generate()
-        return super(MCOptimizer, self)._optimize(objective)
+    def _get_candidates(self):
+        return np.vstack((self.get_initial(), self.candidates))
+
+    @MCOptimizer.domain.setter
+    def domain(self, dom):
+        t = self.domain >> dom
+        super(CandidateOptimizer, self.__class__).domain.fset(self, dom)
+        self.candidates = t.forward(self.candidates)
 
 
 class SciPyOptimizer(Optimizer):
@@ -215,6 +208,12 @@ class StagedOptimizer(Optimizer):
         super(StagedOptimizer, self).__init__(optimizers[0].domain, exclude_gradient=no_gradient)
         self.optimizers = optimizers
 
+    @Optimizer.domain.setter
+    def domain(self, domain):
+        super(StagedOptimizer, self.__class__).domain.fset(self, domain)
+        for optimizer in self.optimizers:
+            optimizer.domain = domain
+
     def optimize(self, objectivefx):
         """
         The StagedOptimizer overwrites the default behaviour of optimize(). It passes the best point of the previous
@@ -223,10 +222,11 @@ class StagedOptimizer(Optimizer):
         """
 
         self.optimizers[0].set_initial(self.get_initial())
-        fun_evals = []
+        print(self.optimizers)
+        results = []
         for current, next in zip(self.optimizers[:-1], self.optimizers[1:]):
             result = current.optimize(objectivefx)
-            fun_evals.append(result.nfev)
+            results.append(result)
             if not result.success:
                 result.message += " StagedOptimizer interrupted after {0}.".format(current.__class__.__name__)
                 break
@@ -234,7 +234,12 @@ class StagedOptimizer(Optimizer):
 
         if result.success:
             result = self.optimizers[-1].optimize(objectivefx)
-            fun_evals.append(result.nfev)
-        result.nfev = sum(fun_evals)
-        result.nstages = len(fun_evals)
+            results.append(result)
+
+        if not result.success and len(results) > 1:
+            print(results[-2])
+            result.x = results[-2].x
+            result.fun = results[-2].fun
+        result.nfev = sum(r.nfev for r in results)
+        result.nstages = len(results)
         return result

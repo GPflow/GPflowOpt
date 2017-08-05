@@ -22,11 +22,12 @@ class KeyboardRaiser:
         self.iters_to_raise, self.f = iters_to_raise, f
         self.count = 0
 
-    def __call__(self, *a, **kw):
-        self.count += 1
+    def __call__(self, X):
         if self.count >= self.iters_to_raise:
             raise KeyboardInterrupt
-        return self.f(*a, **kw)
+        val = self.f(X)
+        self.count += X.shape[0]
+        return val
 
 
 class _TestOptimizer(object):
@@ -62,21 +63,26 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
         design = GPflowOpt.design.FactorialDesign(4, self.domain)
         self.optimizer = GPflowOpt.optim.CandidateOptimizer(self.domain, design.generate())
 
+    def test_default_initial(self):
+        self.assertTupleEqual(self.optimizer._initial.shape, (0, 2), msg="Invalid shape of initial points array")
+
     def test_object_integrity(self):
         self.assertTupleEqual(self.optimizer.candidates.shape, (16, 2), msg="Invalid shape of candidate property.")
-        self.assertTupleEqual(self.optimizer.get_initial().shape, (17, 2), msg="Invalid shape of initial points")
+        self.assertTupleEqual(self.optimizer.get_initial().shape, (0, 2), msg="Invalid shape of initial points")
         self.assertFalse(self.optimizer.gradient_enabled(), msg="CandidateOptimizer supports no gradients.")
 
     def test_set_domain(self):
         with self.assertRaises(AssertionError):
             super(TestCandidateOptimizer, self).test_set_domain()
+        print(self.optimizer.domain.size)
         self.optimizer.domain = GPflowOpt.domain.UnitCube(2)
         self.assertNotEqual(self.optimizer.domain, self.domain)
         self.assertEqual(self.optimizer.domain, GPflowOpt.domain.UnitCube(2))
         rescaled_candidates = GPflowOpt.design.FactorialDesign(4, GPflowOpt.domain.UnitCube(2)).generate()
-        self.assertTrue(np.allclose(self.optimizer.get_initial(), np.vstack((0.5*np.ones((1,2)), rescaled_candidates))))
+        self.assertTrue(np.allclose(self.optimizer.candidates, rescaled_candidates))
 
     def test_optimize(self):
+        self.optimizer.candidates = np.vstack((self.optimizer.candidates, np.zeros((1,2))))
         result = self.optimizer.optimize(parabola2d)
         self.assertTrue(result.success, msg="Optimization should succeed.")
         self.assertTrue(np.allclose(result.x, 0), msg="Optimum should be identified")
@@ -139,16 +145,22 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
     def test_optimizer_interrupt(self):
         self.optimizer.set_initial([-1, -1])
         result = self.optimizer.optimize(KeyboardRaiser(3, parabola2d))
-        self.assertFalse(result.success, msg="After two evaluations, a keyboard interrupt is raised, "
-                                             "non-succesfull result expected.")
-        self.assertFalse(np.allclose(result.x, 0.0), msg="After one iteration, the optimum will not be found")
-        self.assertEqual(result.nstages, 1, msg="Stage 1 should be in progress during interrupt")
+        self.assertFalse(result.success, msg="non-succesfull result expected.")
+        self.assertFalse(np.allclose(result.x, 0.0), msg="The optimum will not be found")
+        self.assertEqual(result.nstages, 2, msg="Stage 2 should be in progress during interrupt")
+        self.assertEqual(result.nfev, 5)
 
         result = self.optimizer.optimize(KeyboardRaiser(8, parabola2d))
-        self.assertFalse(result.success, msg="After 7 evaluations, a keyboard interrupt is raised, "
-                                             "non-succesfull result expected.")
+        print(result)
+        self.assertFalse(result.success, msg="non-succesfull result expected.")
+        self.assertEqual(result.nfev, 8)
         self.assertFalse(np.allclose(result.x[0, :], 0.0), msg="The optimum should not be found yet")
         self.assertEqual(result.nstages, 2, msg="Stage 2 should be in progress during interrupt")
+
+    def test_set_domain(self):
+        super(TestStagedOptimizer, self).test_set_domain()
+        for opt in self.optimizer.optimizers:
+            self.assertEqual(opt.domain, GPflowOpt.domain.UnitCube(3))
 
 
 class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
@@ -179,7 +191,7 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
     def test_failsafe(self):
         X, Y = self.optimizer.acquisition.data[0], self.optimizer.acquisition.data[1]
         # Provoke cholesky faillure
-        self.optimizer.acquisition._optimize_restarts = 1
+        self.optimizer.acquisition.optimize_restarts = 1
         self.optimizer.acquisition.models[0].likelihood.variance.transform = GPflow.transforms.Identity()
         self.optimizer.acquisition.models[0].likelihood.variance = -5.0
         self.optimizer.acquisition.models[0]._needs_recompile = True
@@ -189,9 +201,9 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
 
         fname = 'failed_bopt_{0}.npz'.format(id(e.exception))
         self.assertTrue(os.path.isfile(fname))
-        data = np.load(fname)
-        np.testing.assert_almost_equal(data['X'], X)
-        np.testing.assert_almost_equal(data['Y'], Y)
+        with np.load(fname) as data:
+            np.testing.assert_almost_equal(data['X'], X)
+            np.testing.assert_almost_equal(data['Y'], Y)
         os.remove(fname)
 
 
