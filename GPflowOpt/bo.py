@@ -72,10 +72,9 @@ class BayesianOptimizer(Optimizer):
         assert self.acquisition.data[0].shape[1] == newX.shape[-1]
         assert self.acquisition.data[1].shape[1] == newY.shape[-1]
         assert newX.shape[0] == newY.shape[0]
-        if newX.shape[0] > 0:
-            X = np.vstack((self.acquisition.data[0], newX))
-            Y = np.vstack((self.acquisition.data[1], newY))
-            self.acquisition.set_data(X, Y)
+        X = np.vstack((self.acquisition.data[0], newX))
+        Y = np.vstack((self.acquisition.data[1], newY))
+        self.acquisition.set_data(X, Y)
 
     def _evaluate_objectives(self, X, fxs):
         """
@@ -87,12 +86,10 @@ class BayesianOptimizer(Optimizer):
                         (1) 2D ndarray (# new samples x 0): Bayesian Optimizer is gradient-free, however calling
                         optimizer of the parent class expects a gradient. Will be discarded further on.
         """
-        if X.size > 0:
-            evaluations = np.hstack(map(lambda f: f(X), fxs))
-            assert evaluations.shape[1] == self.acquisition.data[1].shape[1]
-            return evaluations, np.zeros((X.shape[0], 0))
-        else:
-            return np.empty((0, self.acquisition.data[1].shape[1])), np.zeros((0, 0))
+        assert X.size > 0
+        evaluations = np.hstack(map(lambda f: f(X), fxs))
+        assert evaluations.shape[1] == self.acquisition.data[1].shape[1]
+        return evaluations, np.zeros((X.shape[0], 0))
 
     def _create_bo_result(self, success, message):
         """
@@ -154,8 +151,9 @@ class BayesianOptimizer(Optimizer):
 
         # Evaluate and add the initial design (if any)
         initial = self.get_initial()
-        values = fx(initial)
-        self._update_model_data(initial, values)
+        if initial.size > 0:
+            values = fx(initial)
+            self._update_model_data(initial, values)
 
         # Remove initial design for additional calls to optimize to proceed optimization
         self.set_initial(EmptyDesign(self.domain).generate())

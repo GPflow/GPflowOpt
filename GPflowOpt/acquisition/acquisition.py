@@ -362,12 +362,19 @@ class MCMCAcquistion(AcquisitionSum):
         if not self.models:
             return
 
-        # Sample each model of the acquisition function - results in a list of 2D ndarrays.
-        hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
+        if self.operands[0].optimize_restarts > 0:
+            # Sample each model of the acquisition function - results in a list of 2D ndarrays.
+            hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
 
-        # Now visit all copies, and set state
-        for idx, draw in enumerate(self.operands):
-            draw.set_state(hypers[idx, :])
+            # Now visit all copies, and set state
+            for idx, draw in enumerate(self.operands):
+                draw.set_state(hypers[idx, :])
+
+    def enable_scaling(self, domain):
+        # set scaling of all operands. Triggers optimization of operands[0]
+        super(MCMCAcquistion, self).enable_scaling(domain)
+        # Now sample and update.
+        self._update_hyper_draws()
 
     @Acquisition.models.getter
     def models(self):
@@ -392,4 +399,6 @@ class MCMCAcquistion(AcquisitionSum):
         return self.operands[0]._suspend_optimization()
 
     def _resume_optimization(self, iters):
-        return self.operands[0]._resume_optimization(iters)
+        r = self.operands[0]._resume_optimization(iters)
+        self._update_hyper_draws()
+        return r
