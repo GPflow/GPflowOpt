@@ -206,6 +206,17 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
             np.testing.assert_almost_equal(data['Y'], Y)
         os.remove(fname)
 
+    def test_set_domain(self):
+        with self.assertRaises(AssertionError):
+            super(TestBayesianOptimizer, self).test_set_domain()
+
+        domain = GPflowOpt.domain.ContinuousParameter("x1", -2.0, 2.0) + \
+                 GPflowOpt.domain.ContinuousParameter("x2", -2.0, 2.0)
+        self.optimizer.domain = domain
+        expected = GPflowOpt.design.LatinHyperCube(16, self.domain).generate() / 4 + 0.5
+        print(self.optimizer.acquisition.models[0].wrapped.X)
+        self.assertTrue(np.allclose(expected, self.optimizer.acquisition.models[0].wrapped.X.value))
+
 
 class TestBayesianOptimizerConfigurations(unittest.TestCase):
     def setUp(self):

@@ -66,6 +66,7 @@ class BayesianOptimizer(Optimizer):
 
     @Optimizer.domain.setter
     def domain(self, dom):
+        assert(self.domain.size == dom.size)
         super(BayesianOptimizer, self.__class__).domain.fset(self, dom)
         if self.scaling:
             self.acquisition.enable_scaling(dom)
