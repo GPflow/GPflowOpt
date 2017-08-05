@@ -46,7 +46,7 @@ class DataTransform(Parameterized):
 
     def backward(self, Y):
         """
-        Performs the transformation of V -> U. By default, calls the :func:`.forward` transform on the inverted
+        Performs the transformation of V -> U. By default, calls the :meth:`.forward` transform on the inverted
         transform object which requires implementation of __invert__. The method can be overwritten in subclasses if a
         more efficient (direct) transformation is possible.
 
@@ -77,9 +77,11 @@ class LinearTransform(DataTransform):
     def __init__(self, A, b):
         """
         :param A: scaling matrix. Either a P-dimensional vector, or a P x P transformation matrix. For the latter, 
-            the inverse and backward methods are not guaranteed to work as A must be invertible. It is also possible to 
-            specify a matrix with size P x Q with Q != P to achieve a lower dimensional representation of X. In this case, 
-            A is not invertible, hence inverse and backward are not supported.
+            the inverse and backward methods are not guaranteed to work as A must be invertible.
+            
+            It is also possible to specify a matrix with size P x Q with Q != P to achieve 
+            a lower dimensional representation of X.
+            In this case, A is not invertible, hence inverse and backward transforms are not supported.
         :param b: A P-dimensional offset vector.
         """
         super(LinearTransform, self).__init__()
@@ -120,8 +122,8 @@ class LinearTransform(DataTransform):
         Additional method for scaling variance backward (used in :class:`.Normalizer`). Can process both the diagonal
         variances returned by predict_f, as well as full covariance matrices.
 
-        :param Yvar: N x N x P or N x P
-        :return: Yvar scaled, same rank and dimensionality as input
+        :param Yvar: size N x N x P or size N x P
+        :return: Yvar scaled, same rank and size as input
         """
         rank = tf.rank(Yvar)
         # Because TensorFlow evaluates both fn1 and fn2, the transpose can't be in the same line. If a full cov

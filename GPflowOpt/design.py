@@ -49,7 +49,7 @@ class Design(object):
 
         It is guaranteed that all data points satisfy this domain
 
-        :return: 2D ndarray, N x D
+        :return: data matrix, size N x D
         """
         Xs = self.create_design()
         assert (Xs in self.generative_domain)
@@ -66,7 +66,7 @@ class Design(object):
 
         This method should be implemented in the subclasses.
         
-        :return: 2D ndarray, N x D
+        :return: data matrix, N x D
         """
         raise NotImplementedError
 
@@ -133,6 +133,7 @@ class LatinHyperCube(Design):
     Somewhere beyond 15D this algorithm tends to slow down a lot and become very memory demanding. Key reference is
     
     ::
+    
        @article{Viana:2010,
             title={An algorithm for fast optimal Latin hypercube design of experiments},
             author={Viana, Felipe AC and Venter, Gerhard and Balabanov, Vladimir},
@@ -168,9 +169,12 @@ class LatinHyperCube(Design):
 
     def create_design(self):
         """
-        Generate several LHDs with increasing seed. Maximum S = min(dimensionality,max_seed_size)
+        Generate several LHDs with increasing seed.
+        
+        Maximum S = min(dimensionality,max_seed_size).
+        From S candidate designs, the one with the best intersite distance is returned
 
-        :return: From S candidate designs, the one with the best intersite distance is returned. 2D ndarray, N x D.
+        :return: data matrix, size N x D.
         """
         candidates = []
         scores = []
@@ -193,11 +197,12 @@ class LatinHyperCube(Design):
 
     def _tplhd_design(self, seed):
         """
-        Creates an LHD with the Translational propagation algorithm with specified seed and design size N specified during
-        construction.
+        Creates an LHD with the Translational propagation algorithm.
+         
+        Uses the specified seed and design size N specified during construction.
 
-        :param seed: 2D ndarray, the seed to use. S x D
-        :return: LHD, 2D ndarray. N x D
+        :param seed: seed design, size S x D
+        :return: data matrix, size N x D
         """
         ns, nv = seed.shape
 
@@ -222,10 +227,10 @@ class LatinHyperCube(Design):
         """
         Rescales the seed design
 
-        :param seed: 2D ndarray, S x D
+        :param seed: seed design, size S x D
         :param npStar: size of the LHD to be generated. N* >= N
         :param ndStar: number of translation steps for the seed in each dimension
-        :return: rescaled seed, 2D ndarray, S x D
+        :return: rescaled seeds, size S x D
         """
         ns, nv = seed.shape
         if ns == 1:
@@ -243,10 +248,10 @@ class LatinHyperCube(Design):
         """
         Translates and propagates the seed design to a LHD of size npStar (which might exceed the requested size N)
 
-        :param seed: seed design, 2D ndarray S x D
+        :param seed: seed design, size S x D
         :param npStar: size of the LHD to be generated (N*). 
         :param ndStar: number of translation steps for the seed in each dimension
-        :return: LHD, 2D ndarray N* x D (still to be shrinked).
+        :return: LHD data matrix, size N* x D (still to be shrinked).
         """
         nv = seed.shape[1]
         X = seed
@@ -272,9 +277,9 @@ class LatinHyperCube(Design):
         When designs are generated that are larger than the requested number of points (N* > N), resize them.
         If the size was correct all along, the LHD is returned unchanged.
 
-        :param X: Generated LHD, N* x D, with N* >= N
+        :param X: Generated LHD, size N* x D, with N* >= N
         :param npoints: What size to resize to (N)
-        :return: LHD, 2D ndarray N x D
+        :return: LHD data matrix, size N x D
         """
         npStar, nv = X.shape
 

@@ -1,5 +1,5 @@
-GPflowOpt Data Transformations
-===============================
+Data Transformations
+====================
 
 Transforms
 ----------

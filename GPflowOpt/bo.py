@@ -25,17 +25,17 @@ from .design import Design, EmptyDesign
 
 class BayesianOptimizer(Optimizer):
     """
-    A Bayesian Optimizer.
-
-    Like other optimizers, this optimizer is constructed for optimization over a domain. Additionally, it is configured
-    with a separate optimizer for the acquisition function.
+    A traditional Bayesian optimization framework implementation.
+    
+    Like other optimizers, this optimizer is constructed for optimization over a domain.
+    Additionally, it is configured with a separate optimizer for the acquisition function.
     """
 
     def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=None):
         """
-        :param domain: :class:`~.domain.Domain` object defining the optimization space
+        :param domain: :class:`~.domain.Domain` object defining the optimization space.
         :param acquisition: :class:`~.acquisition.Acquisition` object representing a utility function optimized
-            over the domain
+            over the domain.
         :param optimizer: (optional) :class:`~.optim.Optimizer` object used to optimize acquisition.
             If not specified, :class:`~.optim.SciPyOptimizer` is used.
             This optimizer will run on the same domain as the :class:`.BayesianOptimizer` object.
@@ -48,7 +48,8 @@ class BayesianOptimizer(Optimizer):
             returned optima are unscaled (see :class:`~.DataScaler` for more details.)
         :param hyper_draws: (optional) Enable marginalization of model hyperparameters. By default, point estimates are
             used. If this parameter set to n, n hyperparameter draws from the likelihood distribution
-            are obtained using Hamiltonian MC (see GPflow documentation for details) for each model.
+            are obtained using Hamiltonian MC.
+            (see `GPflow documentation <https://gpflow.readthedocs.io/en/latest//>`_ for details) for each model.
             The acquisition score is computed for each draw, and averaged.
         """
         assert isinstance(acquisition, Acquisition)
@@ -68,10 +69,10 @@ class BayesianOptimizer(Optimizer):
 
     def _update_model_data(self, newX, newY):
         """
-        Update the underlying models of the acquisition function with new data
+        Update the underlying models of the acquisition function with new data.
 
-        :param newX: samples (# new samples x indim)
-        :param newY: values obtained by evaluating the objective and constraint functions (# new samples x # targets)
+        :param newX: samples, size N x D
+        :param newY: values obtained by evaluating the objective and constraint functions, size N x R
         """
         assert self.acquisition.data[0].shape[1] == newX.shape[-1]
         assert self.acquisition.data[1].shape[1] == newY.shape[-1]
@@ -82,15 +83,17 @@ class BayesianOptimizer(Optimizer):
 
     def _evaluate_objectives(self, X, fxs):
         """
-        Evaluates a list of n functions on X. Returns a ndarray, with the number of columns equal to sum(Q0,...Qn-1)
+        Evaluates a list of n functions on X.
+        
+        Returns a matrix, size N x sum(Q0,...Qn-1)
         with Qi the number of columns obtained by evaluating the i-th function.
        
-        :param X: input points, 2D ndarray, N x D
-        :param fxs: 1D ndarray of (expensive) functions
+        :param X: input points, size N x D
+        :param fxs: functions, size n
         :return: tuple:
-            (0) 2D ndarray (# new samples x sum(Q0,...Qn-1)). Evaluations
-            (1) 2D ndarray (# new samples x 0): Bayesian Optimizer is gradient-free, however calling
-            optimizer of the parent class expects a gradient. Will be discarded further on.
+            (0) the evaluations Y, size N x sum(Q0,...Qn-1).
+            (1) Not used, size N x 0. Bayesian Optimizer is gradient-free, however calling optimizer of the parent class
+            expects a gradient. Will be discarded further on.
         """
         if X.size > 0:
             evaluations = np.hstack(map(lambda f: f(X), fxs))
@@ -134,9 +137,9 @@ class BayesianOptimizer(Optimizer):
         """
         Run Bayesian optimization for a number of iterations.
         
-        Before the loop is initiated, first all points retrieved by get_initial() are evaluated
+        Before the loop is initiated, first all points retrieved by :meth:`~.optim.Optimizer.get_initial` are evaluated
         on the objective and black-box constraints. These points are then added to the acquisition function 
-        by calling :meth:`~..acquisition.Acquisition.set_data` (and hence, the underlying models). 
+        by calling :meth:`~.acquisition.Acquisition.set_data` (and hence, the underlying models). 
         
         Each iteration a new data point is selected for evaluation by optimizing an acquisition function. This point
         updates the models.
@@ -185,7 +188,7 @@ class BayesianOptimizer(Optimizer):
         """
         Context to provide a safe way for optimization.
         
-        If a RuntimeError is generated, the data of the acquisition object is saved to the disc
+        If a RuntimeError is generated, the data of the acquisition object is saved to the disk.
         in the current directory. This allows the data to be re-used (which makes sense for expensive data).
 
         The data can be used to experiment with fitting a GPflow model first (analyse the data, set sensible initial

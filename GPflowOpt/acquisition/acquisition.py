@@ -112,7 +112,7 @@ class Acquisition(Parameterized):
         Q columns. Only the first Q columns of Y are used while returning the scalar Q
 
         :param X: input data N x D
-        :param Y: output data N x M (M >= Q)
+        :param Y: output data N x R (R >= Q)
         :return: Q (sum of output dimensions of contained models)
         """
         num_outputs_sum = 0
@@ -168,7 +168,7 @@ class Acquisition(Parameterized):
         
         By default all outputs are objectives
         
-        :return: int ndarray, M
+        :return: indices to the objectives, size R
         """
         return np.setdiff1d(np.arange(self.data[1].shape[1]), self.constraint_indices())
 
@@ -179,7 +179,7 @@ class Acquisition(Parameterized):
         
         By default all data is considered feasible
         
-        :return: boolean ndarray, N
+        :return: logical indices to the feasible data points, size N
         """
         return np.ones(self.data[0].shape[0], dtype=bool)
 
@@ -196,7 +196,8 @@ class Acquisition(Parameterized):
         """
         AutoFlow method to compute the acquisition scores for candidates, also returns the gradients.
         
-        :return: (ndarray of acquisition scores(N x 1), ndarray of the gradients of the scores (N*D)) 
+        :return: acquisition scores, size N x 1
+            the gradients of the acquisition scores, size N x D 
         """
         acq = self.build_acquisition(Xcand)
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
@@ -206,7 +207,7 @@ class Acquisition(Parameterized):
         """
         AutoFlow method to compute the acquisition scores for candidates, without returning the gradients.
         
-        :return: ndarray of acquisition scores(N x 1)
+        :return: acquisition scores, size N x 1
         """
         return self.build_acquisition(Xcand)
 

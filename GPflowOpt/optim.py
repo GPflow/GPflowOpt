@@ -39,10 +39,22 @@ class Optimizer(object):
 
     @property
     def domain(self):
+        """
+        The current domain the optimizer operates on.
+        
+        :return: :class:'~.domain.Domain` object 
+        """
         return self._domain
 
     @domain.setter
     def domain(self, dom):
+        """
+        Sets a new domain for the optimizer.
+        
+        Resets the initial points to the middle of the domain.
+        
+        :param dom: new :class:'~.domain.Domain` 
+        """
         self._domain = dom
         self.set_initial(dom.value)
 
@@ -73,12 +85,16 @@ class Optimizer(object):
     def get_initial(self):
         """
         Return the initial set of points.
+        
+        :return: initial set of points, size N x D
         """
         return self._initial
 
     def set_initial(self, initial):
         """
-        Set the initial set of points. The dimensionality should match the domain dimensionality, and all points should 
+        Set the initial set of points.
+        
+        The dimensionality should match the domain dimensionality, and all points should 
         be within the domain.
     
         :param initial: initial points, should all be within the domain of the optimizer.
@@ -122,7 +138,7 @@ class CandidateOptimizer(Optimizer):
 
     def __init__(self, domain, candidates, batch=False):
         """
-        :param domain: Optimization domain.
+        :param domain: Optimization :class:`.domain.Domain`.
         :param candidates: candidate points, should be within the optimization domain. 
         :param batch: bool, if true evaluates the objective function on all points at once
         """
