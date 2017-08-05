@@ -53,8 +53,9 @@ class BayesianOptimizer(Optimizer):
         assert optimizer is None or isinstance(optimizer, Optimizer)
         assert initial is None or isinstance(initial, Design)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
+        self.scaling = scaling
 
-        if scaling:
+        if self.scaling:
             acquisition.enable_scaling(domain)
         self.acquisition = acquisition if hyper_draws is None else MCMCAcquistion(acquisition, hyper_draws)
 
@@ -62,6 +63,12 @@ class BayesianOptimizer(Optimizer):
         self.optimizer.domain = domain
         initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
+
+    @Optimizer.domain.setter
+    def domain(self, dom):
+        super(BayesianOptimizer, self.__class__).domain.fset(self, dom)
+        if self.scaling:
+            self.acquisition.enable_scaling(dom)
 
     def _update_model_data(self, newX, newY):
         """
