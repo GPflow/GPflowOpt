@@ -59,7 +59,7 @@ class Acquisition(Parameterized):
         """
         Optimizes the hyperparameters of all models that the acquisition function is based on.
 
-        It is called automatically after initialization and each time set_data() is called.
+        It is called automatically during initialization and each time set_data() is called.
         When using the high-level :class:`..BayesianOptimizer` class calling set_data() is taken care of.
 
         For each model the hyperparameters of the model at the time it was passed to __init__() are used as initial
@@ -94,7 +94,7 @@ class Acquisition(Parameterized):
         Enables and configures the :class:`.DataScaler` objects wrapping the GP models.
         
         :param domain: :class:`.Domain` object, the input transform of the data scalers is configured as a transform
-                       from domain to the unit cube with the same dimensionality.
+            from domain to the unit cube with the same dimensionality.
         """
         n_inputs = self.data[0].shape[1]
         assert (domain.size == n_inputs)
@@ -148,7 +148,7 @@ class Acquisition(Parameterized):
         Corresponds to the input data X which is the same for every model,
         and column-wise concatenation of the Y data over all models
 
-        :return: X, Y tensors (if in tf_mode) or X, Y numpy arrays.
+        :return: tuple X, Y of tensors (if in tf_mode) or numpy arrays.
         """
         if self._tf_mode:
             return self.models[0].X, tf.concat(list(map(lambda model: model.Y, self.models)), 1)
@@ -166,7 +166,7 @@ class Acquisition(Parameterized):
         """
         Method returning the indices of the model outputs which are objective functions.
         
-        By default all outputs are objectives
+        By default all outputs are objectives.
         
         :return: indices to the objectives, size R
         """
@@ -177,7 +177,7 @@ class Acquisition(Parameterized):
         Returns a boolean array indicating which data points are considered feasible (according to the acquisition
         function(s) ) and which not.
         
-        By default all data is considered feasible
+        By default all data is considered feasible.
         
         :return: logical indices to the feasible data points, size N
         """
@@ -185,9 +185,9 @@ class Acquisition(Parameterized):
 
     def setup(self):
         """
-        Pre-calculation of quantities used later in the evaluation of the acquisition function for candidate points
+        Pre-calculation of quantities used later in the evaluation of the acquisition function for candidate points.
         
-        Automatically triggered by set_data(). 
+        Automatically triggered by :meth:`~.Acquisition.set_data`.
         """
         pass
 
@@ -240,7 +240,7 @@ class Acquisition(Parameterized):
 
 class AcquisitionAggregation(Acquisition):
     """
-    Special acquisition implementation for aggregating multiple others, using a TensorFlow reduce operation.
+    Aggregates multiple acquisition functions, using a TensorFlow reduce operation.
     """
 
     def __init__(self, operands, oper):
@@ -328,7 +328,8 @@ class AcquisitionProduct(AcquisitionAggregation):
 
 class MCMCAcquistion(AcquisitionSum):
     """
-    Special acquisition class to apply MCMC over the hyperparameters of the contained models.
+    Apply MCMC over the hyperparameters of an acquisition function (= over the hyperparameters of the contained models).
+    
     The models passed into an object of this class are optimized with MLE, and then further sampled with HMC.
     These hyperparameter samples are then set in copies of the acquisition.
 
