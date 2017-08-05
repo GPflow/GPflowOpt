@@ -360,7 +360,7 @@ class TestJointAcquisition(unittest.TestCase):
         np.testing.assert_allclose(joint.objective_indices(), np.array([0, 2], dtype=int))
         np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
 
-    def test_multi_aggr(self):
+    def test_multi_aggregation_operators(self):
         models = [self.create_parabola_model(), self.create_parabola_model(), self.create_parabola_model()]
         acq1, acq2, acq3 = tuple(map(lambda m: GPflowOpt.acquisition.ExpectedImprovement(m), models))
         joint = acq1 + acq2 + acq3
@@ -397,3 +397,74 @@ class TestJointAcquisition(unittest.TestCase):
         joint = first * second
         self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionProduct)
         self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3, acq4])
+
+
+class ModelOptimizationCounter(GPflowOpt.acquisition.Acquisition):
+
+    def __init__(self):
+        self.counter = 0
+        super(ModelOptimizationCounter, self).__init__()
+
+    def build_acquisition(self, Xcand):
+        return tf.zeros((tf.shape(Xcand)[0], 1))
+
+    def _optimize_models(self):
+        if self.optimize_restarts > 0:
+            self.counter += 1
+
+
+class TestDelayedOptimization(unittest.TestCase):
+
+    _multiprocessing_can_split = True
+
+    def create_parabola_model(self):
+        domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+        design = GPflowOpt.design.LatinHyperCube(16, domain)
+        X, Y = design.generate(), parabola2d(design.generate())
+        m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
+        return m
+
+    def test_simple(self):
+        acq = ModelOptimizationCounter()
+        self.assertEqual(acq.optimize_restarts, 5)
+        r = acq._suspend_optimization()
+        self.assertListEqual(r, [5])
+        self.assertEqual(acq.optimize_restarts, 0)
+        acq._resume_optimization(r)
+        self.assertEqual(acq.optimize_restarts, 5)
+
+    def test_hierarchy(self):
+        acq1, acq2, acq3 = ModelOptimizationCounter(), ModelOptimizationCounter(), ModelOptimizationCounter()
+        acq1.optimize_restarts = 3
+        acq2.optimize_restarts = 0
+        acq3.optimize_restarts = 1
+        joint = acq1 * acq2 + acq3
+        r = joint._suspend_optimization()
+        self.assertListEqual(r, [3, 0, 1])
+        self.assertEqual(acq1.optimize_restarts, 0)
+        self.assertEqual(acq2.optimize_restarts, 0)
+        self.assertEqual(acq3.optimize_restarts, 0)
+        joint._resume_optimization(r)
+        self.assertEqual(acq1.optimize_restarts, 3)
+        self.assertEqual(acq2.optimize_restarts, 0)
+        self.assertEqual(acq3.optimize_restarts, 1)
+
+    def test_mcmc(self):
+        acq = GPflowOpt.acquisition.MCMCAcquistion(ModelOptimizationCounter(), 5)
+        r = acq._suspend_optimization()
+        for oper in acq.operands:
+            self.assertEqual(oper.optimize_restarts, 0)
+        self.assertListEqual(r, [5])
+        acq._resume_optimization(r)
+        self.assertEqual(acq.operands[0].optimize_restarts, 5)
+        for oper in acq.operands[1:]:
+            self.assertEqual(oper.optimize_restarts, 0)
+
+    def test_delay_context(self):
+        acq = ModelOptimizationCounter()
+        with acq.delay_optimize():
+            acq.set_data(None, None)
+            self.assertEqual(acq.counter, 1)
+            acq.set_data(None, None)
+            self.assertEqual(acq.counter, 1)
+        self.assertEqual(acq.counter, 2)

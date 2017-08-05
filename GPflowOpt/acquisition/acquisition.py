@@ -220,25 +220,22 @@ class Acquisition(Parameterized):
             return AcquisitionProduct([self] + other.operands.sorted_params)
         return AcquisitionProduct([self, other])
 
-    def _disable_optimization(self):
+    def _suspend_optimization(self):
         iters = [self.optimize_restarts]
         self.optimize_restarts = 0
-        iters.extend(chain(*[c._disable_optimization() for c in self.sorted_params if isinstance(c, Acquisition)]))
         return iters
 
-    def _restore_optimization(self, iters):
+    def _resume_optimization(self, iters):
         self.optimize_restarts = iters.pop(0)
-        for c in self.sorted_params:
-            if isinstance(c, Acquisition):
-                pop = c._restore_optimization()
-        return pop
+        return iters
 
     @contextmanager
     def delay_optimize(self):
-        r = self._disable_optimization()
+        r = self._suspend_optimization()
         yield
-        self._restore_optimization(r)
+        self._resume_optimization(r)
         self._optimize_models()
+
 
 class AcquisitionAggregation(Acquisition):
     """
@@ -298,6 +295,16 @@ class AcquisitionAggregation(Acquisition):
     def __getitem__(self, item):
         return self.operands[item]
 
+    def _suspend_optimization(self):
+        r = [c._suspend_optimization() for c in self.operands.sorted_params if isinstance(c, Acquisition)]
+        return list(chain(*r))
+
+    def _resume_optimization(self, iters):
+        for c in self.operands.sorted_params:
+            if isinstance(c, Acquisition):
+                iters = c._resume_optimization(iters)
+        return iters
+
 
 class AcquisitionSum(AcquisitionAggregation):
     """
@@ -352,6 +359,9 @@ class MCMCAcquistion(AcquisitionSum):
         self._update_hyper_draws()
 
     def _update_hyper_draws(self):
+        if not self.models:
+            return
+
         # Sample each model of the acquisition function - results in a list of 2D ndarrays.
         hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
 
@@ -377,3 +387,9 @@ class MCMCAcquistion(AcquisitionSum):
     def build_acquisition(self, Xcand):
         # Average the predictions of the copies.
         return 1. / len(self.operands) * super(MCMCAcquistion, self).build_acquisition(Xcand)
+
+    def _suspend_optimization(self):
+        return self.operands[0]._suspend_optimization()
+
+    def _resume_optimization(self, iters):
+        return self.operands[0]._resume_optimization(iters)
