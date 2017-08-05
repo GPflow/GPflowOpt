@@ -128,17 +128,18 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
         super(TestStagedOptimizer, self).setUp()
         self.optimizer = GPflowOpt.optim.StagedOptimizer([GPflowOpt.optim.MCOptimizer(self.domain, 5),
+                                                          GPflowOpt.optim.MCOptimizer(self.domain, 5),
                                                           GPflowOpt.optim.SciPyOptimizer(self.domain, maxiter=10)])
 
     def test_object_integrity(self):
-        self.assertEqual(len(self.optimizer.optimizers), 2, msg="Two optimizers expected in optimizerlist")
+        self.assertEqual(len(self.optimizer.optimizers), 3, msg="Two optimizers expected in optimizerlist")
         self.assertFalse(self.optimizer.gradient_enabled(), msg="MCOptimizer supports no gradients => neither "
                                                                 "does stagedoptimizer.")
 
     def test_optimize(self):
         result = self.optimizer.optimize(parabola2d)
         self.assertTrue(result.success)
-        self.assertLessEqual(result.nfev, 20, "Only 10 Iterations permitted")
+        self.assertLessEqual(result.nfev, 20, "Only 20 Iterations permitted")
         self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
         self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
 
@@ -150,12 +151,12 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertEqual(result.nstages, 2, msg="Stage 2 should be in progress during interrupt")
         self.assertEqual(result.nfev, 5)
 
-        result = self.optimizer.optimize(KeyboardRaiser(8, parabola2d))
+        result = self.optimizer.optimize(KeyboardRaiser(12, parabola2d))
         print(result)
         self.assertFalse(result.success, msg="non-succesfull result expected.")
-        self.assertEqual(result.nfev, 8)
+        self.assertEqual(result.nfev, 12)
         self.assertFalse(np.allclose(result.x[0, :], 0.0), msg="The optimum should not be found yet")
-        self.assertEqual(result.nstages, 2, msg="Stage 2 should be in progress during interrupt")
+        self.assertEqual(result.nstages, 3, msg="Stage 2 should be in progress during interrupt")
 
     def test_set_domain(self):
         super(TestStagedOptimizer, self).test_set_domain()
