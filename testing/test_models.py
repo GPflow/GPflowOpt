@@ -49,9 +49,3 @@ class TestMGP(unittest.TestCase):
         self.assertTrue(np.shape(fr) == np.shape(fs))
         self.assertTrue(np.shape(vr) == np.shape(vs))
         self.assertTrue(np.allclose(fr, fs, atol=1e-3))
-
-        fr, vr = m.predict_f_full_cov(Xt)
-        fs, vs = n.predict_f_full_cov(Xt)
-        self.assertTrue(np.shape(fr) == np.shape(fs))
-        self.assertTrue(np.shape(vr) == np.shape(vs))
-        self.assertTrue(np.allclose(fr, fs, atol=1e-3))
