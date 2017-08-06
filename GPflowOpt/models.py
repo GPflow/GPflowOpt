@@ -106,3 +106,17 @@ class MGP(Model):
         pred_f_mean, pred_f_var = self.wrapped.build_predict(Xnew)
         fmean, fvar = self.wrapped.likelihood.predict_mean_and_var(pred_f_mean, pred_f_var)
         return self.build_predict(fmean, fvar, theta)
+
+    @AutoFlow((float_type, [None, None]), (float_type, [None, None]))
+    def predict_density(self, Xnew, Ynew):
+        """
+        Compute the (log) density of the data Ynew at the points Xnew
+
+        Note that this computes the log density of the data individually,
+        ignoring correlations between them. The result is a matrix the same
+        shape as Ynew containing the log densities.
+        """
+        theta = self._predict_f_AF_storage['free_vars']
+        pred_f_mean, pred_f_var = self.wrapped.build_predict(Xnew)
+        pred_f_mean, pred_f_var = self.build_predict(pred_f_mean, pred_f_var, theta)
+        return self.likelihood.predict_density(pred_f_mean, pred_f_var, Ynew)
