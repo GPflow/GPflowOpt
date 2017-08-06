@@ -49,7 +49,6 @@ class MGP(Model):
     def __init__(self, obj):
         assert isinstance(obj, GPModel), "Class has to be a GP model"
         assert isinstance(obj.likelihood, Gaussian), "Likelihood has to be Gaussian"
-        assert obj.Y.shape[1] == 1, "Only one dimensional functions are allowed"
         self.wrapped = obj
         super(MGP, self).__init__(name=obj.name + "_MGP")
 
@@ -74,13 +73,19 @@ class MGP(Model):
         h = tf.hessians(self.build_likelihood() + self.build_prior(), theta)[0]
         L = tf.cholesky(-h)
 
-        Dfmean = rowwise_gradients(fmean, theta)
-        Dfvar = rowwise_gradients(fvar, theta)
+        N = tf.shape(fmean)[0]
+        D = tf.shape(fmean)[1]
 
-        tmp1 = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(Dfmean)))
-        tmp2 = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(Dfvar)))
-        return fmean, 4 / 3 * fvar + tf.expand_dims(tf.reduce_sum(tf.square(tmp1), axis=1), 1) \
-               + 1 / 3 / (fvar + 1E-3) * tf.expand_dims(tf.reduce_sum(tf.square(tmp2), axis=1), 1)
+        fmeanf = tf.reshape(fmean, [N * D, 1])      # N*D x 1
+        fvarf = tf.reshape(fvar, [N * D, 1])        # N*D x 1
+
+        Dfmean = rowwise_gradients(fmeanf, theta)   # N*D x k
+        Dfvar = rowwise_gradients(fvarf, theta)     # N*D x k
+
+        tmp1 = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(Dfmean)))    # N*D x k
+        tmp2 = tf.transpose(tf.matrix_triangular_solve(L, tf.transpose(Dfvar)))     # N*D x k
+        return fmean, 4 / 3 * fvar + tf.reshape(tf.reduce_sum(tf.square(tmp1), axis=1), [N, D]) \
+               + 1 / 3 / (fvar + 1E-3) * tf.reshape(tf.reduce_sum(tf.square(tmp2), axis=1), [N, D])
 
     @AutoFlow((float_type, [None, None]))
     def predict_f(self, Xnew):
@@ -89,7 +94,7 @@ class MGP(Model):
         Xnew.
         """
         theta = self._predict_f_AF_storage['free_vars']
-        fmean, fvar =  self.wrapped.build_predict(Xnew)
+        fmean, fvar = self.wrapped.build_predict(Xnew)
         return self.build_predict(fmean, fvar, theta)
 
     @AutoFlow((float_type, [None, None]))
@@ -99,5 +104,5 @@ class MGP(Model):
         """
         theta = self._predict_y_AF_storage['free_vars']
         pred_f_mean, pred_f_var = self.wrapped.build_predict(Xnew)
-        fmean, fvar= self.wrapped.likelihood.predict_mean_and_var(pred_f_mean, pred_f_var)
+        fmean, fvar = self.wrapped.likelihood.predict_mean_and_var(pred_f_mean, pred_f_var)
         return self.build_predict(fmean, fvar, theta)
