@@ -19,6 +19,9 @@ class TestContinuousParameter(unittest.TestCase):
         p.lower = 1
         self.assertEqual(p.lower, 1, msg="After assignment, lower should equal 2")
 
+        p = np.sum([GPflowOpt.domain.ContinuousParameter("x1", 0, 1)])
+        self.assertTrue(p.size == 1, msg="Construction of domain by list using sum failed")
+
     def test_equality(self):
         p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
         pne = GPflowOpt.domain.ContinuousParameter("x1", 0, 2)
@@ -30,6 +33,18 @@ class TestContinuousParameter(unittest.TestCase):
         p.lower = -1
         p.upper = 2
         self.assertEqual(p, pne, msg="Should be equal after adjusting bounds")
+
+    def test_indexing(self):
+        p = np.sum([GPflowOpt.domain.ContinuousParameter("x1", 0, 1),
+                 GPflowOpt.domain.ContinuousParameter("x2", 0, 1),
+                 GPflowOpt.domain.ContinuousParameter("x3", 0, 1),
+                 GPflowOpt.domain.ContinuousParameter("x4", 0, 1)])
+
+        subdomain = p[['x4', 'x1', 2]]
+        self.assertTrue(subdomain.size == 3, msg="Subdomain should have size 3")
+        self.assertTrue(subdomain[0].label == 'x4', msg="Subdomain's first parameter should be 'x4'")
+        self.assertTrue(subdomain[1].label == 'x1', msg="Subdomain's second parameter should be 'x1'")
+        self.assertTrue(subdomain[2].label == 'x3', msg="Subdomain's third parameter should be 'x3'")
 
     def test_containment(self):
         p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)

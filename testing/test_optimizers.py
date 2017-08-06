@@ -179,7 +179,7 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
     def test_failsafe(self):
         X, Y = self.optimizer.acquisition.data[0], self.optimizer.acquisition.data[1]
         # Provoke cholesky faillure
-        self.optimizer.acquisition._optimize_restarts = 1
+        self.optimizer.acquisition.optimize_restarts = 1
         self.optimizer.acquisition.models[0].likelihood.variance.transform = GPflow.transforms.Identity()
         self.optimizer.acquisition.models[0].likelihood.variance = -5.0
         self.optimizer.acquisition.models[0]._needs_recompile = True
@@ -189,9 +189,10 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
 
         fname = 'failed_bopt_{0}.npz'.format(id(e.exception))
         self.assertTrue(os.path.isfile(fname))
-        data = np.load(fname)
-        np.testing.assert_almost_equal(data['X'], X)
-        np.testing.assert_almost_equal(data['Y'], Y)
+        with np.load(fname) as data:
+            np.testing.assert_almost_equal(data['X'], X)
+            np.testing.assert_almost_equal(data['Y'], Y)
+        os.remove(fname)
 
 
 class TestBayesianOptimizerConfigurations(unittest.TestCase):

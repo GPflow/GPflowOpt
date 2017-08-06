@@ -16,9 +16,19 @@
 # limitations under the License.
 
 from setuptools import setup
+import re
+
+VERSIONFILE="GPflowOpt/_version.py"
+verstrline = open(VERSIONFILE, "rt").read()
+VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
+mo = re.search(VSRE, verstrline, re.M)
+if mo:
+    verstr = mo.group(1)
+else:
+    raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
 
 setup(name='GPflowOpt',
-      version="pre-release",
+      version=verstr,
       author="Joachim van der Herten, Ivo Couckuyt",
       author_email="joachim.vanderherten@ugent.be",
       description=("Bayesian Optimization with GPflow"),
@@ -46,5 +56,7 @@ setup(name='GPflowOpt',
                    'Programming Language :: Python :: 2.7',
                    'Programming Language :: Python :: 3.5',
                    'Programming Language :: Python :: 3.6',
+                   'Intended Audience :: Science/Research',
+                   'Intended Audience :: Developers',
                    'Topic :: Scientific/Engineering :: Artificial Intelligence']
       )
