@@ -95,10 +95,6 @@ class _TestAcquisition(object):
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
-        self.assertEqual(len(self.acquisition._default_params), 1)
-        self.assertTrue(
-            np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413] * 4)), atol=1e-2),
-            msg="Initial hypers improperly stored")
 
     def test_enable_scaling(self):
         self.assertFalse(
@@ -214,7 +210,6 @@ class _TestAcquisitionAggregation(_TestAcquisition):
         for oper in self.acquisition.operands:
             self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
                             msg="All operands should be an acquisition object")
-        self.assertEqual(len(self.acquisition._default_params), 0)
         self.assertListEqual(self.acquisition.models.sorted_params, self.models)
 
     def test_data(self):
