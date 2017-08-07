@@ -236,7 +236,6 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
                  GPflowOpt.domain.ContinuousParameter("x2", -2.0, 2.0)
         self.optimizer.domain = domain
         expected = GPflowOpt.design.LatinHyperCube(16, self.domain).generate() / 4 + 0.5
-        print(self.optimizer.acquisition.models[0].wrapped.X)
         self.assertTrue(np.allclose(expected, self.optimizer.acquisition.models[0].wrapped.X.value))
 
 
