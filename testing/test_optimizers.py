@@ -67,9 +67,11 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
     def test_default_initial(self):
         self.assertTupleEqual(self.optimizer._initial.shape, (0, 2), msg="Invalid shape of initial points array")
 
+    #@unittest.skipIf(six.PY2, "Warning not recorded on python 2.7")
     def test_set_initial(self):
+        # When run separately this test works, however when calling nose to run all tests on python 2.7 this records
+        # no warnings
         with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
             super(TestCandidateOptimizer, self).test_set_initial()
             assert len(w) == 1
             assert issubclass(w[-1].category, UserWarning)
@@ -80,6 +82,7 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertTupleEqual(self.optimizer.get_initial().shape, (0, 2), msg="Invalid shape of initial points")
         self.assertFalse(self.optimizer.gradient_enabled(), msg="CandidateOptimizer supports no gradients.")
 
+    #@unittest.skip
     def test_set_domain(self):
         with self.assertRaises(AssertionError):
             super(TestCandidateOptimizer, self).test_set_domain()

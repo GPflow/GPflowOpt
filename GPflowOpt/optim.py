@@ -46,9 +46,7 @@ class Optimizer(object):
     @domain.setter
     def domain(self, dom):
         self._domain = dom
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            self.set_initial(dom.value)
+        self.set_initial(dom.value)
 
     def optimize(self, objectivefx, **kwargs):
         """
@@ -124,6 +122,10 @@ class MCOptimizer(Optimizer):
         super(MCOptimizer, self).__init__(domain, exclude_gradient=True)
         self._nsamples = nsamples
 
+    @Optimizer.domain.setter
+    def domain(self, dom):
+        self._domain = dom
+
     def _get_eval_points(self):
         return RandomDesign(self._nsamples, self.domain).generate()
 
@@ -139,10 +141,11 @@ class MCOptimizer(Optimizer):
                               message="OK")
 
     def set_initial(self, initial):
+        warnings.simplefilter('always', UserWarning)
         initial = np.atleast_2d(initial)
+        super(MCOptimizer, self).set_initial(initial)
         if initial.size > 0:
             warnings.warn("Initial points set in {0} are ignored.".format(self.__class__.__name__), UserWarning)
-        super(MCOptimizer, self).set_initial(initial)
 
 
 class CandidateOptimizer(MCOptimizer):
