@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-from scipy.optimize import OptimizeResult, minimize
-from GPflow import settings
 import contextlib
-import sys
 import os
+import sys
+import warnings
+
+import numpy as np
+from GPflow import settings
+from scipy.optimize import OptimizeResult, minimize
 
 from .design import RandomDesign
 from .objective import ObjectiveWrapper
@@ -114,21 +116,21 @@ class MCOptimizer(Optimizer):
     Optimization of an objective function by evaluating a set of random points.
 
     Note: each call to optimize, a different set of random points is evaluated.
-
-    For compatibility with the StagedOptimizer, the candidate points are concatenated with
-    the initial points and evaluated.
     """
 
     def __init__(self, domain, nsamples):
         super(MCOptimizer, self).__init__(domain, exclude_gradient=True)
         self._nsamples = nsamples
 
-    def _get_candidates(self):
-        initial = self.get_initial()
-        return np.vstack((initial, RandomDesign(self._nsamples - initial.shape[0], self.domain).generate()))
+    @Optimizer.domain.setter
+    def domain(self, dom):
+        self._domain = dom
+
+    def _get_eval_points(self):
+        return RandomDesign(self._nsamples, self.domain).generate()
 
     def _optimize(self, objective):
-        points = self._get_candidates()
+        points = self._get_eval_points()
         evaluations = objective(points)
         idx_best = np.argmin(evaluations, axis=0)
 
@@ -137,6 +139,13 @@ class MCOptimizer(Optimizer):
                               fun=evaluations[idx_best, :],
                               nfev=points.shape[0],
                               message="OK")
+
+    def set_initial(self, initial):
+        warnings.simplefilter('always', UserWarning)
+        initial = np.atleast_2d(initial)
+        super(MCOptimizer, self).set_initial(initial)
+        if initial.size > 0:
+            warnings.warn("Initial points set in {0} are ignored.".format(self.__class__.__name__), UserWarning)
 
 
 class CandidateOptimizer(MCOptimizer):
@@ -156,10 +165,10 @@ class CandidateOptimizer(MCOptimizer):
         assert (candidates in domain)
         self.candidates = candidates
         # Clear the initial data points
-        self.set_initial(np.empty((0, candidates.shape[1])))
+        self.set_initial(np.empty((0, self.domain.size)))
 
-    def _get_candidates(self):
-        return np.vstack((self.get_initial(), self.candidates))
+    def _get_eval_points(self):
+        return self.candidates
 
     @MCOptimizer.domain.setter
     def domain(self, dom):
@@ -207,12 +216,17 @@ class StagedOptimizer(Optimizer):
         no_gradient = any(map(lambda opt: not opt.gradient_enabled(), optimizers))
         super(StagedOptimizer, self).__init__(optimizers[0].domain, exclude_gradient=no_gradient)
         self.optimizers = optimizers
+        self.set_initial(np.empty((0, self.domain.size)))
 
     @Optimizer.domain.setter
     def domain(self, domain):
         super(StagedOptimizer, self.__class__).domain.fset(self, domain)
         for optimizer in self.optimizers:
             optimizer.domain = domain
+
+    def _best_x(self, results):
+        best_idx = np.argmin([r.fun for r in results if r.success])
+        return results[best_idx].x, results[best_idx].fun
 
     def optimize(self, objectivefx):
         """
@@ -222,7 +236,6 @@ class StagedOptimizer(Optimizer):
         """
 
         self.optimizers[0].set_initial(self.get_initial())
-        print(self.optimizers)
         results = []
         for current, next in zip(self.optimizers[:-1], self.optimizers[1:]):
             result = current.optimize(objectivefx)
@@ -230,16 +243,14 @@ class StagedOptimizer(Optimizer):
             if not result.success:
                 result.message += " StagedOptimizer interrupted after {0}.".format(current.__class__.__name__)
                 break
-            next.set_initial(result.x)
+            next.set_initial(self._best_x(results)[0])
 
         if result.success:
             result = self.optimizers[-1].optimize(objectivefx)
             results.append(result)
 
-        if not result.success and len(results) > 1:
-            print(results[-2])
-            result.x = results[-2].x
-            result.fun = results[-2].fun
         result.nfev = sum(r.nfev for r in results)
         result.nstages = len(results)
+        if any(r.success for r in results):
+            result.x, result.fun = self._best_x(results)
         return result
