@@ -41,10 +41,22 @@ class Optimizer(object):
 
     @property
     def domain(self):
+        """
+        The current domain the optimizer operates on.
+        
+        :return: :class:'~.domain.Domain` object 
+        """
         return self._domain
 
     @domain.setter
     def domain(self, dom):
+        """
+        Sets a new domain for the optimizer.
+        
+        Resets the initial points to the middle of the domain.
+        
+        :param dom: new :class:'~.domain.Domain` 
+        """
         self._domain = dom
         self.set_initial(dom.value)
 
@@ -58,7 +70,7 @@ class Optimizer(object):
         The actual optimization routine is implemented in _optimize, to be implemented in subclasses.
 
         :param objectivefx: callable, taking one argument: a 2D numpy array. The number of columns correspond to the 
-        dimensionality of the input domain.
+            dimensionality of the input domain.
         :return: OptimizeResult reporting the results.
         """
         objective = ObjectiveWrapper(objectivefx, **self._wrapper_args)
@@ -75,13 +87,18 @@ class Optimizer(object):
     def get_initial(self):
         """
         Return the initial set of points.
+        
+        :return: initial set of points, size N x D
         """
         return self._initial
 
     def set_initial(self, initial):
         """
-        Set the initial set of points. The dimensionality should match the domain dimensionality, and all points should 
-        be within the domain
+        Set the initial set of points.
+        
+        The dimensionality should match the domain dimensionality, and all points should 
+        be within the domain.
+    
         :param initial: initial points, should all be within the domain of the optimizer.
         """
         initial = np.atleast_2d(initial)
@@ -119,6 +136,10 @@ class MCOptimizer(Optimizer):
     """
 
     def __init__(self, domain, nsamples):
+        """
+        :param domain: Optimization :class:`~.domain.Domain`.
+        :param nsamples: number of random points to use
+        """
         super(MCOptimizer, self).__init__(domain, exclude_gradient=True)
         self._nsamples = nsamples
 
@@ -156,9 +177,8 @@ class CandidateOptimizer(MCOptimizer):
 
     def __init__(self, domain, candidates):
         """
-        :param domain: Optimization domain.
+        :param domain: Optimization :class:`~.domain.Domain`.
         :param candidates: candidate points, should be within the optimization domain.
-        :param batch: bool, evaluate the objective function on all points at once or one by one?
         """
         super(CandidateOptimizer, self).__init__(domain, candidates.shape[0])
         assert (candidates in domain)
