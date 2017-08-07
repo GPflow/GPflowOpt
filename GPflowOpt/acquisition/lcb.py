@@ -27,6 +27,10 @@ class LowerConfidenceBound(Acquisition):
     """
 
     def __init__(self, model, sigma=2.0):
+        """
+        :param model: GPflow model (single output) representing our belief of the objective 
+        :param sigma: See formula, the higher the more exploration
+        """
         super(LowerConfidenceBound, self).__init__(model)
         self.sigma = sigma
 
