@@ -29,21 +29,18 @@ class ProbabilityOfFeasibility(Acquisition):
     Bayesian Optimization with black-box expensive constraints.
 
     Key reference:
-
+    
     ::
-
-       @article{parr2012infill,
-            title={Infill sampling criteria for surrogate-based optimization with constraint handling},
-            author={Parr, JM and Keane, AJ and Forrester, Alexander IJ and Holden, CME},
-            journal={Engineering Optimization},
-            volume={44},
-            number={10},
-            pages={1147--1166},
-            year={2012},
-            publisher={Taylor & Francis}
-       }
-
-    The acquisition function measures the probability of the latent function being smaller than 0 for a candidate point.
+    
+        @article{Schonlau:1997,
+            title={Computer experiments and global optimization},
+            author={Schonlau, Matthias},
+            year={1997},
+            publisher={University of Waterloo}
+        }
+       
+    The acquisition function measures the probability of the latent function 
+    being smaller than a threshold for a candidate point.
 
     .. math::
        \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{0} \\, p(f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
@@ -51,11 +48,10 @@ class ProbabilityOfFeasibility(Acquisition):
 
     def __init__(self, model, threshold=0.0, minimum_pof=0.5):
         """
-
-        :param model: GPflow model (single output) for computing the PoF
-        :param threshold: threshold value. Observed values lower than this value are considered valid
-        :param minimum_pof: minimum pof score required for a point to be valid. For more information, see docstring
-        of feasible_data_index
+        :param model: GPflow model (single output) representing our belief of the constraint
+        :param threshold: Observed values lower than the threshold are considered valid
+        :param minimum_pof: minimum pof score required for a point to be valid.
+            For more information, see docstring of feasible_data_index
         """
         super(ProbabilityOfFeasibility, self).__init__(model)
         self.threshold = threshold
@@ -66,18 +62,19 @@ class ProbabilityOfFeasibility(Acquisition):
 
     def feasible_data_index(self):
         """
-        Returns a boolean array indicating which points are feasible (True) and which are not (False)
+        Returns a boolean array indicating which points are feasible (True) and which are not (False).
+        
         Answering the question *which points are feasible?* is slightly troublesome in case noise is present.
         Directly relying on the noisy data and comparing it to self.threshold does not make much sense.
 
-        Instead, we rely on the model belief. More specifically, we evaluate the PoF (score between 0 and 1).
+        Instead, we rely on the model belief using the PoF (a probability between 0 and 1).
         As the implementation of the PoF corresponds to the cdf of the (normal) predictive distribution in
         a point evaluated at the threshold, requiring a minimum pof of 0.5 implies the mean of the predictive
         distribution is below the threshold, hence it is marked as feasible. A minimum pof of 0 marks all points valid.
         Setting it to 1 results in all invalid.
-        :return: boolean ndarray, size N
+    
+        :return: boolean ndarray (size N)
         """
-        # In
         pred = self.evaluate(self.data[0])
         return pred.ravel() > self.minimum_pof
 
