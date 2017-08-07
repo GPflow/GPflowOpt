@@ -236,13 +236,13 @@ class StagedOptimizer(Optimizer):
 
         self.optimizers[0].set_initial(self.get_initial())
         results = []
-        for current, next in zip(self.optimizers[:-1], self.optimizers[1:]):
+        for current, following in zip(self.optimizers[:-1], self.optimizers[1:]):
             result = current.optimize(objectivefx)
             results.append(result)
             if not result.success:
                 result.message += " StagedOptimizer interrupted after {0}.".format(current.__class__.__name__)
                 break
-            next.set_initial(self._best_x(results)[0])
+            following.set_initial(self._best_x(results)[0])
 
         if result.success:
             result = self.optimizers[-1].optimize(objectivefx)
