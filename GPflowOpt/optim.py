@@ -141,7 +141,6 @@ class MCOptimizer(Optimizer):
                               message="OK")
 
     def set_initial(self, initial):
-        warnings.simplefilter('always', UserWarning)
         initial = np.atleast_2d(initial)
         super(MCOptimizer, self).set_initial(initial)
         if initial.size > 0:
