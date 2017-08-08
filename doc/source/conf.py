@@ -18,11 +18,6 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-import sys
-#sys.path.insert(0, os.path.abspath('..'))
-#sys.path.insert(0, os.path.abspath('/home/javdrher/GPflow'))
-#sys.path.insert(0, '/home/javdrher/PycharmProjects/GPflowOpt')
-
 
 # on_rtd is whether we are on readthedocs.org, this line of code grabbed from docs.readthedocs.org
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -76,7 +71,7 @@ master_doc = 'index'
 # General information about the project.
 project = 'GPflowOpt'
 copyright = '2017, Joachim van der Herten'
-author = 'Joachim van der Herten'
+author = 'Joachim van der Herten, Ivo Couckuyt'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -122,7 +117,7 @@ todo_include_todos = True
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = []
 
 
 # -- Options for HTMLHelp output ------------------------------------------

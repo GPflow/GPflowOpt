@@ -45,7 +45,7 @@ class ExpectedImprovement(Acquisition):
        }
 
     This acquisition function is the expectation of the improvement over the current best observation
-    w.r.t. the predictive distribution. The definition is closely related to the Probability of Improvement,
+    w.r.t. the predictive distribution. The definition is closely related to the :class:`.ProbabilityOfImprovement`,
     but adds a multiplication with the improvement w.r.t the current best observation to the integral.
 
     .. math::
@@ -53,6 +53,9 @@ class ExpectedImprovement(Acquisition):
     """
 
     def __init__(self, model):
+        """
+        :param model: GPflow model (single output) representing our belief of the objective
+        """
         super(ExpectedImprovement, self).__init__(model)
         assert (isinstance(model, Model))
         self.fmin = DataHolder(np.zeros(1))

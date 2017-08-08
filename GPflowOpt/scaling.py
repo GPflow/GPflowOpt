@@ -39,23 +39,23 @@ class DataScaler(GPModel):
       is set, the output transform is first calculated, then the data is scaled.
 
 
-    By default, :class:`.Acquisition` objects will always wrap each model received. However, the input and output transforms
+    By default, :class:`~.acquisition.Acquisition` objects will always wrap each model received. However, the input and output transforms
     will be the identity transforms, and output normalization is switched off. It is up to the user (or
-    specialized classes such as the BayesianOptimizer to correctly configure the datascalers involved.
+    specialized classes such as the BayesianOptimizer) to correctly configure the datascalers involved.
 
     By carrying out the scaling at such a deep level in the framework, it is possible to keep the scaling
     hidden throughout the rest of GPflowOpt. This means that, during implementation of acquisition functions it is safe
     to assume the data is not scaled, and is within the configured optimization domain. There is only one exception:
     the hyperparameters are determined on the scaled data, and are NOT automatically unscaled by this class because the
     datascaler does not know what model is wrapped and what kernels are used. Should hyperparameters of the model be
-    required, it is the responsability of the implementation to rescale the hyperparameters. Additionally, applying
+    required, it is the responsibility of the implementation to rescale the hyperparameters. Additionally, applying
     hyperpriors should anticipate for the scaled data.
     """
     def __init__(self, model, domain=None, normalize_Y=False):
         """
         :param model: model to be wrapped
         :param domain: (default: None) if supplied, the input transform is configured from the supplied domain to
-        :class:`.UnitCube`. If None, the input transform defaults to the identity transform.
+            :class:`.UnitCube`. If None, the input transform defaults to the identity transform.
         :param normalize_Y: (default: False) enable automatic scaling of output values to zero mean and unit
          variance.
         """
@@ -107,6 +107,7 @@ class DataScaler(GPModel):
     def input_transform(self):
         """
         Get the current input transform
+        
         :return: :class:`.DataTransform` input transform object
         """
         return self._input_transform
@@ -115,6 +116,7 @@ class DataScaler(GPModel):
     def input_transform(self, t):
         """
         Configure a new input transform. Data in the model is automatically updated with the new transform.
+        
         :param t: :class:`.DataTransform` object: the new input transform.
         """
         assert(isinstance(t, DataTransform))
@@ -126,6 +128,7 @@ class DataScaler(GPModel):
     def output_transform(self):
         """
         Get the current output transform
+        
         :return: :class:`.DataTransform` output transform object
         """
         return self._output_transform
@@ -134,6 +137,7 @@ class DataScaler(GPModel):
     def output_transform(self, t):
         """
         Configure a new output transform. Data in the model is automatically updated with the new transform.
+        
         :param t: :class:`.DataTransform` object: the new output transform.
         """
         assert (isinstance(t, DataTransform))
@@ -154,6 +158,7 @@ class DataScaler(GPModel):
         Enable/disable automated output scaling. If switched off, the output transform becomes the identity transform.
         If enabled, data will be automatically scaled to zero mean and unit variance. When the output normalization is
         switched on or off, the data in the model is automatically adapted.
+        
         :param flag: boolean, turn output scaling on or off
         """
 
@@ -170,6 +175,7 @@ class DataScaler(GPModel):
     def X(self):
         """
         Returns the input data of the model, unscaled.
+
         :return: :class:`.DataHolder`: unscaled input data
         """
         return DataHolder(self.input_transform.backward(self.wrapped.X.value))
@@ -178,6 +184,7 @@ class DataScaler(GPModel):
     def Y(self):
         """
         Returns the output data of the wrapped model, unscaled.
+
         :return: :class:`.DataHolder`: unscaled output data
         """
         return DataHolder(self.output_transform.backward(self.wrapped.Y.value))
