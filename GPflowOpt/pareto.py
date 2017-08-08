@@ -27,18 +27,18 @@ class BoundedVolumes(Parameterized):
     @classmethod
     def empty(cls, dim, dtype):
         """
-        Returns an empty bounded volume (hypercube)
+        Returns an empty bounded volume (hypercube).
 
         :param dim: dimension of the volume
         :param dtype: dtype of the coordinates
-        :return: an empty BoundedVolumes
+        :return: an empty :class:`.BoundedVolumes`
         """
         setup_arr = np.zeros((0, dim), dtype=dtype)
         return cls(setup_arr.copy(), setup_arr.copy())
 
     def __init__(self, lb, ub):
         """
-        Construct bounded volumes
+        Construct bounded volumes.
 
         :param lb: the lowerbounds of the volumes
         :param ub: the upperbounds of the volumes
@@ -50,7 +50,7 @@ class BoundedVolumes(Parameterized):
 
     def append(self, lb, ub):
         """
-        Add new bounded volumes
+        Add new bounded volumes.
 
         :param lb: the lowerbounds of the volumes
         :param ub: the upperbounds of the volumes
@@ -68,16 +68,19 @@ class BoundedVolumes(Parameterized):
         self.ub = np.zeros((0, outdim), dtype=dtype)
 
     def size(self):
+        """
+        :return: volume of each bounded volume
+        """
         return np.prod(self.ub.value - self.lb.value, axis=1)
 
 
 def non_dominated_sort(objectives):
     """
-    Computes the non-dominated sort for a set of data points
+    Computes the non-dominated set for a set of data points
 
     :param objectives: data points
     :return: tuple of the non-dominated set and the degree of dominance,
-        dominances gives the number of dominated points for each data point
+        dominances gives the number of dominating points for each data point
     """
     extended = np.tile(objectives, (objectives.shape[0], 1, 1))
     dominance = np.sum(np.logical_and(np.all(extended <= np.swapaxes(extended, 0, 1), axis=2),
@@ -91,11 +94,13 @@ class Pareto(Parameterized):
         """
         Construct a Pareto set.
 
-        Computes and stores the current Pareto set and calculates the cell bounds covering the non-dominated region.
-        The latter is needed for certain multiobjective acquisition funnctions. E.g., `HVProbabilityOfImprovement`
+        Stores a Pareto set and calculates the cell bounds covering the non-dominated region.
+        The latter is needed for certain multiobjective acquisition functions.
+        E.g., the :class:`~.acquisition.HVProbabilityOfImprovement`.
 
-        :param Y: output data poiints
-        :param threshold: approximation threshold for the generic divide and conquer strategy (default 0: exact calculation)
+        :param Y: output data points, size N x R
+        :param threshold: approximation threshold for the generic divide and conquer strategy
+            (default 0: exact calculation)
         """
         super(Pareto, self).__init__()
         self.threshold = threshold
@@ -111,12 +116,12 @@ class Pareto(Parameterized):
     @staticmethod
     def _is_test_required(smaller):
         """
-        Tests if test point augments or dominates the Pareto set
+        Tests if a point augments or dominates the Pareto set.
 
         :param smaller: a boolean ndarray storing test point < Pareto front
         :return: True if the test point dominates or augments the Pareto front (boolean)
         """
-        # <=> test point is at least in one dimension smaller for every point in the Pareto set
+        # if and only if the test point is at least in one dimension smaller for every point in the Pareto set
         idx_dom_augm = np.any(smaller, axis=1)
         is_dom_augm = np.all(idx_dom_augm)
 
@@ -124,7 +129,9 @@ class Pareto(Parameterized):
 
     def _update_front(self):
         """
-        Calculate non-dominated set of points based on the latest data
+        Calculate the non-dominated set of points based on the latest data.
+
+        The stored Pareto set is sorted on the first objective in ascending order.
 
         :return: boolean, whether the Pareto set has actually changed since the last iteration
         """
@@ -137,10 +144,15 @@ class Pareto(Parameterized):
 
     def update(self, Y=None, generic_strategy=False):
         """
-        Update with new output data
+        Update with new output data.
+
+        Computes the Pareto set and if it has changed recalculates the cell bounds covering the non-dominated region.
+        For the latter, a direct algorithm is used for two objectives, otherwise a
+        generic divide and conquer strategy is employed.
 
         :param Y: output data points
-        :param generic_strategy: True to force the generic divide and conquer strategy regardless of the output dimension (default False)
+        :param generic_strategy: Force the generic divide and conquer strategy regardless of the number of objectives
+            (default False)
         """
         self.Y = Y if Y is not None else self.Y
 
@@ -153,17 +165,18 @@ class Pareto(Parameterized):
             # Clear data container
             self.bounds.clear()
             if generic_strategy:
-                self.divide_conquer()
+                self.divide_conquer_nd()
             else:
-                self.pareto2d_bounds() if self.Y.shape[1] == 2 else self.divide_conquer()
+                self.bounds_2d() if self.Y.shape[1] == 2 else self.divide_conquer_nd()
 
-    def divide_conquer(self):
+    def divide_conquer_nd(self):
         """
-        Divide and conquer strategy to compute the cells covering the non-dominated region
+        Divide and conquer strategy to compute the cells covering the non-dominated region.
 
-        Generic version, works for an arbitrary number of objectives
+        Generic version: works for an arbitrary number of objectives.
         """
         outdim = self.Y.shape[1]
+        assert(outdim == 2)
 
         # The divide and conquer algorithm operates on a pseudo Pareto set
         # that is a mapping of the real Pareto set to discrete values
@@ -215,14 +228,14 @@ class Pareto(Parameterized):
                     lb = np.copy(cell[0])
                     lb[idx] += edge_size2
                     dc.append((lb, np.copy(cell[1])))
+            # else: cell can be discarded
 
-    def pareto2d_bounds(self):
+    def bounds_2d(self):
         """
-        Computes the cells covering the non-dominated region
-        for the specific case of only two objectives.
+        Computes the cells covering the non-dominated region for the specific case of only two objectives.
 
         Assumes the Pareto set has been sorted in ascending order on the first objective.
-        For non-dominated sets this implies the second objective is sorted in descending order.
+        This implies the second objective is sorted in descending order.
         """
         outdim = self.Y.shape[1]
 
@@ -240,7 +253,7 @@ class Pareto(Parameterized):
         """
         Autoflow method to calculate the hypervolume indicator
 
-        The hypervolume indicator is the volume of the dominating region
+        The hypervolume indicator is the volume of the dominated region.
 
         :param reference: reference point to use
             Should be equal or bigger than the anti-ideal point of the Pareto set
