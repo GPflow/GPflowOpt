@@ -29,9 +29,9 @@ class HVProbabilityOfImprovement(Acquisition):
     """
     Hypervolume-based Probability of Improvement.
 
-    A multiobjective acquisition function for multiobjective optimization. It is used to identify a complete Pareto set
+    A multiobjective acquisition function for multiobjective optimization. It is used to identify a complete Pareto set
     of non-dominated solutions.
-
+    
     Key reference:
 
      ::
