@@ -20,7 +20,8 @@ from .ei import ExpectedImprovement
 from .poi import ProbabilityOfImprovement
 from .lcb import LowerConfidenceBound
 
-# Multi-objective
+# Multiobjective
+from .hvpoi import HVProbabilityOfImprovement
 
-# Black-box constraints
+# Black-box constraint
 from .pof import ProbabilityOfFeasibility
