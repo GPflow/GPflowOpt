@@ -76,7 +76,7 @@ class TestLatinHyperCubeDesign(_TestDesign, unittest.TestCase):
         return [GPflowOpt.design.LatinHyperCube(20, domain) for domain in self.domains]
 
     def test_validity(self):
-        groundtruth = np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lhd.npz'))
+        groundtruth = np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'lhd.npz'))
         points = [lhd.generate() for lhd in self.designs]
         lhds = map(lambda file: groundtruth[file], groundtruth.files)
         idx = np.argsort([lhd.shape[-1] for lhd in lhds])
