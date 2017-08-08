@@ -27,7 +27,10 @@ float_type = settings.dtypes.float_type
 
 class HVProbabilityOfImprovement(Acquisition):
     """
-    Hypervolume Probability of Improvement acquisition function for Pareto-based multi-objective optimization.
+    Hypervolume-based Probability of Improvement.
+
+    A multiobjective acquisition function for multiobjective optimization. It will try to identify a Pareto set
+    of non-dominated solutions.
 
     Key reference:
 
@@ -44,8 +47,9 @@ class HVProbabilityOfImprovement(Acquisition):
             publisher={Springer}
         }
 
-    For a Pareto front :math:`\\mathcal{P}`, the non dominated section of the objective space is denoted by :math:`A`.
-    The hypervolume of the dominated part of the space is denoted by :math:`\\mathcal{H}` and can be used as indicator.
+    For a Pareto set :math:`\\mathcal{P}`, the non dominated section of the objective space is denoted by :math:`A`.
+    The :meth:`~..pareto.Pareto.hypervolume` of the dominated part of the space is denoted by :math:`\\mathcal{H}` and can be used as indicator
+    for the optimality of the Pareto set (the higher the better).
 
     .. math::
        \\boldsymbol{\\mu} &= \\left[ \\mathbb{E} \\left[ f^{(1)}_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right],
@@ -56,9 +60,15 @@ class HVProbabilityOfImprovement(Acquisition):
        \\\\ 0 ~ \\mbox{otherwise} \\end{cases} \\\\
        \\alpha(\\mathbf x_{\\star}) &= I\\left(\\boldsymbol{\\mu}, \\mathcal{P}\\right) p\\left(\\mathbf x_{\\star} \\in A \\right)
 
+    Attributes:
+        pareto  An instance of :class:`~..pareto.Pareto`
     """
 
     def __init__(self, models):
+        """
+        :param models: A list of GPflow models (with potentially multiple outputs)
+            representing our belief of the objectives
+        """
         super(HVProbabilityOfImprovement, self).__init__(models)
         assert self.data[1].shape[1] > 1
         self.pareto = Pareto(np.hstack((m.predict_f(self.data[0])[0] for m in self.models)))

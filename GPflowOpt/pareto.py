@@ -76,8 +76,8 @@ def non_dominated_sort(objectives):
     Computes the non-dominated sort for a set of data points
 
     :param objectives: data points
-    :return: the non-dominated set and the degree of dominance
-    dominances gives the number of dominated points for each data point
+    :return: tuple of the non-dominated set and the degree of dominance,
+        dominances gives the number of dominated points for each data point
     """
     extended = np.tile(objectives, (objectives.shape[0], 1, 1))
     dominance = np.sum(np.logical_and(np.all(extended <= np.swapaxes(extended, 0, 1), axis=2),
@@ -126,7 +126,7 @@ class Pareto(Parameterized):
         """
         Calculate non-dominated set of points based on the latest data
 
-        :return: whether the Pareto set has actually changed since the last iteration (boolean)
+        :return: boolean, whether the Pareto set has actually changed since the last iteration
         """
         current = self.front.value
         pf, _ = non_dominated_sort(self.Y)
@@ -243,9 +243,9 @@ class Pareto(Parameterized):
         The hypervolume indicator is the volume of the dominating region
 
         :param reference: reference point to use
-        Should be equal or bigger than the anti-ideal point of the Pareto set
-        For comparing results across runs the same reference point must be used
-        :return: hypervolume indicator (positive: the higher the better)
+            Should be equal or bigger than the anti-ideal point of the Pareto set
+            For comparing results across runs the same reference point must be used
+        :return: hypervolume indicator (the higher the better)
         """
 
         min_pf = tf.reduce_min(self.front, 0, keep_dims=True)

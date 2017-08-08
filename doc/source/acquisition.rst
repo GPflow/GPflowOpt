@@ -54,9 +54,16 @@ Lower Confidence Bound
 Multi-objective
 ----------------
 
-Hypervolume Probability of Improvement
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Hypervolume-based Probability of Improvement
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: GPflowOpt.acquisition.HVProbabilityOfImprovement
    :members:
    :special-members:
+
+Pareto module
+^^^^^^^^^^^^^
+
+.. automodule:: GPflowOpt.pareto
+   :members:
+.. automethod:: GPflowOpt.pareto.Pareto.hypervolume
