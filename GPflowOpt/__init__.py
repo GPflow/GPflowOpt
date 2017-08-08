@@ -21,3 +21,4 @@ from . import transforms
 from . import scaling
 from . import objective
 from . import models
+from . import pareto
