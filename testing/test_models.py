@@ -49,3 +49,8 @@ class TestMGP(unittest.TestCase):
         self.assertTrue(np.shape(fr) == np.shape(fs))
         self.assertTrue(np.shape(vr) == np.shape(vs))
         self.assertTrue(np.allclose(fr, fs, atol=1e-3))
+        
+        Yt = parabola2d(Xt) #+ np.random.rand(20, 1) * 0.05
+        fr = m.predict_density(Xt, Yt)
+        fs = n.predict_density(Xt, Yt)
+        self.assertTrue(np.shape(fr) == np.shape(fs))
