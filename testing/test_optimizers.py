@@ -5,6 +5,7 @@ import GPflow
 import six
 import sys
 import os
+import warnings
 from contextlib import contextmanager
 from scipy.optimize import OptimizeResult
 
@@ -31,11 +32,12 @@ class KeyboardRaiser:
         self.iters_to_raise, self.f = iters_to_raise, f
         self.count = 0
 
-    def __call__(self, *a, **kw):
-        self.count += 1
+    def __call__(self, X):
         if self.count >= self.iters_to_raise:
             raise KeyboardInterrupt
-        return self.f(*a, **kw)
+        val = self.f(X)
+        self.count += X.shape[0]
+        return val
 
 
 class _TestOptimizer(object):
@@ -43,6 +45,7 @@ class _TestOptimizer(object):
 
     def setUp(self):
         self.optimizer = None
+        warnings.simplefilter("once", category=UserWarning)
 
     @property
     def domain(self):
@@ -71,9 +74,21 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
         design = GPflowOpt.design.FactorialDesign(4, self.domain)
         self.optimizer = GPflowOpt.optim.CandidateOptimizer(self.domain, design.generate())
 
+    def test_default_initial(self):
+        self.assertTupleEqual(self.optimizer._initial.shape, (0, 2), msg="Invalid shape of initial points array")
+
+    def test_set_initial(self):
+        # When run separately this test works, however when calling nose to run all tests on python 2.7 this records
+        # no warnings
+        with warnings.catch_warnings(record=True) as w:
+            super(TestCandidateOptimizer, self).test_set_initial()
+            assert len(w) == 1
+            assert issubclass(w[-1].category, UserWarning)
+
     def test_object_integrity(self):
         self.assertTupleEqual(self.optimizer.candidates.shape, (16, 2), msg="Invalid shape of candidate property.")
-        self.assertTupleEqual(self.optimizer.get_initial().shape, (17, 2), msg="Invalid shape of initial points")
+        self.assertTupleEqual(self.optimizer._get_eval_points().shape, (16, 2))
+        self.assertTupleEqual(self.optimizer.get_initial().shape, (0, 2), msg="Invalid shape of initial points")
         self.assertFalse(self.optimizer.gradient_enabled(), msg="CandidateOptimizer supports no gradients.")
 
     def test_set_domain(self):
@@ -83,9 +98,10 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertNotEqual(self.optimizer.domain, self.domain)
         self.assertEqual(self.optimizer.domain, GPflowOpt.domain.UnitCube(2))
         rescaled_candidates = GPflowOpt.design.FactorialDesign(4, GPflowOpt.domain.UnitCube(2)).generate()
-        self.assertTrue(np.allclose(self.optimizer.get_initial(), np.vstack((0.5*np.ones((1,2)), rescaled_candidates))))
+        self.assertTrue(np.allclose(self.optimizer.candidates, rescaled_candidates))
 
     def test_optimize(self):
+        self.optimizer.candidates = np.vstack((self.optimizer.candidates, np.zeros((1,2))))
         result = self.optimizer.optimize(parabola2d)
         self.assertTrue(result.success, msg="Optimization should succeed.")
         self.assertTrue(np.allclose(result.x, 0), msg="Optimum should be identified")
@@ -93,7 +109,6 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertEqual(result.nfev, 17, msg="Number of function evaluations equals candidates + initial points")
 
     def test_optimize_second(self):
-        self.optimizer.set_initial([0.67, 0.67])
         result = self.optimizer.optimize(parabola2d)
         self.assertGreater(result.fun, 0, msg="Optimum is not amongst candidates and initial points")
         self.assertLess(result.fun, 2, msg="Function value not reachable within domain")
@@ -131,33 +146,51 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
         super(TestStagedOptimizer, self).setUp()
         self.optimizer = GPflowOpt.optim.StagedOptimizer([GPflowOpt.optim.MCOptimizer(self.domain, 5),
+                                                          GPflowOpt.optim.MCOptimizer(self.domain, 5),
                                                           GPflowOpt.optim.SciPyOptimizer(self.domain, maxiter=10)])
 
+    def test_default_initial(self):
+        self.assertTupleEqual(self.optimizer._initial.shape, (0,2))
+
     def test_object_integrity(self):
-        self.assertEqual(len(self.optimizer.optimizers), 2, msg="Two optimizers expected in optimizerlist")
+        self.assertEqual(len(self.optimizer.optimizers), 3, msg="Two optimizers expected in optimizerlist")
         self.assertFalse(self.optimizer.gradient_enabled(), msg="MCOptimizer supports no gradients => neither "
                                                                 "does stagedoptimizer.")
 
     def test_optimize(self):
-        result = self.optimizer.optimize(parabola2d)
-        self.assertTrue(result.success)
-        self.assertLessEqual(result.nfev, 20, "Only 10 Iterations permitted")
-        self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
-        self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning)
+            result = self.optimizer.optimize(parabola2d)
+            self.assertTrue(result.success)
+            self.assertLessEqual(result.nfev, 20, "Only 20 Iterations permitted")
+            self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
+            self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
 
     def test_optimizer_interrupt(self):
-        self.optimizer.set_initial([-1, -1])
-        result = self.optimizer.optimize(KeyboardRaiser(3, parabola2d))
-        self.assertFalse(result.success, msg="After two evaluations, a keyboard interrupt is raised, "
-                                             "non-succesfull result expected.")
-        self.assertFalse(np.allclose(result.x, 0.0), msg="After one iteration, the optimum will not be found")
-        self.assertEqual(result.nstages, 1, msg="Stage 1 should be in progress during interrupt")
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning)
+            result = self.optimizer.optimize(KeyboardRaiser(0, parabola2d))
+            self.assertFalse(result.success, msg="non-succesfull result expected.")
+            self.assertEqual(result.nstages, 1, msg="Stage 2 should be in progress during interrupt")
+            self.assertEqual(result.nfev, 0)
 
-        result = self.optimizer.optimize(KeyboardRaiser(8, parabola2d))
-        self.assertFalse(result.success, msg="After 7 evaluations, a keyboard interrupt is raised, "
-                                             "non-succesfull result expected.")
-        self.assertFalse(np.allclose(result.x[0, :], 0.0), msg="The optimum should not be found yet")
-        self.assertEqual(result.nstages, 2, msg="Stage 2 should be in progress during interrupt")
+            result = self.optimizer.optimize(KeyboardRaiser(3, parabola2d))
+            self.assertFalse(result.success, msg="non-succesfull result expected.")
+            self.assertFalse(np.allclose(result.x, 0.0), msg="The optimum will not be found")
+            self.assertEqual(result.nstages, 2, msg="Stage 2 should be in progress during interrupt")
+            self.assertEqual(result.nfev, 5)
+
+            result = self.optimizer.optimize(KeyboardRaiser(12, parabola2d))
+            print(result)
+            self.assertFalse(result.success, msg="non-succesfull result expected.")
+            self.assertEqual(result.nfev, 12)
+            self.assertFalse(np.allclose(result.x[0, :], 0.0), msg="The optimum should not be found yet")
+            self.assertEqual(result.nstages, 3, msg="Stage 3 should be in progress during interrupt")
+
+    def test_set_domain(self):
+        super(TestStagedOptimizer, self).test_set_domain()
+        for opt in self.optimizer.optimizers:
+            self.assertEqual(opt.domain, GPflowOpt.domain.UnitCube(3))
 
 
 class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
