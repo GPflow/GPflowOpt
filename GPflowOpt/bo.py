@@ -21,7 +21,7 @@ from .acquisition import Acquisition, MCMCAcquistion
 from .optim import Optimizer, SciPyOptimizer
 from .objective import ObjectiveWrapper
 from .design import Design, EmptyDesign
-
+from .pareto import non_dominated_sort
 
 class BayesianOptimizer(Optimizer):
     """
@@ -123,9 +123,12 @@ class BayesianOptimizer(Optimizer):
         valid_Y = Y[valid, :]
         valid_Yo = valid_Y[:, self.acquisition.objective_indices()]
 
-        # Here is the place to plug in pareto front if valid_Y.shape[1] > 1
-        # else
-        idx = np.argmin(valid_Yo)
+        # Differentiate between single- and multiobjective optimization results
+        if valid_Y.shape[1] > 1:
+            _, dom = non_dominated_sort(valid_Yo)
+            idx = dom == 0  # Return the non-dominated points
+        else:
+            idx = np.argmin(valid_Yo)
 
         return OptimizeResult(x=valid_X[idx, :],
                               success=success,
