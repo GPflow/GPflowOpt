@@ -33,6 +33,7 @@ class LowerConfidenceBound(Acquisition):
         """
         super(LowerConfidenceBound, self).__init__(model)
         self.sigma = sigma
+        self.setup()
 
     def build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0].build_predict(Xcand)

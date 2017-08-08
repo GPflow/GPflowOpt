@@ -56,8 +56,9 @@ class BayesianOptimizer(Optimizer):
         assert optimizer is None or isinstance(optimizer, Optimizer)
         assert initial is None or isinstance(initial, Design)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
+        self.scaling = scaling
 
-        if scaling:
+        if self.scaling:
             acquisition.enable_scaling(domain)
         self.acquisition = acquisition if hyper_draws is None else MCMCAcquistion(acquisition, hyper_draws)
 
@@ -65,6 +66,13 @@ class BayesianOptimizer(Optimizer):
         self.optimizer.domain = domain
         initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
+
+    @Optimizer.domain.setter
+    def domain(self, dom):
+        assert(self.domain.size == dom.size)
+        super(BayesianOptimizer, self.__class__).domain.fset(self, dom)
+        if self.scaling:
+            self.acquisition.enable_scaling(dom)
 
     def _update_model_data(self, newX, newY):
         """
@@ -94,12 +102,10 @@ class BayesianOptimizer(Optimizer):
             (1) Not used, size N x 0. Bayesian Optimizer is gradient-free, however calling optimizer of the parent class
             expects a gradient. Will be discarded further on.
         """
-        if X.size > 0:
-            evaluations = np.hstack(map(lambda f: f(X), fxs))
-            assert evaluations.shape[1] == self.acquisition.data[1].shape[1]
-            return evaluations, np.zeros((X.shape[0], 0))
-        else:
-            return np.empty((0, self.acquisition.data[1].shape[1])), np.zeros((0, 0))
+        assert X.size > 0
+        evaluations = np.hstack(map(lambda f: f(X), fxs))
+        assert evaluations.shape[1] == self.acquisition.data[1].shape[1]
+        return evaluations, np.zeros((X.shape[0], 0))
 
     def _create_bo_result(self, success, message):
         """
@@ -169,8 +175,9 @@ class BayesianOptimizer(Optimizer):
 
         # Evaluate and add the initial design (if any)
         initial = self.get_initial()
-        values = fx(initial)
-        self._update_model_data(initial, values)
+        if initial.size > 0:
+            values = fx(initial)
+            self._update_model_data(initial, values)
 
         # Remove initial design for additional calls to optimize to proceed optimization
         self.set_initial(EmptyDesign(self.domain).generate())

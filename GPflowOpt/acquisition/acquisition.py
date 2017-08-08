@@ -22,6 +22,8 @@ import numpy as np
 import tensorflow as tf
 
 import copy
+from contextlib import contextmanager
+from itertools import chain
 
 float_type = settings.dtypes.float_type
 
@@ -237,6 +239,22 @@ class Acquisition(Parameterized):
             return AcquisitionProduct([self] + other.operands.sorted_params)
         return AcquisitionProduct([self, other])
 
+    def _suspend_optimization(self):
+        iters = [self.optimize_restarts]
+        self.optimize_restarts = 0
+        return iters
+
+    def _resume_optimization(self, iters):
+        self.optimize_restarts = iters.pop(0)
+        return iters
+
+    @contextmanager
+    def delay_optimize(self):
+        r = self._suspend_optimization()
+        yield
+        self._resume_optimization(r)
+        self._optimize_models()
+
 
 class AcquisitionAggregation(Acquisition):
     """
@@ -295,6 +313,16 @@ class AcquisitionAggregation(Acquisition):
     def __getitem__(self, item):
         return self.operands[item]
 
+    def _suspend_optimization(self):
+        r = [c._suspend_optimization() for c in self.operands.sorted_params if isinstance(c, Acquisition)]
+        return list(chain(*r))
+
+    def _resume_optimization(self, iters):
+        for c in self.operands.sorted_params:
+            if isinstance(c, Acquisition):
+                iters = c._resume_optimization(iters)
+        return iters
+
 
 class AcquisitionSum(AcquisitionAggregation):
     """
@@ -350,12 +378,22 @@ class MCMCAcquistion(AcquisitionSum):
         self._update_hyper_draws()
 
     def _update_hyper_draws(self):
-        # Sample each model of the acquisition function - results in a list of 2D ndarrays.
-        hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
+        if not self.models:
+            return
 
-        # Now visit all copies, and set state
-        for idx, draw in enumerate(self.operands):
-            draw.set_state(hypers[idx, :])
+        if self.operands[0].optimize_restarts > 0:
+            # Sample each model of the acquisition function - results in a list of 2D ndarrays.
+            hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
+
+            # Now visit all copies, and set state
+            for idx, draw in enumerate(self.operands):
+                draw.set_state(hypers[idx, :])
+
+    def enable_scaling(self, domain):
+        # set scaling of all operands. Triggers optimization of operands[0]
+        super(MCMCAcquistion, self).enable_scaling(domain)
+        # Now sample and update.
+        self._update_hyper_draws()
 
     @Acquisition.models.getter
     def models(self):
@@ -375,3 +413,11 @@ class MCMCAcquistion(AcquisitionSum):
     def build_acquisition(self, Xcand):
         # Average the predictions of the copies.
         return 1. / len(self.operands) * super(MCMCAcquistion, self).build_acquisition(Xcand)
+
+    def _suspend_optimization(self):
+        return self.operands[0]._suspend_optimization()
+
+    def _resume_optimization(self, iters):
+        r = self.operands[0]._resume_optimization(iters)
+        self._update_hyper_draws()
+        return r
