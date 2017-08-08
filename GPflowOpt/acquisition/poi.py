@@ -32,6 +32,9 @@ class ProbabilityOfImprovement(Acquisition):
     """
 
     def __init__(self, model):
+        """
+        :param model: GPflow model (single output) representing our belief of the objective 
+        """
         super(ProbabilityOfImprovement, self).__init__(model)
         self.fmin = DataHolder(np.zeros(1))
         self.setup()

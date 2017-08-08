@@ -1,5 +1,5 @@
-GPflowOpt Interfaces
-========================
+Interfaces
+==========
 
 Domain
 -------

@@ -28,6 +28,14 @@ You can run the tests with ``python setup.py test``.
 
 To build the documentation, first install extra dependencies with ``pip install .[docs]``, then proceed with ``python setup.py build_sphinx``.
 
+Getting started
+---------------
+
+A simple example of Bayesian optimization to get up and running is provided by the
+:ref:`first steps into Bayesian optimization <notebooks/firststeps.ipynb>` notebook
+
+For more advanced use cases have a look at the other :ref:`tutorial <tutorials>` notebooks and the :ref:`api`.
+
 Acknowledgements
 -----------------
 Joachim van der Herten and Ivo Couckuyt are Ghent University - imec postdoctoral fellows. Ivo Couckuyt is supported

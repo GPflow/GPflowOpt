@@ -128,6 +128,7 @@ class Domain(Parentable):
     def _html_table_rows(self):
         return ''.join(map(lambda l: l._html_table_rows(), self._parameters))
 
+
 class Parameter(Domain):
     """
     Abstract class representing a parameter (which corresponds to a one-dimensional domain)
@@ -198,7 +199,9 @@ class ContinuousParameter(Parameter):
 
 
 class UnitCube(Domain):
+    """
+    The unit domain [0, 1]^d
+    """
     def __init__(self, n_inputs):
         params = [ContinuousParameter('u{0}'.format(i), 0, 1) for i in np.arange(n_inputs)]
         super(UnitCube, self).__init__(params)
-
