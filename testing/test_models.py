@@ -31,7 +31,7 @@ class TestMGP(unittest.TestCase):
         self.assertTrue(np.allclose(Xs, n.X.value))
         self.assertTrue(np.allclose(Ys, n.Y.value))
 
-    def test_predict_scaling(self):
+    def test_predict(self):
         m = self.create_parabola_model()
         n = MGP(self.create_parabola_model())
         m.optimize()
@@ -50,7 +50,7 @@ class TestMGP(unittest.TestCase):
         self.assertTrue(np.shape(vr) == np.shape(vs))
         self.assertTrue(np.allclose(fr, fs, atol=1e-3))
         
-        Yt = parabola2d(Xt) #+ np.random.rand(20, 1) * 0.05
+        Yt = parabola2d(Xt)
         fr = m.predict_density(Xt, Yt)
         fs = n.predict_density(Xt, Yt)
         self.assertTrue(np.shape(fr) == np.shape(fs))

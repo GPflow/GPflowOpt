@@ -116,7 +116,7 @@ class MGP(Model):
         ignoring correlations between them. The result is a matrix the same
         shape as Ynew containing the log densities.
         """
-        theta = self._predict_f_AF_storage['free_vars']
+        theta = self._predict_density_AF_storage['free_vars']
         pred_f_mean, pred_f_var = self.wrapped.build_predict(Xnew)
         pred_f_mean, pred_f_var = self.build_predict(pred_f_mean, pred_f_var, theta)
         return self.likelihood.predict_density(pred_f_mean, pred_f_var, Ynew)
