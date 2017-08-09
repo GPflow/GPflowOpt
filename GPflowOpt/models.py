@@ -54,6 +54,7 @@ class ModelWrapper(Parameterized):
 
         if key is '_needs_recompile':
             setattr(self.wrapped, key, value)
+            return
 
         super(ModelWrapper, self).__setattr__(key, value)
 
