@@ -80,7 +80,7 @@ class TestDataScaler(unittest.TestCase):
 
     def test_predict_scaling(self):
         m = self.create_parabola_model()
-        n = DataScaler(self.create_parabola_model(), self.domain)
+        n = DataScaler(self.create_parabola_model(), self.domain, normalize_Y=True)
         m.optimize()
         n.optimize()
 
@@ -103,6 +103,6 @@ class TestDataScaler(unittest.TestCase):
         Yt = parabola2d(Xt) #+ np.random.rand(20, 1) * 0.05
         fr = m.predict_density(Xt, Yt)
         fs = n.predict_density(Xt, Yt)
-        print(fr)
-        print(fs)
-        np.testing.assert_allclose(fr, fs, rtol=1e-3)
+        #print(fr)
+        #print(fs)
+        np.testing.assert_allclose(fr, fs, rtol=1e-2)
