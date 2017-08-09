@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from .tf_wraps import rowwise_gradients
 
-from GPflow.param import Parameterized, AutoFlow, Param
+from GPflow.param import Parameterized, AutoFlow
 from GPflow.model import Model, GPModel
 from GPflow.likelihoods import Gaussian
 from GPflow import settings
@@ -70,30 +71,6 @@ class ModelWrapper(Parameterized):
 
     def __str__(self, prepend=''):
         return self.wrapped.__str__(prepend)
-
-
-def rowwise_gradients(Y, X):
-    """
-    For a 2D Tensor Y, compute the derivative of each columns w.r.t  a 2D tensor X.
-
-    This is done with while_loop, because of a known incompatibility between map_fn and gradients.
-    """
-    num_rows = tf.shape(Y)[0]
-    num_feat = tf.shape(X)[0]
-
-    def body(old_grads, row):
-        g = tf.expand_dims(tf.gradients(Y[row], X)[0], axis=0)
-        new_grads = tf.concat([old_grads, g], axis=0)
-        return new_grads, row + 1
-
-    def cond(_, row):
-        return tf.less(row, num_rows)
-
-    shape_invariants = [tf.TensorShape([None, None]), tf.TensorShape([])]
-    grads, _ = tf.while_loop(cond, body, [tf.zeros([0, num_feat], float_type), tf.constant(0)],
-                             shape_invariants=shape_invariants)
-
-    return grads
 
 
 class MGP(ModelWrapper):
