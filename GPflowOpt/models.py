@@ -144,4 +144,3 @@ class MGP(ModelWrapper):
         pred_f_mean, pred_f_var = self.wrapped.build_predict(Xnew)
         pred_f_mean, pred_f_var = self.build_predict(pred_f_mean, pred_f_var, theta)
         return self.likelihood.predict_density(pred_f_mean, pred_f_var, Ynew)
-
