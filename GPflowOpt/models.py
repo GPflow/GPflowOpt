@@ -26,7 +26,7 @@ class ModelWrapper(Parameterized):
         super(ModelWrapper, self).__init__()
 
         # Wrap model
-        assert (isinstance(model, Model))
+        assert isinstance(model, (Model, ModelWrapper))
         self.wrapped = model
 
     def __getattr__(self, item):
