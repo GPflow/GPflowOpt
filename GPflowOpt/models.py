@@ -17,7 +17,13 @@ from GPflow.model import Model
 
 class ModelWrapper(Parameterized):
     """
-    Modelwrapper class
+    Class for fast implementation of a wrapper for models defined in GPflow. Once wrapped, all lookups for attributes
+    which are not found in the wrapper class are automatically forwarded to the wrapped model.
+
+    To influence the I/O of methods on the wrapped class, simply implement the method in the wrapper and call the
+    appropriate methods on the wrapped class. Specific logic is included to make sure that if AutoFlow methods are
+    influenced following this pattern, the original AF storage (if existing) is unaffected and a new storage is added
+    to the subclass.
     """
     def __init__(self, model):
         """
@@ -25,15 +31,14 @@ class ModelWrapper(Parameterized):
         """
         super(ModelWrapper, self).__init__()
 
-        # Wrap model
         assert isinstance(model, (Model, ModelWrapper))
+        #: Wrapped model
         self.wrapped = model
 
     def __getattr__(self, item):
         """
         If an attribute is not found in this class, it is searched in the wrapped model
         """
-
         # Exception for AF storages, if a method with the same name exists in this class, do not find the cache
         # in the wrapped model.
         if item.endswith('_AF_storage'):
@@ -45,7 +50,8 @@ class ModelWrapper(Parameterized):
 
     def __setattr__(self, key, value):
         """
-        If setting :attr:`wrapped` attribute, point parent to this object (the datascaler)
+        1) If setting :attr:`wrapped` attribute, point parent to this object (the datascaler).
+        2) If setting the recompilation attribute, always do this on the wrapped class.
         """
         if key is 'wrapped':
             object.__setattr__(self, key, value)
