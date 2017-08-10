@@ -43,9 +43,9 @@ class Acquisition(Parameterized):
     (for instance for constrained optimization)
     """
 
-    def __init__(self, models=[], optimize_restarts=5):
+    def __init__(self, models=[], optimize_restarts=5, domain=None):
         super(Acquisition, self).__init__()
-        self._models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
+        self._models = ParamList([DataScaler(m, domain) for m in np.atleast_1d(models).tolist()])
         self._default_params = list(map(lambda m: m.get_free_state(), self._models))
 
         assert (optimize_restarts >= 0)
@@ -316,6 +316,7 @@ class MCMCAcquistion(AcquisitionSum):
 
     To compute the acquisition, the predictions of the acquisition copies are averaged.
     """
+
     def __init__(self, acquisition, n_slices, **kwargs):
         assert isinstance(acquisition, Acquisition)
         assert n_slices > 0

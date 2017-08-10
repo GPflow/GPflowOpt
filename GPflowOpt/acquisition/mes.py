@@ -35,13 +35,13 @@ class MaxvalueEntropySearch(Acquisition):
     def setup(self):
         super(MaxvalueEntropySearch, self).setup()
         m = self.models[0].wrapped
-        X = np.array(m.X.value)
+        X = np.array(m.X.value.copy())
         D = np.shape(X)[1]
 
         Xrand = np.random.rand(self.gridsize, D)
         fmean, fvar = m.predict_f(np.concatenate((Xrand, X), axis=0))
 
-        right = np.max(m.Y.value)
+        right = np.max(m.Y.value.copy())
 
         probf = lambda x: np.exp(np.sum(norm.logcdf(-(x - fmean) / np.sqrt(fvar))))
 
@@ -80,3 +80,11 @@ class MaxvalueEntropySearch(Acquisition):
         return mid
 
     def build_acquisition(self, Xcand):
+        fmean, fvar = self.models[0].wrapped.predict_f(Xcand)
+        norm = tf.contrib.distributions.Normal(loc=0, scale=1)
+
+        gamma = (fmean - tf.expand_dims(self.samples, axis=0)) / fvar
+
+        a = tf.reduce_sum(gamma * norm.prob(gamma) / (2 * norm.cdf(gamma)) - norm.logcdf(gamma),
+                          axis=1, keep_dims=True) / self.num_samples
+        return a
