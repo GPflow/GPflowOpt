@@ -69,3 +69,14 @@ class TestModelWrapper(unittest.TestCase):
         self.assertFalse(w._needs_recompile)
         self.assertFalse(m._needs_recompile)
 
+    def test_double_wrap(self):
+        m = self.simple_model()
+        n = GPflowOpt.models.ModelWrapper(MethodOverride(m))
+        n.optimize(maxiter=10)
+        Xt = np.random.rand(10,2)
+        n.predict_f(Xt)
+        self.assertFalse('_predict_f_AF_storage' in n.__dict__)
+        self.assertTrue('_predict_f_AF_storage' in n.wrapped.__dict__)
+        self.assertFalse('_predict_f_AF_storage' in n.wrapped.wrapped.__dict__)
+
+
