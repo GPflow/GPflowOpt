@@ -82,7 +82,7 @@ class MaxvalueEntropySearch(Acquisition):
         fmean, fvar = self.models[0].wrapped.build_predict(Xcand)
         norm = tf.contrib.distributions.Normal(loc=tf.zeros([], dtype=float_type), scale=tf.ones([], dtype=float_type))
 
-        gamma = (fmean - tf.expand_dims(self.samples, axis=0)) / fvar
+        gamma = (fmean - tf.expand_dims(self.samples, axis=0)) / tf.sqrt(fvar)
 
         a = tf.reduce_sum(gamma * norm.prob(gamma) / (2 * norm.cdf(gamma)) - norm.log_cdf(gamma),
                           axis=1, keep_dims=True) / self.num_samples
