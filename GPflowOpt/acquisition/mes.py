@@ -55,14 +55,13 @@ class MaxvalueEntropySearch(Acquisition):
         beta = (q1 - q2) / (np.log(np.log(4 / 3)) - np.log(np.log(4)))
         alpha = med + beta * np.log(np.log(2))
         mins = - np.log(-np.log(np.random.rand(self.num_samples))) * beta + alpha
-
+        m._kill_autoflow()
         self.samples.set_data(mins)
 
     def binary_search(self, left, right, func, val, threshold=0.01):
         vfunc = np.vectorize(func)
         x = np.flip(np.linspace(left, right, 100), axis=0)
         y = vfunc(x)
-        print(y)
         i = np.searchsorted(y, val)
         l, r = x[i], x[i - 1]
         mid = (l + r) / 2
@@ -80,11 +79,12 @@ class MaxvalueEntropySearch(Acquisition):
         return mid
 
     def build_acquisition(self, Xcand):
-        fmean, fvar = self.models[0].wrapped.predict_f(Xcand)
-        norm = tf.contrib.distributions.Normal(loc=0, scale=1)
+        fmean, fvar = self.models[0].wrapped.build_predict(Xcand)
+        norm = tf.contrib.distributions.Normal(loc=tf.zeros([], dtype=float_type), scale=tf.ones([], dtype=float_type))
 
         gamma = (fmean - tf.expand_dims(self.samples, axis=0)) / fvar
 
-        a = tf.reduce_sum(gamma * norm.prob(gamma) / (2 * norm.cdf(gamma)) - norm.logcdf(gamma),
+        a = tf.reduce_sum(gamma * norm.prob(gamma) / (2 * norm.cdf(gamma)) - norm.log_cdf(gamma),
                           axis=1, keep_dims=True) / self.num_samples
+
         return a
