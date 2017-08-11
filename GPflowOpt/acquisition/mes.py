@@ -34,7 +34,7 @@ class MaxvalueEntropySearch(Acquisition):
         Key reference:
 
         ::
-            @InProceedings{pmlr-v70-wang17e,
+            @InProceedings{Wang:2017,
               title = 	 {Max-value Entropy Search for Efficient {B}ayesian Optimization},
               author = 	 {Zi Wang and Stefanie Jegelka},
               booktitle = 	 {Proceedings of the 34th International Conference on Machine Learning},
