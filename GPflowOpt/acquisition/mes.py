@@ -79,6 +79,7 @@ class MaxvalueEntropySearch(Acquisition):
         return mid
 
     def build_acquisition(self, Xcand):
+        Xcand = self.models[0].input_transform.build_forward(Xcand)
         fmean, fvar = self.models[0].wrapped.build_predict(Xcand)
         norm = tf.contrib.distributions.Normal(loc=tf.zeros([], dtype=float_type), scale=tf.ones([], dtype=float_type))
 
