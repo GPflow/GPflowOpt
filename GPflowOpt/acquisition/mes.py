@@ -26,6 +26,27 @@ stability = settings.numerics.jitter_level
 
 
 class MaxvalueEntropySearch(Acquisition):
+    """
+        Max-value entropy search acquisition function for single-objective global optimization.
+        Introduced by (Wang et al., 2017).
+
+        Key reference:
+
+        ::
+            @InProceedings{pmlr-v70-wang17e,
+              title = 	 {Max-value Entropy Search for Efficient {B}ayesian Optimization},
+              author = 	 {Zi Wang and Stefanie Jegelka},
+              booktitle = 	 {Proceedings of the 34th International Conference on Machine Learning},
+              pages = 	 {3627--3635},
+              year = 	 {2017},
+              editor = 	 {Doina Precup and Yee Whye Teh},
+              volume = 	 {70},
+              series = 	 {Proceedings of Machine Learning Research},
+              address = 	 {International Convention Centre, Sydney, Australia},
+              month = 	 {06--11 Aug},
+              publisher = 	 {PMLR},
+            }
+        """
     def __init__(self, model, domain, gridsize=10000, num_samples=10):
         super(MaxvalueEntropySearch, self).__init__(model, domain=domain)
         self.gridsize = gridsize
