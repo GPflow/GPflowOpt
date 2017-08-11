@@ -21,6 +21,8 @@ import numpy as np
 from scipy.stats import norm
 import tensorflow as tf
 
+from functools import partial
+
 float_type = settings.dtypes.float_type
 stability = settings.numerics.jitter_level
 
@@ -64,39 +66,29 @@ class MaxvalueEntropySearch(Acquisition):
 
         right = np.max(m.Y.value.copy())
 
-        probf = lambda x: np.exp(np.sum(norm.logcdf(-(x - fmean) / np.sqrt(fvar))))
+        probf = lambda x: np.exp(np.sum(norm.logcdf(-(x - fmean) / np.sqrt(fvar)), axis=0))
 
         left = np.min(fmean - 5 * np.sqrt(fvar))
         while probf(left) < 0.75:
             left = -2 * left + right
 
-        q1 = self.binary_search(left, right, probf, 0.25)
-        q2 = self.binary_search(left, right, probf, 0.75)
-        med = self.binary_search(left, right, probf, 0.5)
+        q1, med, q2 = map(partial(self.__class__.binary_search, self, left, right, probf), [0.25, 0.5, 0.75])
         beta = (q1 - q2) / (np.log(np.log(4 / 3)) - np.log(np.log(4)))
         alpha = med + beta * np.log(np.log(2))
-        mins = - np.log(-np.log(np.random.rand(self.num_samples))) * beta + alpha
+        mins = -np.log(-np.log(np.random.rand(self.num_samples))) * beta + alpha
         m._kill_autoflow()
         self.samples.set_data(mins)
 
     def binary_search(self, left, right, func, val, threshold=0.01):
-        vfunc = np.vectorize(func)
-        x = np.flip(np.linspace(left, right, 100), axis=0)
-        y = vfunc(x)
-        i = np.searchsorted(y, val)
-        l, r = x[i], x[i - 1]
-        mid = (l + r) / 2
+        x = np.linspace(left, right, 100)[::-1]
+        i = np.searchsorted(func(x), val)
+        mid = np.sum(x[i-1:i+1]) / 2
         ev = func(mid)
-        while np.abs(ev - val) > threshold:
+        if np.abs(ev - val) > threshold:
             if ev > val:
-                l = mid
-                r = r
+                return self.binary_search(mid, x[i-1], func, val, threshold)
             else:
-                l = l
-                r = mid
-            mid = (l + r) / 2
-            ev = func(mid)
-
+                return self.binary_search(x[i], mid, func, val, threshold)
         return mid
 
     def build_acquisition(self, Xcand):
