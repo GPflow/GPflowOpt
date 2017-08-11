@@ -299,7 +299,8 @@ class TestMCMCAcquisition(_TestAcquisitionAggregation, unittest.TestCase):
     def setUp(self):
         super(TestMCMCAcquisition, self).setUp()
         self.models = [self.create_parabola_model()]
-        self.acquisition = GPflowOpt.acquisition.MCMCAcquistion(GPflowOpt.acquisition.ExpectedImprovement(self.models[0]), 5)
+        self.acquisition = GPflowOpt.acquisition.MCMCAcquistion(
+            GPflowOpt.acquisition.ExpectedImprovement(self.models[0]), 5)
 
     def test_hyper_updates(self):
         orig_hypers = [c.get_free_state() for c in self.acquisition.operands[1:]]
@@ -315,7 +316,6 @@ class TestMCMCAcquisition(_TestAcquisitionAggregation, unittest.TestCase):
 
 
 class TestJointAcquisition(unittest.TestCase):
-
     _multiprocessing_can_split_ = True
 
     @property
@@ -397,3 +397,31 @@ class TestJointAcquisition(unittest.TestCase):
         joint = first * second
         self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionProduct)
         self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3, acq4])
+
+
+class TestMinValueEntropySearch(_TestAcquisition, unittest.TestCase):
+    def setUp(self):
+        super(TestMinValueEntropySearch, self).setUp()
+        self.model = self.create_parabola_model()
+        self.acquisition = GPflowOpt.acquisition.MinValueEntropySearch(self.model, self.domain)
+
+    def test_objective_indices(self):
+        self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
+                         msg="MinValueEntropySearch returns all objectives")
+
+    def test_setup(self):
+        fmin = np.min(self.acquisition.data[1])
+        self.assertGreater(fmin, 0, msg="The minimum (0) is not amongst the design.")
+        self.assertTrue(self.acquisition.samples.shape == (self.acquisition.num_samples,),
+                        msg="fmin computed incorrectly")
+
+    def test_MES_validity(self):
+        Xcenter = np.random.rand(20, 2) * 0.25 - 0.125
+        X = np.random.rand(100, 2) * 2 - 1
+        hor_idx = np.abs(X[:, 0]) > 0.8
+        ver_idx = np.abs(X[:, 1]) > 0.8
+        Xborder = np.vstack((X[hor_idx, :], X[ver_idx, :]))
+        ei1 = self.acquisition.evaluate(Xborder)
+        ei2 = self.acquisition.evaluate(Xcenter)
+        self.assertGreater(np.min(ei2) + 1E-6, np.max(ei1))
+        self.assertTrue(np.all(self.acquisition.feasible_data_index()), msg="MES does never invalidate points")
