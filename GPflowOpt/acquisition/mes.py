@@ -26,7 +26,7 @@ float_type = settings.dtypes.float_type
 stability = settings.numerics.jitter_level
 
 
-class MaxvalueEntropySearch(Acquisition):
+class MinValueEntropySearch(Acquisition):
     """
         Max-value entropy search acquisition function for single-objective global optimization.
         Introduced by (Wang et al., 2017).
@@ -49,14 +49,14 @@ class MaxvalueEntropySearch(Acquisition):
             }
         """
     def __init__(self, model, domain, gridsize=10000, num_samples=10):
-        super(MaxvalueEntropySearch, self).__init__(model)
+        super(MinValueEntropySearch, self).__init__(model)
         self.gridsize = gridsize
         self.num_samples = num_samples
         self.samples = DataHolder(np.zeros(num_samples))
         self._domain = domain
 
     def setup(self):
-        super(MaxvalueEntropySearch, self).setup()
+        super(MinValueEntropySearch, self).setup()
         m = self.models[0]
         X = m.X.value
         Xrand = RandomDesign(self.gridsize, self._domain).generate()

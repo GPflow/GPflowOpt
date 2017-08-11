@@ -19,7 +19,7 @@ from .acquisition import Acquisition, AcquisitionAggregation, AcquisitionProduct
 from .ei import ExpectedImprovement
 from .poi import ProbabilityOfImprovement
 from .lcb import LowerConfidenceBound
-from .mes import MaxvalueEntropySearch
+from .mes import MinValueEntropySearch
 
 # Multi-objective
 
