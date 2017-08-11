@@ -48,12 +48,14 @@ class MinValueEntropySearch(Acquisition):
               publisher = 	 {PMLR},
             }
         """
+
     def __init__(self, model, domain, gridsize=10000, num_samples=10):
         super(MinValueEntropySearch, self).__init__(model)
         self.gridsize = gridsize
         self.num_samples = num_samples
         self.samples = DataHolder(np.zeros(num_samples))
         self._domain = domain
+        self.setup()
 
     def setup(self):
         super(MinValueEntropySearch, self).setup()
@@ -68,7 +70,7 @@ class MinValueEntropySearch(Acquisition):
         right = np.max(m.Y.value)
 
         while probf(left) < 0.75:
-            left = -2 * left + right
+            left = 2 * left - right
 
         q1, med, q2 = map(lambda val: self.binary_search(left, right, probf, val), [0.25, 0.5, 0.75])
         beta = (q1 - q2) / (np.log(np.log(4 / 3)) - np.log(np.log(4)))
@@ -77,15 +79,13 @@ class MinValueEntropySearch(Acquisition):
         self.samples.set_data(mins)
 
     def binary_search(self, left, right, func, val, threshold=0.01):
-        x = np.linspace(left, right, 100)[::-1]
-        i = np.searchsorted(func(x), val)
-        mid = np.sum(x[i-1:i+1]) / 2
+        mid = (left + right) / 2
         ev = func(mid)
         if np.abs(ev - val) > threshold:
             if ev > val:
-                return self.binary_search(mid, x[i-1], func, val, threshold)
+                return self.binary_search(mid, right, func, val, threshold)
             else:
-                return self.binary_search(x[i], mid, func, val, threshold)
+                return self.binary_search(left, mid, func, val, threshold)
         return mid
 
     def build_acquisition(self, Xcand):
