@@ -20,6 +20,7 @@ from GPflow.param import DataHolder
 
 import numpy as np
 from scipy.stats import norm
+from scipy.optimize import bisect
 import tensorflow as tf
 
 float_type = settings.dtypes.float_type
@@ -72,21 +73,12 @@ class MinValueEntropySearch(Acquisition):
         while probf(left) < 0.75:
             left = 2 * left - right
 
-        q1, med, q2 = map(lambda val: self.binary_search(left, right, probf, val), [0.25, 0.5, 0.75])
+        q1, med, q2 = map(lambda val: bisect(lambda x: probf(x) - val, left, right, maxiter=10000, xtol=0.01),
+                          [0.25, 0.5, 0.75])
         beta = (q1 - q2) / (np.log(np.log(4 / 3)) - np.log(np.log(4)))
         alpha = med + beta * np.log(np.log(2))
         mins = -np.log(-np.log(np.random.rand(self.num_samples))) * beta + alpha
         self.samples.set_data(mins)
-
-    def binary_search(self, left, right, func, val, threshold=0.01):
-        mid = (left + right) / 2
-        ev = func(mid)
-        if np.abs(ev - val) > threshold:
-            if ev > val:
-                return self.binary_search(mid, right, func, val, threshold)
-            else:
-                return self.binary_search(left, mid, func, val, threshold)
-        return mid
 
     def build_acquisition(self, Xcand):
         fmean, fvar = self.models[0].build_predict(Xcand)
