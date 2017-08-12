@@ -13,6 +13,6 @@ install:
   - pip install .[test]
   - pip install codecov
 script:
-  - nosetests testing
+  - nosetests testing --verbosity=3
 after_success:
   - codecov
