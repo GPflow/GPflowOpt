@@ -125,7 +125,6 @@ class _TestAcquisition(object):
         self.assertFalse(
             any(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
         self.acquisition.enable_scaling(self.domain)
-        print(self.acquisition.models[0].wrapped.X.value)
         self.assertTrue(
             all(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
 
