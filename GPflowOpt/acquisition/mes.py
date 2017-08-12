@@ -72,7 +72,7 @@ class MinValueEntropySearch(Acquisition):
 
         i = 0
         while probf(left) < 0.75:
-            left = 2 ** i * np.min(fmean - 5 * np.sqrt(fvar)) + (1 - 2 ** i) * right
+            left = 2. ** i * np.min(fmean - 5. * np.sqrt(fvar)) + (1. - 2. ** i) * right
             i += 1
 
         q1, med, q2 = map(lambda val: bisect(lambda x: probf(x) - val, left, right, maxiter=10000, xtol=0.01),
@@ -88,7 +88,7 @@ class MinValueEntropySearch(Acquisition):
 
         gamma = (fmean - tf.expand_dims(self.samples, axis=0)) / tf.sqrt(fvar)
 
-        a = tf.reduce_sum(gamma * norm.prob(gamma) / (2 * norm.cdf(gamma)) - norm.log_cdf(gamma),
+        a = tf.reduce_sum(gamma * norm.prob(gamma) / (2. * norm.cdf(gamma)) - norm.log_cdf(gamma),
                           axis=1, keep_dims=True) / self.num_samples
 
         return a
