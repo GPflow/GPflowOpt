@@ -77,8 +77,8 @@ class MinValueEntropySearch(Acquisition):
 
         q1, med, q2 = map(lambda val: bisect(lambda x: probf(x) - val, left, right, maxiter=10000, xtol=0.01),
                           [0.25, 0.5, 0.75])
-        beta = (q1 - q2) / (np.log(np.log(4 / 3)) - np.log(np.log(4)))
-        alpha = med + beta * np.log(np.log(2))
+        beta = (q1 - q2) / (np.log(np.log(4. / 3.)) - np.log(np.log(4.)))
+        alpha = med + beta * np.log(np.log(2.))
         mins = -np.log(-np.log(np.random.rand(self.num_samples))) * beta + alpha
         self.samples.set_data(mins)
 
