@@ -21,7 +21,8 @@ from .poi import ProbabilityOfImprovement
 from .lcb import LowerConfidenceBound
 from .mes import MinValueEntropySearch
 
-# Multi-objective
+# Multiobjective
+from .hvpoi import HVProbabilityOfImprovement
 
-# Black-box constraints
+# Black-box constraint
 from .pof import ProbabilityOfFeasibility

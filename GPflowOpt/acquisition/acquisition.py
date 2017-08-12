@@ -34,16 +34,19 @@ class Acquisition(Parameterized):
     In Bayesian Optimization this function is typically optimized over the optimization domain
     to determine the next point for evaluation.
 
-    An object of this class holds a list of GPflow models. For single objective optimization this is typically a 
-    single model. Subclasses implement a build_acquisition function which computes the acquisition function (usually 
-    from the predictive distribution) using TensorFlow. Each model is automatically optimized when an acquisition object
-    is constructed or when set_data is called.
+    An object of this class holds a list of GPflow models. Subclasses implement a build_acquisition function
+    which computes the acquisition function (usually from the predictive distribution) using TensorFlow.
+    Each model is automatically optimized when an acquisition object is constructed or when set_data is called.
 
-    Acquisition functions can be combined through addition or multiplication to construct joint criteria 
-    (for instance for constrained optimization)
+    Acquisition functions can be combined through addition or multiplication to construct joint criteria. 
+    For instance, for constrained optimization.
     """
 
     def __init__(self, models=[], optimize_restarts=5):
+        """
+        :param models: list of GPflow models representing our beliefs about the problem
+        :param optimize_restarts: number of optimization restarts to use when training the models
+        """
         super(Acquisition, self).__init__()
         self._models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
         self._default_params = list(map(lambda m: m.get_free_state(), self._models))
@@ -56,10 +59,11 @@ class Acquisition(Parameterized):
         """
         Optimizes the hyperparameters of all models that the acquisition function is based on.
 
-        It is called after initialization and set_data(), and before optimizing the acquisition function itself.
+        It is called automatically during initialization and each time set_data() is called.
+        When using the high-level :class:`..BayesianOptimizer` class calling set_data() is taken care of.
 
         For each model the hyperparameters of the model at the time it was passed to __init__() are used as initial
-        point and optimized. If optimize_restarts was configured to values larger than one additional randomization
+        point and optimized. If optimize_restarts is set to >1, additional randomization
         steps are performed.
 
         As a special case, if optimize_restarts is set to zero, the hyperparameters of the models are not optimized.
@@ -82,14 +86,15 @@ class Acquisition(Parameterized):
             best_idx = np.argmin([r.fun for r in runs])
             model.set_state(runs[best_idx].x)
 
-    def build_acquisition(self):
+    def build_acquisition(self, Xcand):
         raise NotImplementedError
 
     def enable_scaling(self, domain):
         """
         Enables and configures the :class:`.DataScaler` objects wrapping the GP models.
+        
         :param domain: :class:`.Domain` object, the input transform of the data scalers is configured as a transform
-         from domain to the unit cube with the same dimensionality.
+            from domain to the unit cube with the same dimensionality.
         """
         n_inputs = self.data[0].shape[1]
         assert (domain.size == n_inputs)
@@ -103,11 +108,11 @@ class Acquisition(Parameterized):
         Update the training data of the contained models. Automatically triggers a hyperparameter optimization
         step by calling _optimize_all() and an update of pre-computed quantities by calling setup().
 
-        Consider Q to be the the sum of the output dimensions of the contained models, Y should have a minimum of
+        Let Q be the the sum of the output dimensions of all contained models, Y should have a minimum of
         Q columns. Only the first Q columns of Y are used while returning the scalar Q
 
         :param X: input data N x D
-        :param Y: Responses N x M (M >= Q)
+        :param Y: output data N x R (R >= Q)
         :return: Q (sum of output dimensions of contained models)
         """
         num_outputs_sum = 0
@@ -120,23 +125,30 @@ class Acquisition(Parameterized):
             model.Y = Ypart
 
         self._optimize_models()
+
+        # Only call setup for the high-level acquisition function
         if self.highest_parent == self:
             self.setup()
         return num_outputs_sum
 
     @property
     def models(self):
+        """
+        The GPflow models representing our beliefs of the optimization problem.
+        
+        :return: list of GPflow models 
+        """
         return self._models
 
     @property
     def data(self):
         """
-        Property for accessing the training data of the models.
+        The training data of the models.
 
         Corresponds to the input data X which is the same for every model,
         and column-wise concatenation of the Y data over all models
 
-        :return: X, Y tensors (if in tf_mode) or X, Y numpy arrays.
+        :return: tuple X, Y of tensors (if in tf_mode) or numpy arrays.
         """
         if self._tf_mode:
             return self.models[0].X, tf.concat(list(map(lambda model: model.Y, self.models)), 1)
@@ -153,7 +165,10 @@ class Acquisition(Parameterized):
     def objective_indices(self):
         """
         Method returning the indices of the model outputs which are objective functions.
-        By default all outputs are objectives
+        
+        By default all outputs are objectives.
+        
+        :return: indices to the objectives, size R
         """
         return np.setdiff1d(np.arange(self.data[1].shape[1]), self.constraint_indices())
 
@@ -161,17 +176,18 @@ class Acquisition(Parameterized):
         """
         Returns a boolean array indicating which data points are considered feasible (according to the acquisition
         function(s) ) and which not.
-        By default all data is considered feasible
-        :return: boolean ndarray, N
+        
+        By default all data is considered feasible.
+        
+        :return: logical indices to the feasible data points, size N
         """
         return np.ones(self.data[0].shape[0], dtype=bool)
 
     def setup(self):
         """
-        Method triggered after calling set_data().
-
-        Override for pre-calculation of quantities used later in
-        the evaluation of the acquisition function for candidate points
+        Pre-calculation of quantities used later in the evaluation of the acquisition function for candidate points.
+        
+        Automatically triggered by :meth:`~.Acquisition.set_data`.
         """
         pass
 
@@ -179,6 +195,9 @@ class Acquisition(Parameterized):
     def evaluate_with_gradients(self, Xcand):
         """
         AutoFlow method to compute the acquisition scores for candidates, also returns the gradients.
+        
+        :return: acquisition scores, size N x 1
+            the gradients of the acquisition scores, size N x D 
         """
         acq = self.build_acquisition(Xcand)
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
@@ -187,6 +206,8 @@ class Acquisition(Parameterized):
     def evaluate(self, Xcand):
         """
         AutoFlow method to compute the acquisition scores for candidates, without returning the gradients.
+        
+        :return: acquisition scores, size N x 1
         """
         return self.build_acquisition(Xcand)
 
@@ -198,7 +219,6 @@ class Acquisition(Parameterized):
         >>> a2 = GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
         >>> type(a1 + a2)
         <type 'GPflowOpt.acquisition.AcquisitionSum'>
-
         """
         if isinstance(other, AcquisitionSum):
             return AcquisitionSum([self] + other.operands.sorted_params)
@@ -212,7 +232,6 @@ class Acquisition(Parameterized):
         >>> a2 = GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
         >>> type(a1 * a2)
         <type 'GPflowOpt.acquisition.AcquisitionProduct'>
-
         """
         if isinstance(other, AcquisitionProduct):
             return AcquisitionProduct([self] + other.operands.sorted_params)
@@ -221,12 +240,11 @@ class Acquisition(Parameterized):
 
 class AcquisitionAggregation(Acquisition):
     """
-    Special acquisition implementation for aggregating multiple others, using a TensorFlow reduce operation.
+    Aggregates multiple acquisition functions, using a TensorFlow reduce operation.
     """
 
     def __init__(self, operands, oper):
         """
-        Constructor
         :param operands: list of acquisition objects
         :param oper: a tf.reduce operation (e.g., tf.reduce_sum) for aggregating the returned scores of each operand.
         """
@@ -310,11 +328,12 @@ class AcquisitionProduct(AcquisitionAggregation):
 
 class MCMCAcquistion(AcquisitionSum):
     """
-    Acquisition object to apply MCMC over the hyperparameters of the models. The models of the acquisition object passed
-    into an object of this class is optimized with MLE, and then sampled with HMC. These hyperparameter samples are then
-    set in copies of the acquisition.
+    Apply MCMC over the hyperparameters of an acquisition function (= over the hyperparameters of the contained models).
+    
+    The models passed into an object of this class are optimized with MLE, and then further sampled with HMC.
+    These hyperparameter samples are then set in copies of the acquisition.
 
-    To compute the acquisition, the predictions of the acquisition copies are averaged.
+    For evaluating the underlying acquisition function, the predictions of the acquisition copies are averaged.
     """
 
     def __init__(self, acquisition, n_slices, **kwargs):
