@@ -61,7 +61,6 @@ class DataScaler(ModelWrapper):
          variance.
         """
         # model sanity checks, slightly stronger conditions than the wrapper
-        assert (isinstance(model, GPModel))
         super(DataScaler, self).__init__(model)
 
         # Initial configuration of the datascaler
