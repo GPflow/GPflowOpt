@@ -14,8 +14,10 @@
 
 from ..scaling import DataScaler
 from ..domain import UnitCube
+from ..models import ModelWrapper
 
 from GPflow.param import Parameterized, AutoFlow, ParamList
+from GPflow.model import Model
 from GPflow import settings
 
 import numpy as np
@@ -48,7 +50,9 @@ class Acquisition(Parameterized):
         :param optimize_restarts: number of optimization restarts to use when training the models
         """
         super(Acquisition, self).__init__()
-        self._models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
+        models = np.atleast_1d(models)
+        assert all(isinstance(model, (Model, ModelWrapper))for model in models)
+        self._models = ParamList([DataScaler(m) for m in models])
         self._default_params = list(map(lambda m: m.get_free_state(), self._models))
 
         assert (optimize_restarts >= 0)
