@@ -20,6 +20,22 @@ class MethodOverride(GPflowOpt.models.ModelWrapper):
         m, v = self.build_predict(Xnew)
         return self.A * m, v
 
+    @property
+    def X(self):
+        return self.wrapped.X
+
+    @X.setter
+    def X(self, Xc):
+        self.wrapped.X = Xc
+
+    @property
+    def foo(self):
+        return 1
+
+    @foo.setter
+    def foo(self, val):
+        self.wrapped.foo = val
+
 
 class TestModelWrapper(unittest.TestCase):
 
@@ -59,8 +75,8 @@ class TestModelWrapper(unittest.TestCase):
         w.predict_f(x)
         self.assertTrue(hasattr(w, '_predict_f_AF_storage'))
 
-    def test_set_recompile(self):
-        # Regression test for setting recompile in the wrong object
+    def test_set_wrapped_attributes(self):
+        # Regression test for setting certain keys in the right object
         m = self.simple_model()
         w = GPflowOpt.models.ModelWrapper(m)
         w._needs_recompile = False
@@ -73,10 +89,26 @@ class TestModelWrapper(unittest.TestCase):
         m = self.simple_model()
         n = GPflowOpt.models.ModelWrapper(MethodOverride(m))
         n.optimize(maxiter=10)
-        Xt = np.random.rand(10,2)
+        Xt = np.random.rand(10, 2)
         n.predict_f(Xt)
         self.assertFalse('_predict_f_AF_storage' in n.__dict__)
         self.assertTrue('_predict_f_AF_storage' in n.wrapped.__dict__)
         self.assertFalse('_predict_f_AF_storage' in n.wrapped.wrapped.__dict__)
+
+        n = MethodOverride(GPflowOpt.models.ModelWrapper(m))
+        Xn = np.random.rand(10, 2)
+        Yn = np.random.rand(10, 1)
+        n.X = Xn
+        n.Y = Yn
+        self.assertTrue(np.allclose(Xn, n.wrapped.wrapped.X.value))
+        self.assertTrue(np.allclose(Yn, n.wrapped.wrapped.Y.value))
+        self.assertFalse('Y' in n.wrapped.__dict__)
+        self.assertFalse('X' in n.wrapped.__dict__)
+
+        n.foo = 5
+        self.assertTrue('foo' in n.wrapped.__dict__)
+        self.assertFalse('foo' in n.wrapped.wrapped.__dict__)
+
+
 
 
