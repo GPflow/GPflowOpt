@@ -23,6 +23,7 @@ from .objective import ObjectiveWrapper
 from .design import Design, EmptyDesign
 from .pareto import non_dominated_sort
 
+
 class BayesianOptimizer(Optimizer):
     """
     A traditional Bayesian optimization framework implementation.

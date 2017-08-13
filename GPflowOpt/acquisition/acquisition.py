@@ -22,8 +22,28 @@ import numpy as np
 import tensorflow as tf
 
 import copy
+from functools import wraps
 
 float_type = settings.dtypes.float_type
+
+
+class Setup(object):
+    def __call__(self, af_method):
+        @wraps(af_method)
+        def runnable(*args, **kwargs):
+            hp = args[0].highest_parent
+            if hp._needs_setup:
+                # 1 - optimize
+                hp._optimize_models()
+                # 2 - setup
+                # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
+                # e.g. through feasible_data_index.
+                hp._needs_setup = False
+                hp.setup()
+            results = af_method(*args, **kwargs)
+            return results
+
+        return runnable
 
 
 class Acquisition(Parameterized):
@@ -53,7 +73,7 @@ class Acquisition(Parameterized):
 
         assert (optimize_restarts >= 0)
         self.optimize_restarts = optimize_restarts
-        self._optimize_models()
+        self._needs_setup = True
 
     def _optimize_models(self):
         """
@@ -101,7 +121,7 @@ class Acquisition(Parameterized):
         for m in self.models:
             m.input_transform = domain >> UnitCube(n_inputs)
             m.normalize_output = True
-        self._optimize_models()
+        self.highest_parent._needs_setup = True
 
     def set_data(self, X, Y):
         """
@@ -124,11 +144,7 @@ class Acquisition(Parameterized):
             model.X = X
             model.Y = Ypart
 
-        self._optimize_models()
-
-        # Only call setup for the high-level acquisition function
-        if self.highest_parent == self:
-            self.setup()
+        self.highest_parent._needs_setup = True
         return num_outputs_sum
 
     @property
@@ -191,6 +207,7 @@ class Acquisition(Parameterized):
         """
         pass
 
+    @Setup()
     @AutoFlow((float_type, [None, None]))
     def evaluate_with_gradients(self, Xcand):
         """
@@ -202,6 +219,7 @@ class Acquisition(Parameterized):
         acq = self.build_acquisition(Xcand)
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
+    @Setup()
     @AutoFlow((float_type, [None, None]))
     def evaluate(self, Xcand):
         """
@@ -237,6 +255,11 @@ class Acquisition(Parameterized):
             return AcquisitionProduct([self] + other.operands.sorted_params)
         return AcquisitionProduct([self, other])
 
+    def __setattr__(self, key, value):
+        super(Acquisition, self).__setattr__(key, value)
+        if key is '_parent':
+            self._needs_setup = True
+
 
 class AcquisitionAggregation(Acquisition):
     """
@@ -252,10 +275,10 @@ class AcquisitionAggregation(Acquisition):
         assert (all([isinstance(x, Acquisition) for x in operands]))
         self.operands = ParamList(operands)
         self._oper = oper
-        self.setup()
 
     def _optimize_models(self):
-        pass
+        for oper in self.operands:
+            oper._optimize_models()
 
     @Acquisition.models.getter
     def models(self):
@@ -269,13 +292,23 @@ class AcquisitionAggregation(Acquisition):
         offset = 0
         for operand in self.operands:
             offset += operand.set_data(X, Y[:, offset:])
-        if self.highest_parent == self:
-            self.setup()
         return offset
 
-    def setup(self):
+    def _setup_constraints(self):
         for oper in self.operands:
-            oper.setup()
+            if oper.constraint_indices().size > 0:
+                oper._setup_constraints() if isinstance(oper, AcquisitionAggregation) else oper.setup()
+
+    def _setup_objectives(self):
+        for oper in self.operands:
+            if oper.constraint_indices().size == 0:
+                oper._setup_objectives() if isinstance(oper, AcquisitionAggregation) else oper.setup()
+
+    def setup(self):
+        # First setup acquisitions involving constraints
+        self._setup_constraints()
+        # Then objectives
+        self._setup_objectives()
 
     def constraint_indices(self):
         offset = [0]
@@ -300,7 +333,6 @@ class AcquisitionSum(AcquisitionAggregation):
     """
     Sum of acquisition functions
     """
-
     def __init__(self, operands):
         super(AcquisitionSum, self).__init__(operands, tf.reduce_sum)
 
@@ -315,7 +347,6 @@ class AcquisitionProduct(AcquisitionAggregation):
     """
     Product of acquisition functions
     """
-
     def __init__(self, operands):
         super(AcquisitionProduct, self).__init__(operands, tf.reduce_prod)
 
@@ -346,10 +377,11 @@ class MCMCAcquistion(AcquisitionSum):
         # the call to the constructor of the parent classes, will optimize acquisition, so it obtains the MLE solution.
         super(MCMCAcquistion, self).__init__([acquisition] + copies)
         self._sample_opt = kwargs
-        # Update the hyperparameters of the copies using HMC
-        self._update_hyper_draws()
 
-    def _update_hyper_draws(self):
+    def _optimize_models(self):
+        self.operands[0]._optimize_models()
+
+        # Draw samples using HMC
         # Sample each model of the acquisition function - results in a list of 2D ndarrays.
         hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
 
@@ -367,9 +399,6 @@ class MCMCAcquistion(AcquisitionSum):
             # This triggers model.optimize() on self.operands[0]
             # All copies have optimization disabled, but must have update data.
             offset = operand.set_data(X, Y)
-        self._update_hyper_draws()
-        if self.highest_parent == self:
-            self.setup()
         return offset
 
     def build_acquisition(self, Xcand):
