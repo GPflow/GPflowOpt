@@ -45,7 +45,6 @@ class ModelWrapper(Parameterized):
             method = item[1:].rstrip('_AF_storage')
             if method in dir(self):
                 raise AttributeError("{0} has no attribute {1}".format(self.__class__.__name__, item))
-
         return getattr(self.wrapped, item)
 
     def __setattr__(self, key, value):
@@ -58,11 +57,27 @@ class ModelWrapper(Parameterized):
             value.__setattr__('_parent', self)
             return
 
-        if key is '_needs_recompile':
-            setattr(self.wrapped, key, value)
-            return
+        try:
+            # If attribute is in this object, set it. Test by using getattribute instead of hasattr to avoid lookup in
+            # wrapped object.
+            self.__getattribute__(key)
+            super(ModelWrapper, self).__setattr__(key, value)
+        except AttributeError:
+            # Attribute is not in wrapper.
+            # In case no wrapped object is set yet (e.g. constructor), set in wrapper.
+            if 'wrapped' not in self.__dict__:
+                super(ModelWrapper, self).__setattr__(key, value)
+                return
 
-        super(ModelWrapper, self).__setattr__(key, value)
+            if hasattr(self, key):
+                # Now use hasattr, we know getattribute already failed so if it returns true, it must be in the wrapped
+                # object. Hasattr is called on self instead of self.wrapped to account for the different handling of
+                # AF storages.
+                # Prefer setting the attribute in the wrapped object if exists.
+                setattr(self.wrapped, key, value)
+            else:
+                #  If not, set in wrapper nonetheless.
+                super(ModelWrapper, self).__setattr__(key, value)
 
     def __eq__(self, other):
         return self.wrapped == other
