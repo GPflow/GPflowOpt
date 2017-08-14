@@ -13,6 +13,6 @@ install:
   - pip install .[test]
   - pip install codecov
 script:
-  - nosetests testing
+  - nosetests --nocapture testing
 after_success:
   - codecov
