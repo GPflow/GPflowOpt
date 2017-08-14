@@ -13,7 +13,7 @@ from parameterized import parameterized
 
 this_dir = os.path.dirname(__file__)
 nbpath = os.path.join(this_dir, '../doc/source/notebooks/')
-blacklist = ['hyperopt.ipynb']
+blacklist = [nbpath+'hyperopt.ipynb']
 lfiles = [(f,) for f in glob.glob(nbpath+"*.ipynb") if f not in blacklist]
 
 
