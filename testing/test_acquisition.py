@@ -9,7 +9,6 @@ import os
 def parabola2d(X):
     return np.atleast_2d(np.sum(X ** 2, axis=1)).T
 
-
 def plane(X):
     return X[:, [0]] - 0.5
 
@@ -125,7 +124,6 @@ class _TestAcquisition(object):
         self.assertFalse(
             any(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
         self.acquisition.enable_scaling(self.domain)
-        print(self.acquisition.models[0].wrapped.X.value)
         self.assertTrue(
             all(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
 

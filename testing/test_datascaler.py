@@ -103,6 +103,4 @@ class TestDataScaler(unittest.TestCase):
         Yt = parabola2d(Xt) #+ np.random.rand(20, 1) * 0.05
         fr = m.predict_density(Xt, Yt)
         fs = n.predict_density(Xt, Yt)
-        print(fr)
-        print(fs)
         np.testing.assert_allclose(fr, fs, rtol=1e-3)
