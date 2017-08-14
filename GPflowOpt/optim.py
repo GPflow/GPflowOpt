@@ -142,6 +142,8 @@ class MCOptimizer(Optimizer):
         """
         super(MCOptimizer, self).__init__(domain, exclude_gradient=True)
         self._nsamples = nsamples
+        # Clear the initial data points
+        self.set_initial(np.empty((0, self.domain.size)))
 
     @Optimizer.domain.setter
     def domain(self, dom):
@@ -163,9 +165,11 @@ class MCOptimizer(Optimizer):
 
     def set_initial(self, initial):
         initial = np.atleast_2d(initial)
-        super(MCOptimizer, self).set_initial(initial)
         if initial.size > 0:
             warnings.warn("Initial points set in {0} are ignored.".format(self.__class__.__name__), UserWarning)
+            return
+
+        super(MCOptimizer, self).set_initial(initial)
 
 
 class CandidateOptimizer(MCOptimizer):
@@ -183,8 +187,6 @@ class CandidateOptimizer(MCOptimizer):
         super(CandidateOptimizer, self).__init__(domain, candidates.shape[0])
         assert (candidates in domain)
         self.candidates = candidates
-        # Clear the initial data points
-        self.set_initial(np.empty((0, self.domain.size)))
 
     def _get_eval_points(self):
         return self.candidates
@@ -235,11 +237,11 @@ class StagedOptimizer(Optimizer):
         no_gradient = any(map(lambda opt: not opt.gradient_enabled(), optimizers))
         super(StagedOptimizer, self).__init__(optimizers[0].domain, exclude_gradient=no_gradient)
         self.optimizers = optimizers
-        self.set_initial(np.empty((0, self.domain.size)))
+        del self._initial
 
     @Optimizer.domain.setter
     def domain(self, domain):
-        super(StagedOptimizer, self.__class__).domain.fset(self, domain)
+        self._domain = domain
         for optimizer in self.optimizers:
             optimizer.domain = domain
 
@@ -254,7 +256,6 @@ class StagedOptimizer(Optimizer):
         is returned.
         """
 
-        self.optimizers[0].set_initial(self.get_initial())
         results = []
         for current, following in zip(self.optimizers[:-1], self.optimizers[1:]):
             result = current.optimize(objectivefx)
@@ -273,3 +274,9 @@ class StagedOptimizer(Optimizer):
         if any(r.success for r in results):
             result.x, result.fun = self._best_x(results)
         return result
+
+    def get_initial(self):
+        return self.optimizers[0].get_initial()
+
+    def set_initial(self, initial):
+        self.optimizers[0].set_initial(initial)

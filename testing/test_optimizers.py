@@ -81,7 +81,7 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
         # When run separately this test works, however when calling nose to run all tests on python 2.7 this records
         # no warnings
         with warnings.catch_warnings(record=True) as w:
-            super(TestCandidateOptimizer, self).test_set_initial()
+            self.optimizer.set_initial([1, 1])
             assert len(w) == 1
             assert issubclass(w[-1].category, UserWarning)
 
@@ -150,7 +150,14 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
                                                           GPflowOpt.optim.SciPyOptimizer(self.domain, maxiter=10)])
 
     def test_default_initial(self):
-        self.assertTupleEqual(self.optimizer._initial.shape, (0,2))
+        self.assertTupleEqual(self.optimizer.optimizers[0]._initial.shape, (0,2))
+
+    def test_set_initial(self):
+        self.optimizer.set_initial([1, 1])
+        self.assertTupleEqual(self.optimizer.optimizers[0]._initial.shape, (0, 2))
+        self.assertTupleEqual(self.optimizer.optimizers[1]._initial.shape, (0, 2))
+        self.assertTupleEqual(self.optimizer.optimizers[2]._initial.shape, (1, 2))
+        self.assertTupleEqual(self.optimizer.get_initial().shape, (0, 2))
 
     def test_object_integrity(self):
         self.assertEqual(len(self.optimizer.optimizers), 3, msg="Two optimizers expected in optimizerlist")
@@ -181,7 +188,6 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
             self.assertEqual(result.nfev, 5)
 
             result = self.optimizer.optimize(KeyboardRaiser(12, parabola2d))
-            print(result)
             self.assertFalse(result.success, msg="non-succesfull result expected.")
             self.assertEqual(result.nfev, 12)
             self.assertFalse(np.allclose(result.x[0, :], 0.0), msg="The optimum should not be found yet")

@@ -1,4 +1,4 @@
-sudo: false
+sudo: required
 dist: trusty
 language: python
 python:
@@ -9,9 +9,9 @@ cache: pip
 install:
   - pip install -U pip wheel
   - pip install tensorflow==1.0.1
-  - pip install --process-dependency-links .
-  - pip install .[test]
-  - pip install codecov
+  - pip install -U --process-dependency-links .
+  - pip install -U .[test]
+  - pip install -U codecov
 script:
   - nosetests testing
 after_success:
