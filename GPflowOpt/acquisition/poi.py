@@ -41,7 +41,8 @@ class ProbabilityOfImprovement(Acquisition):
 
     def setup(self):
         super(ProbabilityOfImprovement, self).setup()
-        samples_mean, _ = self.models[0].predict_f(self.data[0])
+        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
+        samples_mean, _ = self.models[0].predict_f(feasible_samples)
         self.fmin.set_data(np.min(samples_mean, axis=0))
 
     def build_acquisition(self, Xcand):
