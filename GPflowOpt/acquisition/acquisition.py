@@ -379,6 +379,7 @@ class MCMCAcquistion(AcquisitionSum):
         self._sample_opt = kwargs
 
     def _optimize_models(self):
+        # Optimize model #1
         self.operands[0]._optimize_models()
 
         # Draw samples using HMC

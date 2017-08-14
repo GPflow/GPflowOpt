@@ -3,56 +3,11 @@ import unittest
 import numpy as np
 import GPflow
 import tensorflow as tf
-import os
+from parameterized import parameterized
+from .utility import create_parabola_model, parabola2d, plane
 
+domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
 
-## CONVENIENT FUNCTIONS ##
-def parabola2d(X):
-    return np.atleast_2d(np.sum(X ** 2, axis=1)).T
-
-
-def plane(X):
-    return X[:, [0]] - 0.5
-
-
-def vlmop2(x):
-    transl = 1 / np.sqrt(2)
-    part1 = (x[:, [0]] - transl) ** 2 + (x[:, [1]] - transl) ** 2
-    part2 = (x[:, [0]] + transl) ** 2 + (x[:, [1]] + transl) ** 2
-    y1 = 1 - np.exp(-1 * part1)
-    y2 = 1 - np.exp(-1 * part2)
-    return np.hstack((y1, y2))
-
-
-def load_data(file):
-    path = os.path.dirname(os.path.realpath(__file__))
-    return np.load(os.path.join(path, 'data', file))
-
-
-def create_parabola_model(domain, design=None):
-    if design is None:
-        design = GPflowOpt.design.LatinHyperCube(16, domain)
-    X, Y = design.generate(), parabola2d(design.generate())
-    m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
-    return m
-
-
-def create_plane_model(domain, design=None):
-    if design is None:
-        design = GPflowOpt.design.LatinHyperCube(25, domain)
-    X, Y = design.generate(), plane(design.generate())
-    m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
-    return m
-
-
-def create_vlmop2_model():
-    data = load_data('vlmop.npz')
-    m1 = GPflow.gpr.GPR(data['X'], data['Y'][:, [0]], kern=GPflow.kernels.Matern32(2))
-    m2 = GPflow.gpr.GPR(data['X'], data['Y'][:, [1]], kern=GPflow.kernels.Matern32(2))
-    return [m1, m2]
-
-
-## TESTS ##
 
 class SimpleAcquisition(GPflowOpt.acquisition.Acquisition):
     def __init__(self, model):
@@ -70,8 +25,7 @@ class SimpleAcquisition(GPflowOpt.acquisition.Acquisition):
 class TestAcquisition(unittest.TestCase):
 
     def setUp(self):
-        self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
-        self.model = create_parabola_model(self.domain)
+        self.model = create_parabola_model(domain)
         self.acquisition = SimpleAcquisition(self.model)
 
     def run_setup(self):
@@ -84,18 +38,18 @@ class TestAcquisition(unittest.TestCase):
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored.")
 
     def test_setup_trigger(self):
-        m = create_parabola_model(self.domain)
+        m = create_parabola_model(domain)
         self.assertTrue(np.allclose(m.get_free_state(), self.acquisition.models[0].get_free_state()))
         self.assertTrue(self.acquisition._needs_setup)
         self.assertEqual(self.acquisition.counter, 0)
-        self.acquisition.evaluate(GPflowOpt.design.RandomDesign(10, self.domain).generate())
+        self.acquisition.evaluate(GPflowOpt.design.RandomDesign(10, domain).generate())
         self.assertFalse(self.acquisition._needs_setup)
         self.assertEqual(self.acquisition.counter, 1)
         self.assertFalse(np.allclose(m.get_free_state(), self.acquisition.models[0].get_free_state()))
 
         self.acquisition._needs_setup = True
         self.acquisition.models[0].set_state(m.get_free_state())
-        self.acquisition.evaluate_with_gradients(GPflowOpt.design.RandomDesign(10, self.domain).generate())
+        self.acquisition.evaluate_with_gradients(GPflowOpt.design.RandomDesign(10, domain).generate())
         self.assertFalse(self.acquisition._needs_setup)
         self.assertEqual(self.acquisition.counter, 2)
 
@@ -112,7 +66,7 @@ class TestAcquisition(unittest.TestCase):
 
     def test_data_update(self):
         # Verify the effect of setting the data
-        design = GPflowOpt.design.RandomDesign(10, self.domain)
+        design = GPflowOpt.design.RandomDesign(10, domain)
         X = np.vstack((self.acquisition.data[0], design.generate()))
         Y = parabola2d(X)
         self.acquisition._needs_setup = False
@@ -127,16 +81,16 @@ class TestAcquisition(unittest.TestCase):
 
     def test_enable_scaling(self):
         self.assertFalse(
-            any(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
+            any(m.wrapped.X.value in GPflowOpt.domain.UnitCube(domain.size) for m in self.acquisition.models))
         self.acquisition._needs_setup = False
-        self.acquisition.enable_scaling(self.domain)
+        self.acquisition.enable_scaling(domain)
         self.assertTrue(
-            all(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
+            all(m.wrapped.X.value in GPflowOpt.domain.UnitCube(domain.size) for m in self.acquisition.models))
         self.assertTrue(self.acquisition._needs_setup)
 
     def test_result_shape_tf(self):
         # Verify the returned shape of evaluate
-        design = GPflowOpt.design.RandomDesign(50, self.domain)
+        design = GPflowOpt.design.RandomDesign(50, domain)
 
         with tf.Graph().as_default():
             free_vars = tf.placeholder(tf.float64, [None])
@@ -147,25 +101,119 @@ class TestAcquisition(unittest.TestCase):
                 self.assertTrue(isinstance(tens, tf.Tensor), msg="no Tensor was returned")
 
     def test_result_shape_np(self):
-        design = GPflowOpt.design.RandomDesign(50, self.domain)
+        design = GPflowOpt.design.RandomDesign(50, domain)
         res = self.acquisition.evaluate(design.generate())
         self.assertTupleEqual(res.shape, (50, 1))
         res = self.acquisition.evaluate_with_gradients(design.generate())
         self.assertTrue(isinstance(res, tuple))
         self.assertTrue(len(res), 2)
         self.assertTupleEqual(res[0].shape, (50, 1))
-        self.assertTupleEqual(res[1].shape, (50, self.domain.size))
+        self.assertTupleEqual(res[1].shape, (50, domain.size))
+
+
+aggregations = list()
+aggregations.append(GPflowOpt.acquisition.AcquisitionSum([
+            GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)),
+            GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain))
+        ]))
+aggregations.append(GPflowOpt.acquisition.AcquisitionProduct([
+            GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)),
+            GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain))
+        ]))
+aggregations.append(GPflowOpt.acquisition.MCMCAcquistion(
+    GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)), 5)
+)
+
+
+class TestAcquisitionAggregation(unittest.TestCase):
+    @parameterized.expand(list(zip(aggregations)))
+    def test_object_integrity(self, acquisition):
+        for oper in acquisition.operands:
+            self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
+                            msg="All operands should be an acquisition object")
+        self.assertEqual(len(acquisition._default_params), 0)
+        self.assertTrue(all(isinstance(m, GPflow.model.GPModel) for m in acquisition.models.sorted_params))
+
+    @parameterized.expand(list(zip(aggregations)))
+    def test_data(self, acquisition):
+        np.testing.assert_allclose(acquisition.data[0], acquisition[0].data[0],
+                                   err_msg="Samples should be equal for all operands")
+        np.testing.assert_allclose(acquisition.data[0], acquisition[1].data[0],
+                                   err_msg="Samples should be equal for all operands")
+
+        Y = np.hstack(map(lambda model: model.Y.value, acquisition.models))
+        np.testing.assert_allclose(acquisition.data[1], Y, err_msg="Value should be horizontally concatenated")
+
+    @parameterized.expand(list(zip(aggregations)))
+    def test_enable_scaling(self, acquisition):
+        for oper in acquisition.operands:
+            self.assertFalse(any(m.wrapped.X.value in GPflowOpt.domain.UnitCube(2) for m in oper.models))
+        acquisition.enable_scaling(domain)
+        for oper in acquisition.operands:
+            self.assertTrue(all(m.wrapped.X.value in GPflowOpt.domain.UnitCube(2) for m in oper.models))
+
+    @parameterized.expand(list(zip([aggregations[0]])))
+    def test_sum_validity(self, acquisition):
+        design = GPflowOpt.design.FactorialDesign(4, domain)
+        m = create_parabola_model(domain)
+        single_ei = GPflowOpt.acquisition.ExpectedImprovement(m)
+        p1 = acquisition.evaluate(design.generate())
+        p2 = single_ei.evaluate(design.generate())
+        np.testing.assert_allclose(p2, p1 / 2, rtol=1e-3)
+
+    @parameterized.expand(list(zip([aggregations[1]])))
+    def test_product_validity(self, acquisition):
+        design = GPflowOpt.design.FactorialDesign(4, domain)
+        m = create_parabola_model(domain)
+        single_ei = GPflowOpt.acquisition.ExpectedImprovement(m)
+        p1 = acquisition.evaluate(design.generate())
+        p2 = single_ei.evaluate(design.generate())
+        np.testing.assert_allclose(p2, np.sqrt(p1), rtol=1e-3)
+
+    @parameterized.expand(list(zip(aggregations[0:2])))
+    def test_indices(self, acquisition):
+        np.testing.assert_allclose(acquisition.objective_indices(), np.arange(2, dtype=int))
+        np.testing.assert_allclose(acquisition.constraint_indices(), np.arange(0, dtype=int))
+
+    def test_generating_operators(self):
+        joint = GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)) + \
+                GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain))
+        self.assertTrue(isinstance(joint, GPflowOpt.acquisition.AcquisitionSum))
+
+        joint = GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)) * \
+                GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain))
+        self.assertTrue(isinstance(joint, GPflowOpt.acquisition.AcquisitionProduct))
+
+    @parameterized.expand(list(zip([aggregations[2]])))
+    def test_hyper_updates(self, acquisition):
+        orig_hypers = [c.get_free_state() for c in acquisition.operands[1:]]
+        lik_start = acquisition.operands[0].models[0].compute_log_likelihood()
+        acquisition._optimize_models()
+        self.assertGreater(acquisition.operands[0].models[0].compute_log_likelihood(), lik_start)
+
+        for co, cn in zip(orig_hypers, [c.get_free_state() for c in acquisition.operands[1:]]):
+            self.assertFalse(np.allclose(co, cn))
+
+    @parameterized.expand(list(zip([aggregations[2]])))
+    def test_marginalized_score(self, acquisition):
+        acquisition._optimize_models()
+        acquisition.setup()
+        Xt = np.random.rand(20, 2) * 2 - 1
+        ei_mle = acquisition.operands[0].evaluate(Xt)
+        ei_mcmc = acquisition.evaluate(Xt)
+        np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
+
+    @parameterized.expand(list(zip([aggregations[2]])))
+    def test_mcmc_acq_models(self, acquisition):
+        self.assertListEqual(acquisition.models.sorted_params, acquisition.operands[0].models.sorted_params)
 
 
 class TestJointAcquisition(unittest.TestCase):
 
     _multiprocessing_can_split_ = True
 
-    def setUp(self):
-        self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
-
     def test_constrained_EI(self):
-        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
+        design = GPflowOpt.design.LatinHyperCube(16, domain)
         X = design.generate()
         Yo = parabola2d(X)
         Yc = -parabola2d(X) + 0.5
@@ -187,11 +235,11 @@ class TestJointAcquisition(unittest.TestCase):
                         msg="fmin computed incorrectly")
 
     def test_hierarchy(self):
-        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
+        design = GPflowOpt.design.LatinHyperCube(16, domain)
         X = design.generate()
         Yc = plane(X)
-        m1 = create_parabola_model(self.domain, design)
-        m2 = create_parabola_model(self.domain, design)
+        m1 = create_parabola_model(domain, design)
+        m2 = create_parabola_model(domain, design)
         m3 = GPflow.gpr.GPR(X, Yc, GPflow.kernels.RBF(2, ARD=True))
         joint = GPflowOpt.acquisition.ExpectedImprovement(m1) * \
                 (GPflowOpt.acquisition.ProbabilityOfFeasibility(m3)
@@ -201,7 +249,7 @@ class TestJointAcquisition(unittest.TestCase):
         np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
 
     def test_multi_aggr(self):
-        acq = [GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(self.domain)) for i in range(4)]
+        acq = [GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)) for i in range(4)]
         acq1, acq2, acq3, acq4 = acq
         joint = acq1 + acq2 + acq3
         self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionSum)
