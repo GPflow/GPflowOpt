@@ -36,7 +36,7 @@ class TestNotebooks(unittest.TestCase):
     def setUp(self):
         pythonkernel = 'python' + str(sys.version_info[0])
         # see http://nbconvert.readthedocs.io/en/stable/execute_api.html
-        self.ep = ExecutePreprocessor(timeout=120, kernel_name=pythonkernel, interrupt_on_timeout=True)
+        self.ep = ExecutePreprocessor(timeout=600, kernel_name=pythonkernel, interrupt_on_timeout=True)
 
     @parameterized.expand(lfiles)
     def test_notebook(self, notebook_filename):
