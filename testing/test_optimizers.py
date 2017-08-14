@@ -247,6 +247,7 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         with self.assertRaises(RuntimeError) as e:
             with self.optimizer.failsafe():
                 self.optimizer.acquisition.set_data(X, Y)
+                self.optimizer.acquisition.evaluate(X)
 
         fname = 'failed_bopt_{0}.npz'.format(id(e.exception))
         self.assertTrue(os.path.isfile(fname))
