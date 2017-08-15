@@ -123,10 +123,6 @@ class TestHVProbabilityOfImprovement(unittest.TestCase):
         self.assertEqual(len(self.acquisition.models), 2, msg="Model list has incorrect length.")
         for m1, m2 in zip(self.acquisition.models, self.model):
             self.assertEqual(m1, m2, msg="Incorrect model stored in ExpectedImprovement")
-        self.assertEqual(len(self.acquisition._default_params), 2)
-        for i in np.arange(2):
-            self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[i]), np.sort(np.array([0.5413] * 3)),
-                                        atol=1e-2), msg="Initial hypers improperly stored")
 
     def test_HvPoI_validity(self):
         scores = self.acquisition.evaluate(self.data['candidates'])

@@ -69,7 +69,6 @@ class Acquisition(Parameterized):
         """
         super(Acquisition, self).__init__()
         self._models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
-        self._default_params = list(map(lambda m: m.get_free_state(), self._models))
 
         assert (optimize_restarts >= 0)
         self.optimize_restarts = optimize_restarts
@@ -92,10 +91,11 @@ class Acquisition(Parameterized):
         if self.optimize_restarts == 0:
             return
 
-        for model, hypers in zip(self.models, self._default_params):
+        for model in self.models:
             runs = []
             for i in range(self.optimize_restarts):
-                model.randomize() if i > 0 else model.set_state(hypers)
+                if i > 0:
+                    model.randomize()
                 try:
                     result = model.optimize()
                     runs.append(result)
