@@ -25,9 +25,10 @@ float_type = settings.dtypes.float_type
 
 class DataScaler(ModelWrapper):
     """
-    Model-wrapping class, primarily intended to assure the data in GPflow models is scaled. One DataScaler wraps one
-    GPflow model, and can scale the input as well as the output data. By default, if any kind of object attribute
-    is not found in the datascaler object, it is searched on the wrapped model.
+    Model-wrapping class, primarily intended to assure the data in GPflow models is scaled.
+
+    One DataScaler wraps one GPflow model, and can scale the input as well as the output data. By default,
+    if any kind of object attribute is not found in the datascaler object, it is searched on the wrapped model.
 
     The datascaler supports both input as well as output scaling, although both scalings are set up differently:
 
