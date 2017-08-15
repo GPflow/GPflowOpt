@@ -17,13 +17,13 @@ from GPflow.model import Model
 
 class ModelWrapper(Parameterized):
     """
-    Class for fast implementation of a wrapper for models defined in GPflow. Once wrapped, all lookups for attributes
-    which are not found in the wrapper class are automatically forwarded to the wrapped model.
+    Class for fast implementation of a wrapper for models defined in GPflow.
 
-    To influence the I/O of methods on the wrapped class, simply implement the method in the wrapper and call the
-    appropriate methods on the wrapped class. Specific logic is included to make sure that if AutoFlow methods are
-    influenced following this pattern, the original AF storage (if existing) is unaffected and a new storage is added
-    to the subclass.
+    Once wrapped, all lookups for attributes which are not found in the wrapper class are automatically forwarded
+    to the wrapped model. To influence the I/O of methods on the wrapped class, simply implement the method in the
+    wrapper and call the appropriate methods on the wrapped class. Specific logic is included to make sure that if
+    AutoFlow methods are influenced following this pattern, the original AF storage (if existing) is unaffected and a
+    new storage is added to the subclass.
     """
     def __init__(self, model):
         """
@@ -49,8 +49,12 @@ class ModelWrapper(Parameterized):
 
     def __setattr__(self, key, value):
         """
-        1) If setting :attr:`wrapped` attribute, point parent to this object (the datascaler).
-        2) If setting the recompilation attribute, always do this on the wrapped class.
+        1) If setting :attr:`wrapped` attribute, point parent to this object (the ModelWrapper).
+        2) Setting attributes in the right objects. The following rules are processed in order:
+           (a) If attribute exists in wrapper, set in wrapper.
+           (b) If not object wrapped yet, set in wrapper.
+           (c) If attribute is found in the wrapped object, set it there. This rule is ignored for AF storages.
+           (d) Set attribute in wrapper.
         """
         if key is 'wrapped':
             object.__setattr__(self, key, value)
@@ -82,5 +86,7 @@ class ModelWrapper(Parameterized):
     def __eq__(self, other):
         return self.wrapped == other
 
-    def __str__(self, prepend=''):
-        return self.wrapped.__str__(prepend)
+    @Parameterized.name.getter
+    def name(self):
+        name = super(ModelWrapper, self).name
+        return ".".join([name, str.lower(self.__class__.__name__)])

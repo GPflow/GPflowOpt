@@ -50,7 +50,9 @@ class Acquisition(Parameterized):
         :param optimize_restarts: number of optimization restarts to use when training the models
         """
         super(Acquisition, self).__init__()
-        self._models = ParamList([DataScaler(m) for m in np.atleast_1d(models).tolist()])
+        models = np.atleast_1d(models)
+        assert all(isinstance(model, (Model, ModelWrapper)) for model in models)
+        self._models = ParamList([DataScaler(m) for m in models])
 
         assert (optimize_restarts >= 0)
         self.optimize_restarts = optimize_restarts

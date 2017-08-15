@@ -109,6 +109,15 @@ class TestModelWrapper(unittest.TestCase):
         self.assertTrue('foo' in n.wrapped.__dict__)
         self.assertFalse('foo' in n.wrapped.wrapped.__dict__)
 
+    def test_name(self):
+        n = GPflowOpt.models.ModelWrapper(self.simple_model())
+        self.assertEqual(n.name, 'unnamed.modelwrapper')
+        p = GPflow.param.Parameterized()
+        p.model = n
+        self.assertEqual(n.name, 'model.modelwrapper')
+        n = MethodOverride(self.simple_model())
+        self.assertEqual(n.name, 'unnamed.methodoverride')
+
 
 
 
