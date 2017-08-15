@@ -9,7 +9,6 @@ import os
 def parabola2d(X):
     return np.atleast_2d(np.sum(X ** 2, axis=1)).T
 
-
 def plane(X):
     return X[:, [0]] - 0.5
 
@@ -116,16 +115,11 @@ class _TestAcquisition(object):
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
-        self.assertEqual(len(self.acquisition._default_params), 1)
-        self.assertTrue(
-            np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413] * 4)), atol=1e-2),
-            msg="Initial hypers improperly stored")
 
     def test_enable_scaling(self):
         self.assertFalse(
             any(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
         self.acquisition.enable_scaling(self.domain)
-        print(self.acquisition.models[0].wrapped.X.value)
         self.assertTrue(
             all(m.wrapped.X.value in GPflowOpt.domain.UnitCube(self.domain.size) for m in self.acquisition.models))
 
@@ -248,10 +242,6 @@ class TestHVProbabilityOfImprovement(_TestAcquisition, unittest.TestCase):
         self.assertEqual(len(self.acquisition.models), 2, msg="Model list has incorrect length.")
         for m1, m2 in zip(self.acquisition.models, self.model):
             self.assertEqual(m1, m2, msg="Incorrect model stored in ExpectedImprovement")
-        self.assertEqual(len(self.acquisition._default_params), 2)
-        for i in np.arange(2):
-            self.assertTrue(np.allclose(np.sort(self.acquisition._default_params[i]), np.sort(np.array([0.5413] * 3)),
-                                        atol=1e-2), msg="Initial hypers improperly stored")
 
     def test_hvpoi_validity(self):
         scores = self.acquisition.evaluate(self.candidates)
@@ -268,7 +258,6 @@ class _TestAcquisitionAggregation(_TestAcquisition):
         for oper in self.acquisition.operands:
             self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
                             msg="All operands should be an acquisition object")
-        self.assertEqual(len(self.acquisition._default_params), 0)
         self.assertListEqual(self.acquisition.models.sorted_params, self.models)
 
     def test_data(self):
