@@ -2,9 +2,9 @@
 Introduction
 ------------
 
-`GPflowOpt <https://github.com/GPflow/GPflowOpt/>`_ is a library for Bayesian Optimization with `GPflow <https://github.com/GPflow/GPflow/>`_. It makes use of TensorFlow for computation of acquisition functions,
-to offer scalability, and avoid implementation of gradients. The package was created, and is currently maintained
-by `Joachim van der Herten <http://sumo.intec.ugent.be/jvanderherten>`_ and `Ivo Couckuyt <http://sumo.intec.ugent.be/icouckuy>`_
+`GPflowOpt <https://github.com/GPflow/GPflowOpt/>`_ is a library for Bayesian Optimization with `GPflow <https://github.com/GPflow/GPflow/>`_.
+It makes use of TensorFlow for computation of acquisition functions, to offer scalability, and avoid implementation of gradients.
+The package was created, and is currently maintained by `Joachim van der Herten <http://sumo.intec.ugent.be/jvanderherten>`_ and `Ivo Couckuyt <http://sumo.intec.ugent.be/icouckuy>`_
 
 Currently the software is pre-release and under construction, hence it lacks a lot of functionality and testing. This documentation
 is also incomplete and under development. The project is open source: if you feel you have some relevant skills and are interested in
@@ -22,15 +22,17 @@ For alternative installations, please see the instructions on the main `TensorFl
 
 2. Install package
 
-GPflowOpt is a pure python library so you could just add it to your python path. We use
-
-``pip  install -e . --process-dependency-links``
-
 A straightforward way to install GPflowOpt including all of its dependencies:
 
 ``pip install . --process-dependency-links``
 
-3. Testing and documentation
+3. Development
+
+GPflowOpt is a pure python library so you could just add it to your python path. We use
+
+``pip  install -e . --process-dependency-links``
+
+4. Testing and documentation
 
 The tests require some additional dependencies that need to be installed first with
 ``pip install -e .[test]``. Afterwards the tests can be run with ``python setup.py test``.
