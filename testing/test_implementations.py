@@ -1,10 +1,45 @@
 import unittest
 import GPflowOpt
 import numpy as np
+from parameterized import parameterized
 from .utility import create_parabola_model, create_plane_model, create_vlmop2_model, parabola2d, load_data
+
+domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+acquisitions = [GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)),
+                GPflowOpt.acquisition.ProbabilityOfImprovement(create_parabola_model(domain)),
+                GPflowOpt.acquisition.ProbabilityOfFeasibility(create_parabola_model(domain)),
+                GPflowOpt.acquisition.LowerConfidenceBound(create_parabola_model(domain)),
+                GPflowOpt.acquisition.HVProbabilityOfImprovement([create_parabola_model(domain),
+                                                                  create_parabola_model(domain)])
+                ]
+
+
+class TestAcquisitionEvaluate(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
+
+    @parameterized.expand(list(zip(acquisitions)))
+    def test_evaluate(self, acquisition):
+        X = GPflowOpt.design.RandomDesign(10, domain).generate()
+        p = acquisition.evaluate(X)
+        self.assertTrue(isinstance(p, np.ndarray))
+        self.assertTupleEqual(p.shape, (10, 1))
+
+        q = acquisition.evaluate_with_gradients(X)
+        self.assertTrue(isinstance(q, tuple))
+        self.assertTrue(len(q), 2)
+        for i in q:
+            self.assertTrue(isinstance(i, np.ndarray))
+
+        self.assertTupleEqual(q[0].shape, (10, 1))
+        self.assertTrue(np.allclose(p, q[0]))
+        self.assertTupleEqual(q[1].shape, (10, 2))
 
 
 class TestExpectedImprovement(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
         self.model = create_parabola_model(self.domain)
@@ -42,6 +77,9 @@ class TestExpectedImprovement(unittest.TestCase):
 
 
 class TestProbabilityOfImprovement(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
         self.model = create_parabola_model(self.domain)
@@ -66,8 +104,22 @@ class TestProbabilityOfImprovement(unittest.TestCase):
         self.acquisition.setup()
         self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-1), msg="fmin not updated")
 
+    def test_PoI_validity(self):
+        Xcenter = np.random.rand(20, 2) * 0.25 - 0.125
+        X = np.random.rand(100, 2) * 2 - 1
+        hor_idx = np.abs(X[:, 0]) > 0.8
+        ver_idx = np.abs(X[:, 1]) > 0.8
+        Xborder = np.vstack((X[hor_idx, :], X[ver_idx, :]))
+        poi1 = self.acquisition.evaluate(Xborder)
+        poi2 = self.acquisition.evaluate(Xcenter)
+        self.assertGreater(np.min(poi2), np.max(poi1))
+        self.assertTrue(np.all(self.acquisition.feasible_data_index()), msg="EI does never invalidate points")
+
 
 class TestProbabilityOfFeasibility(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
         self.model = create_plane_model(self.domain)
@@ -86,6 +138,9 @@ class TestProbabilityOfFeasibility(unittest.TestCase):
 
 
 class TestLowerConfidenceBound(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
         self.model = create_plane_model(self.domain)
@@ -113,6 +168,8 @@ class TestLowerConfidenceBound(unittest.TestCase):
 
 
 class TestHVProbabilityOfImprovement(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
 
     def setUp(self):
         self.model = create_vlmop2_model()

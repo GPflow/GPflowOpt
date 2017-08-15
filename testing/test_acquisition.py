@@ -24,6 +24,8 @@ class SimpleAcquisition(GPflowOpt.acquisition.Acquisition):
 
 class TestAcquisition(unittest.TestCase):
 
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         self.model = create_parabola_model(domain)
         self.acquisition = SimpleAcquisition(self.model)
@@ -110,6 +112,16 @@ class TestAcquisition(unittest.TestCase):
         self.assertTupleEqual(res[0].shape, (50, 1))
         self.assertTupleEqual(res[1].shape, (50, domain.size))
 
+    def test_optimize(self):
+        self.acquisition.optimize_restarts = 0
+        state = self.acquisition.get_free_state()
+        self.acquisition._optimize_models()
+        self.assertTrue(np.allclose(state, self.acquisition.get_free_state()))
+
+        self.acquisition.optimize_restarts = 1
+        self.acquisition._optimize_models()
+        self.assertFalse(np.allclose(state, self.acquisition.get_free_state()))
+
 
 aggregations = list()
 aggregations.append(GPflowOpt.acquisition.AcquisitionSum([
@@ -126,6 +138,9 @@ aggregations.append(GPflowOpt.acquisition.MCMCAcquistion(
 
 
 class TestAcquisitionAggregation(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
+
     @parameterized.expand(list(zip(aggregations)))
     def test_object_integrity(self, acquisition):
         for oper in acquisition.operands:
