@@ -21,3 +21,5 @@ from . import transforms
 from . import scaling
 from . import objective
 from . import pareto
+
+from ._version import __version__
