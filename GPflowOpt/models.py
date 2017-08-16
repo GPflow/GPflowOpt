@@ -52,7 +52,7 @@ class ModelWrapper(Parameterized):
         1) If setting :attr:`wrapped` attribute, point parent to this object (the ModelWrapper).
         2) Setting attributes in the right objects. The following rules are processed in order:
            (a) If attribute exists in wrapper, set in wrapper.
-           (b) If not object wrapped yet, set in wrapper.
+           (b) If no object has been wrapped (wrapper is None), set attribute in the wrapper.
            (c) If attribute is found in the wrapped object, set it there. This rule is ignored for AF storages.
            (d) Set attribute in wrapper.
         """
