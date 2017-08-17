@@ -57,7 +57,6 @@ class ExpectedImprovement(Acquisition):
         :param model: GPflow model (single output) representing our belief of the objective
         """
         super(ExpectedImprovement, self).__init__(model)
-        assert (isinstance(model, Model))
         self.fmin = DataHolder(np.zeros(1))
         self.setup()
 

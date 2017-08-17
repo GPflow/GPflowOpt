@@ -12,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from GPflow.param import DataHolder, AutoFlow, Parameterized
-from GPflow.model import Model, GPModel
+from GPflow.param import DataHolder, AutoFlow
+from GPflow.model import GPModel
 from GPflow import settings
 import numpy as np
 from .transforms import LinearTransform, DataTransform
 from .domain import UnitCube
+from .models import ModelWrapper
 
 float_type = settings.dtypes.float_type
 
 
-class DataScaler(GPModel):
+class DataScaler(ModelWrapper):
     """
-    Model-wrapping class, primarily intended to assure the data in GPflow models is scaled. One DataScaler wraps one
-    GPflow model, and can scale the input as well as the output data. By default, if any kind of object attribute
-    is not found in the datascaler object, it is searched on the wrapped model.
+    Model-wrapping class, primarily intended to assure the data in GPflow models is scaled.
+
+    One DataScaler wraps one GPflow model, and can scale the input as well as the output data. By default,
+    if any kind of object attribute is not found in the datascaler object, it is searched on the wrapped model.
 
     The datascaler supports both input as well as output scaling, although both scalings are set up differently:
 
@@ -59,13 +61,8 @@ class DataScaler(GPModel):
         :param normalize_Y: (default: False) enable automatic scaling of output values to zero mean and unit
          variance.
         """
-        # model sanity checks
-        assert (model is not None)
-        assert (isinstance(model, GPModel))
-        self._parent = None
-
-        # Wrap model
-        self.wrapped = model
+        # model sanity checks, slightly stronger conditions than the wrapper
+        super(DataScaler, self).__init__(model)
 
         # Initial configuration of the datascaler
         n_inputs = model.X.shape[1]
@@ -74,34 +71,8 @@ class DataScaler(GPModel):
         self._normalize_Y = normalize_Y
         self._output_transform = LinearTransform(np.ones(n_outputs), np.zeros(n_outputs))
 
-        # The assignments in the constructor of GPModel take care of initial re-scaling of model data.
-        super(DataScaler, self).__init__(model.X.value, model.Y.value, None, None, 1, name=model.name+"_datascaler")
-        del self.kern
-        del self.mean_function
-        del self.likelihood
-
-    def __getattr__(self, item):
-        """
-        If an attribute is not found in this class, it is searched in the wrapped model
-        """
-        return self.wrapped.__getattribute__(item)
-
-    def __setattr__(self, key, value):
-        """
-        If setting :attr:`wrapped` attribute, point parent to this object (the datascaler)
-        """
-        if key is 'wrapped':
-            object.__setattr__(self, key, value)
-            value.__setattr__('_parent', self)
-            return
-
-        super(DataScaler, self).__setattr__(key, value)
-
-    def __eq__(self, other):
-        return self.wrapped == other
-
-    def __str__(self, prepend=''):
-        return self.wrapped.__str__(prepend)
+        self.X = model.X.value
+        self.Y = model.Y.value
 
     @property
     def input_transform(self):
@@ -217,6 +188,20 @@ class DataScaler(GPModel):
         return self.output_transform.build_backward(f), self.output_transform.build_backward_variance(var)
 
     @AutoFlow((float_type, [None, None]))
+    def predict_f(self, Xnew):
+        """
+        Compute the mean and variance of held-out data at the points Xnew
+        """
+        return self.build_predict(Xnew)
+
+    @AutoFlow((float_type, [None, None]))
+    def predict_f_full_cov(self, Xnew):
+        """
+        Compute the mean and variance of held-out data at the points Xnew
+        """
+        return self.build_predict(Xnew, full_cov=True)
+
+    @AutoFlow((float_type, [None, None]))
     def predict_y(self, Xnew):
         """
         Compute the mean and variance of held-out data at the points Xnew
@@ -230,6 +215,6 @@ class DataScaler(GPModel):
         """
         Compute the (log) density of the data Ynew at the points Xnew
         """
-        mu, var = self.build_predict(Xnew)
+        mu, var = self.wrapped.build_predict(self.input_transform.build_forward(Xnew))
         Ys = self.output_transform.build_forward(Ynew)
         return self.likelihood.predict_density(mu, var, Ys)
