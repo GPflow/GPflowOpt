@@ -22,7 +22,6 @@ def vlmop2(x):
     return np.hstack((y1, y2))
 
 
-
 class _TestAcquisition(object):
     """
     Defines some basic verifications for all acquisition functions. Test classes can derive from this
@@ -258,7 +257,7 @@ class _TestAcquisitionAggregation(_TestAcquisition):
         for oper in self.acquisition.operands:
             self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
                             msg="All operands should be an acquisition object")
-        self.assertListEqual(self.acquisition.models.sorted_params, self.models)
+        self.assertListEqual(self.acquisition.models, self.models)
 
     def test_data(self):
         super(_TestAcquisitionAggregation, self).test_data()
@@ -440,3 +439,25 @@ class TestJointAcquisition(unittest.TestCase):
         joint = first * second
         self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionProduct)
         self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3, acq4])
+
+
+class TestRecompile(unittest.TestCase):
+    """
+    Regression test for #37
+    """
+    def test_vgp(self):
+        domain = GPflowOpt.domain.UnitCube(2)
+        X = GPflowOpt.design.RandomDesign(10, domain).generate()
+        Y = np.sin(X[:,[0]])
+        m = GPflow.vgp.VGP(X, Y, GPflow.kernels.RBF(2), GPflow.likelihoods.Gaussian())
+        acq = GPflowOpt.acquisition.ExpectedImprovement(m)
+        self.assertFalse(m._needs_recompile)
+        acq.evaluate(GPflowOpt.design.RandomDesign(10, domain).generate())
+        self.assertTrue(hasattr(acq, '_evaluate_AF_storage'))
+
+        Xnew = GPflowOpt.design.RandomDesign(5, domain).generate()
+        Ynew = np.sin(Xnew[:,[0]])
+        acq.set_data(np.vstack((X, Xnew)), np.vstack((Y, Ynew)))
+        self.assertFalse(hasattr(acq, '_needs_recompile'))
+        self.assertFalse(hasattr(acq, '_evaluate_AF_storage'))
+        acq.evaluate(GPflowOpt.design.RandomDesign(10, domain).generate())

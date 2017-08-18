@@ -15,6 +15,28 @@ from GPflow.param import Parameterized
 from GPflow.model import Model
 
 
+class ParentHook(object):
+    def __init__(self, highest_parent, highest_model):
+        self._hp = highest_parent
+        self._hm = highest_model
+
+    def __getattr__(self, item):
+        if item is '_needs_recompile':
+            return getattr(self._hm, item)
+        return getattr(self._hp, item)
+
+    def __setattr__(self, key, value):
+        if key in ['_hp', '_hm']:
+            object.__setattr__(self, key, value)
+            return
+        if key is '_needs_recompile':
+            setattr(self._hm, key, value)
+            if value:
+                self._hp._kill_autoflow()
+        else:
+            setattr(self._hp, key, value)
+
+
 class ModelWrapper(Parameterized):
     """
     Class for fast implementation of a wrapper for models defined in GPflow.
@@ -25,6 +47,7 @@ class ModelWrapper(Parameterized):
     AutoFlow methods are influenced following this pattern, the original AF storage (if existing) is unaffected and a
     new storage is added to the subclass.
     """
+
     def __init__(self, model):
         """
         :param model: model to be wrapped
@@ -45,6 +68,7 @@ class ModelWrapper(Parameterized):
             method = item[1:].rstrip('_AF_storage')
             if method in dir(self):
                 raise AttributeError("{0} has no attribute {1}".format(self.__class__.__name__, item))
+
         return getattr(self.wrapped, item)
 
     def __setattr__(self, key, value):
@@ -90,3 +114,8 @@ class ModelWrapper(Parameterized):
     def name(self):
         name = super(ModelWrapper, self).name
         return ".".join([name, str.lower(self.__class__.__name__)])
+
+    @property
+    def highest_parent(self):
+        original_hp = super(ModelWrapper, self).highest_parent
+        return original_hp if isinstance(original_hp, ParentHook) else ParentHook(original_hp, self)

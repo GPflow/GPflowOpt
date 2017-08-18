@@ -142,7 +142,7 @@ class Acquisition(Parameterized):
         
         :return: list of GPflow models 
         """
-        return self._models
+        return self._models.sorted_params
 
     @property
     def data(self):
@@ -263,7 +263,7 @@ class AcquisitionAggregation(Acquisition):
 
     @Acquisition.models.getter
     def models(self):
-        return ParamList([model for acq in self.operands for model in acq.models.sorted_params])
+        return [model for acq in self.operands for model in acq.models]
 
     def enable_scaling(self, domain):
         for oper in self.operands:
