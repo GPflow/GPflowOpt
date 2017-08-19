@@ -61,9 +61,6 @@ class DataTransform(Parameterized):
         """
         raise NotImplementedError
 
-    def __str__(self):
-        raise NotImplementedError
-
 
 class LinearTransform(DataTransform):
     """
@@ -155,5 +152,3 @@ class LinearTransform(DataTransform):
         A_inv = np.linalg.inv(self.A.value.T)
         return LinearTransform(A_inv, -np.dot(self.b.value, A_inv))
 
-    def __str__(self):
-        return 'XA + b'
