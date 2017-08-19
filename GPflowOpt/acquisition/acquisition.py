@@ -29,10 +29,15 @@ from functools import wraps
 float_type = settings.dtypes.float_type
 
 
-def setup_required(af_method):
-    @wraps(af_method)
-    def runnable(*args, **kwargs):
-        hp = args[0].highest_parent
+def setup_required(method):
+    """
+    Decorator function to mark methods in Acquisition classes which require running setup if indicated by _needs_setup
+    :param method: acquisition method
+    """
+    @wraps(method)
+    def runnable(instance, *args, **kwargs):
+        assert isinstance(instance, Acquisition)
+        hp = instance.highest_parent
         if hp._needs_setup:
             # 1 - optimize
             hp._optimize_models()
@@ -41,7 +46,7 @@ def setup_required(af_method):
             # e.g. through feasible_data_index.
             hp._needs_setup = False
             hp.setup()
-        results = af_method(*args, **kwargs)
+        results = method(instance, *args, **kwargs)
         return results
 
     return runnable
@@ -53,14 +58,20 @@ class Acquisition(Parameterized):
     score indicating how promising a point is for evaluation.
 
     In Bayesian Optimization this function is typically optimized over the optimization domain
-    to determine the next point for evaluation.
+    to determine the next point for evaluation. An object of this class holds a list of GPflow models. Subclasses
+    implement a build_acquisition function which computes the acquisition function (usually from the predictive
+    distribution) using TensorFlow. Optionally, a method setup can be implemented which computes some quantities which
+    are used to compute the acquisition, but do not depend on candidate points.
 
-    An object of this class holds a list of GPflow models. Subclasses implement a build_acquisition function
-    which computes the acquisition function (usually from the predictive distribution) using TensorFlow.
-    Each model is automatically optimized when an acquisition object is constructed or when set_data is called.
+    Acquisition functions can be combined through addition or multiplication to construct joint criteria. For instance,
+    for constrained optimization. The objects then form a tree hierarchy.
 
-    Acquisition functions can be combined through addition or multiplication to construct joint criteria. 
-    For instance, for constrained optimization.
+    Acquisition models implement a lazy strategy to optimize models and run setup. This is implemented by a _needs_setup
+    attribute (similar to the _needs_recompile in GPflow). Calling set_data sets this flag to true. Calling methods
+    marked with the setup_require decorator (such as evaluate) optimize all models, then call setup if this flag is set.
+    In hierarchies, first acquisition objects handling constraint objectives are set up, then the objects handling
+    objectives.
+
     """
 
     def __init__(self, models=[], optimize_restarts=5):
@@ -261,7 +272,7 @@ class Acquisition(Parameterized):
     def __setattr__(self, key, value):
         super(Acquisition, self).__setattr__(key, value)
         if key is '_parent':
-            self._needs_setup = True
+            self.highest_parent._needs_setup = True
 
 
 class AcquisitionAggregation(Acquisition):
