@@ -29,24 +29,22 @@ from functools import wraps
 float_type = settings.dtypes.float_type
 
 
-class Setup(object):
-        
-    def __call__(self, af_method):
-        @wraps(af_method)
-        def runnable(*args, **kwargs):
-            hp = args[0].highest_parent
-            if hp._needs_setup:
-                # 1 - optimize
-                hp._optimize_models()
-                # 2 - setup
-                # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
-                # e.g. through feasible_data_index.
-                hp._needs_setup = False
-                hp.setup()
-            results = af_method(*args, **kwargs)
-            return results
+def setup_required(af_method):
+    @wraps(af_method)
+    def runnable(*args, **kwargs):
+        hp = args[0].highest_parent
+        if hp._needs_setup:
+            # 1 - optimize
+            hp._optimize_models()
+            # 2 - setup
+            # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
+            # e.g. through feasible_data_index.
+            hp._needs_setup = False
+            hp.setup()
+        results = af_method(*args, **kwargs)
+        return results
 
-        return runnable
+    return runnable
 
 
 class Acquisition(Parameterized):
@@ -212,7 +210,7 @@ class Acquisition(Parameterized):
         """
         pass
 
-    @Setup()
+    @setup_required
     @AutoFlow((float_type, [None, None]))
     def evaluate_with_gradients(self, Xcand):
         """
@@ -224,7 +222,7 @@ class Acquisition(Parameterized):
         acq = self.build_acquisition(Xcand)
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
-    @Setup()
+    @setup_required
     @AutoFlow((float_type, [None, None]))
     def evaluate(self, Xcand):
         """
