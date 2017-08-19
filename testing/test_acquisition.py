@@ -146,7 +146,7 @@ class TestAcquisitionAggregation(unittest.TestCase):
         for oper in acquisition.operands:
             self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
                             msg="All operands should be an acquisition object")
-        self.assertTrue(all(isinstance(m, GPflow.model.GPModel) for m in acquisition.models.sorted_params))
+        self.assertTrue(all(isinstance(m, GPflowOpt.models.ModelWrapper) for m in acquisition.models.sorted_params))
 
     @parameterized.expand(list(zip(aggregations)))
     def test_data(self, acquisition):

@@ -30,6 +30,7 @@ float_type = settings.dtypes.float_type
 
 
 class Setup(object):
+        
     def __call__(self, af_method):
         @wraps(af_method)
         def runnable(*args, **kwargs):
