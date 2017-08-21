@@ -16,6 +16,13 @@ from GPflow.model import Model
 
 
 class ParentHook(object):
+    """
+    Temporary solution for fixing the recompilation issues (#37, GPflow issue #442).
+
+    An object of this class is returned when highest_parent is called on a model, which holds references to the highest
+    parentable, as well as the highest model class. When setting the needs recompile flag, this is intercepted and
+    performed on the model. At the same time, kill autoflow is called on the highest parent.
+    """
     def __init__(self, highest_parent, highest_model):
         self._hp = highest_parent
         self._hm = highest_model
@@ -115,7 +122,10 @@ class ModelWrapper(Parameterized):
         name = super(ModelWrapper, self).name
         return ".".join([name, str.lower(self.__class__.__name__)])
 
-    @property
+    @Parameterized.highest_parent.getter
     def highest_parent(self):
+        """
+        Returns an instance of the ParentHook instead of the usual reference to a Parentable.
+        """
         original_hp = super(ModelWrapper, self).highest_parent
         return original_hp if isinstance(original_hp, ParentHook) else ParentHook(original_hp, self)
