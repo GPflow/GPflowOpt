@@ -146,4 +146,8 @@ class TestModelWrapper(unittest.TestCase):
         self.assertTrue(m._needs_recompile)
         self.assertFalse(hasattr(p.predictor, '_predict_f_AF_storage'))
 
+        self.assertEqual(m.highest_parent.get_free_state, p.get_free_state)
+        m.highest_parent._needs_setup = True
+        self.assertTrue(hasattr(p, '_needs_setup'))
+        self.assertTrue(p._needs_setup)
 
