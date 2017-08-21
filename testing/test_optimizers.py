@@ -288,6 +288,62 @@ class TestBayesianOptimizerConfigurations(unittest.TestCase):
         self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
         self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
 
+    def test_callback(self):
+        class DummyCallback(object):
+            def __init__(self):
+                self.counter = 0
+
+            def __call__(self, models):
+                self.counter += 1
+
+        c = DummyCallback()
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, iter_callback=c)
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=2)
+        self.assertEqual(c.counter, 2)
+
+    def test_callback_recompile(self):
+        class DummyCallback(object):
+            def __init__(self):
+                self.recompile = False
+
+            def __call__(self, models):
+                c = np.random.randint(2, 10)
+                models[0].kern.variance.prior = GPflow.priors.Gamma(c, 1./c)
+                self.recompile = models[0]._needs_recompile
+
+        c = DummyCallback()
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, iter_callback=c)
+        self.acquisition.evaluate(np.zeros((1,2))) # Make sure its run and setup to skip
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+        self.assertFalse(c.recompile)
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+        self.assertTrue(c.recompile)
+        self.assertFalse(self.acquisition.models[0]._needs_recompile)
+
+    def test_callback_recompile_mcmc(self):
+        class DummyCallback(object):
+            def __init__(self):
+                self.no_models = 0
+
+            def __call__(self, models):
+                c = np.random.randint(2, 10)
+                models[0].kern.variance.prior = GPflow.priors.Gamma(c, 1. / c)
+                self.no_models = len(models)
+
+        c = DummyCallback()
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, hyper_draws=5, iter_callback=c)
+        opers = optimizer.acquisition.operands
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+        self.assertEqual(c.no_models, 1)
+        self.assertEqual(id(opers[0]), id(optimizer.acquisition.operands[0]))
+        for op1, op2 in zip(opers[1:], optimizer.acquisition.operands[1:]):
+            self.assertNotEqual(id(op1), id(op2))
+        opers = optimizer.acquisition.operands
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+        self.assertEqual(id(opers[0]), id(optimizer.acquisition.operands[0]))
+        for op1, op2 in zip(opers[1:], optimizer.acquisition.operands[1:]):
+            self.assertNotEqual(id(op1), id(op2))
+
 
 class TestSilentOptimization(unittest.TestCase):
     @contextmanager
@@ -323,3 +379,4 @@ class TestSilentOptimization(unittest.TestCase):
                 opt.optimize(None)
                 output = out.getvalue().strip()
                 self.assertEqual(output, '')
+

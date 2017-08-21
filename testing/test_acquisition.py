@@ -218,9 +218,18 @@ class TestAcquisitionAggregation(unittest.TestCase):
         ei_mcmc = acquisition.evaluate(Xt)
         np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
 
-    @parameterized.expand(list(zip([aggregations[2]])))
-    def test_mcmc_acq_models(self, acquisition):
+    def test_mcmc_acq(self):
+        acquisition = GPflowOpt.acquisition.MCMCAcquistion(
+            GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)), 5)
+        for oper in acquisition.operands:
+            self.assertListEqual(acquisition.models, oper.models)
+            self.assertEqual(acquisition.operands[0], oper)
+        self.assertTrue(acquisition._needs_new_copies)
+        acquisition._optimize_models()
         self.assertListEqual(acquisition.models, acquisition.operands[0].models)
+        for oper in acquisition.operands[1:]:
+            self.assertNotEqual(acquisition.operands[0], oper)
+        self.assertFalse(acquisition._needs_new_copies)
 
 
 class TestJointAcquisition(unittest.TestCase):

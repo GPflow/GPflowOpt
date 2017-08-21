@@ -18,9 +18,9 @@ import numpy as np
 from scipy.optimize import OptimizeResult
 
 from .acquisition import Acquisition, MCMCAcquistion
-from .optim import Optimizer, SciPyOptimizer
-from .objective import ObjectiveWrapper
 from .design import Design, EmptyDesign
+from .objective import ObjectiveWrapper
+from .optim import Optimizer, SciPyOptimizer
 from .pareto import non_dominated_sort
 
 
@@ -32,7 +32,8 @@ class BayesianOptimizer(Optimizer):
     Additionally, it is configured with a separate optimizer for the acquisition function.
     """
 
-    def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=None):
+    def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=None,
+                 iter_callback=None):
         """
         :param Domain domain: The optimization space.
         :param Acquisition acquisition: The acquisition function to optimize over the domain.
@@ -51,6 +52,12 @@ class BayesianOptimizer(Optimizer):
             are obtained using Hamiltonian MC.
             (see `GPflow documentation <https://gpflow.readthedocs.io/en/latest//>`_ for details) for each model.
             The acquisition score is computed for each draw, and averaged.
+        :param callable iter_callback: (optional) this function or object will be called after each evaluate, after the
+            data of all models has been updated with all models as retrieved by acquisition.models as argument without
+            the wrapping model handling any scaling . This allows custom model optimization strategies to be implemented.
+            All manipulations of GPflow models are permitted. Combined with the optimize_restarts parameter of
+            :class:`~.Acquisition` this allows several scenarios: do the optimization manually from the callback
+            (optimize_restarts equals zero),  orchoose the starting point + some random restarts (optimize_restarts > 0).
         """
         assert isinstance(acquisition, Acquisition)
         assert hyper_draws is None or hyper_draws > 0
@@ -69,6 +76,8 @@ class BayesianOptimizer(Optimizer):
         initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
 
+        self._iter_callback = iter_callback
+
     @Optimizer.domain.setter
     def domain(self, dom):
         assert (self.domain.size == dom.size)
@@ -86,6 +95,8 @@ class BayesianOptimizer(Optimizer):
         assert self.acquisition.data[0].shape[1] == newX.shape[-1]
         assert self.acquisition.data[1].shape[1] == newY.shape[-1]
         assert newX.shape[0] == newY.shape[0]
+        if newX.size == 0:
+            return
         X = np.vstack((self.acquisition.data[0], newX))
         Y = np.vstack((self.acquisition.data[1], newY))
         self.acquisition.set_data(X, Y)
@@ -175,8 +186,7 @@ class BayesianOptimizer(Optimizer):
         :return: OptimizeResult object
         """
 
-        assert(isinstance(fx, ObjectiveWrapper))
-
+        assert (isinstance(fx, ObjectiveWrapper))
         # Evaluate and add the initial design (if any)
         initial = self.get_initial()
         values = fx(initial)
@@ -190,6 +200,10 @@ class BayesianOptimizer(Optimizer):
 
         # Optimization loop
         for i in range(n_iter):
+            # If callback specified, and acquisition has the setup flag enabled (indicating an upcoming compilation,
+            # run the callback.
+            if self._iter_callback and self.acquisition._needs_setup:
+                self._iter_callback([m.wrapped for m in self.acquisition.models])
             result = self.optimizer.optimize(inverse_acquisition)
             self._update_model_data(result.x, fx(result.x))
 
