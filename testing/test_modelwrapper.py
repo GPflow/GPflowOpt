@@ -2,6 +2,7 @@ import GPflowOpt
 import unittest
 import GPflow
 import numpy as np
+from .utility import create_parabola_model
 
 float_type = GPflow.settings.dtypes.float_type
 
@@ -39,55 +40,47 @@ class MethodOverride(GPflowOpt.models.ModelWrapper):
 
 class TestModelWrapper(unittest.TestCase):
 
-    def simple_model(self):
-        x = np.random.rand(10,2) * 2 * np.pi
-        y = np.sin(x[:,[0]])
-        m = GPflow.gpr.GPR(x,y, kern=GPflow.kernels.RBF(1))
-        return m
+    def setUp(self):
+        self.m = create_parabola_model(GPflowOpt.domain.UnitCube(2))
 
     def test_object_integrity(self):
-        m = self.simple_model()
-        w = GPflowOpt.models.ModelWrapper(m)
-        self.assertEqual(w.wrapped, m)
-        self.assertEqual(m._parent, w)
-        self.assertEqual(w.optimize, m.optimize)
+        w = GPflowOpt.models.ModelWrapper(self.m)
+        self.assertEqual(w.wrapped, self.m)
+        self.assertEqual(self.m._parent, w)
+        self.assertEqual(w.optimize, self.m.optimize)
 
     def test_optimize(self):
-        m = self.simple_model()
-        w = GPflowOpt.models.ModelWrapper(m)
-        logL = m.compute_log_likelihood()
+        w = GPflowOpt.models.ModelWrapper(self.m)
+        logL = self.m.compute_log_likelihood()
         self.assertTrue(np.allclose(logL, w.compute_log_likelihood()))
 
         # Check if compiled & optimized, verify attributes are set in the right object.
         w.optimize(maxiter=5)
-        self.assertTrue(hasattr(m, '_minusF'))
+        self.assertTrue(hasattr(self.m, '_minusF'))
         self.assertFalse('_minusF' in w.__dict__)
-        self.assertGreater(m.compute_log_likelihood(), logL)
+        self.assertGreater(self.m.compute_log_likelihood(), logL)
 
     def test_af_storage_detection(self):
         # Regression test for a bug with predict_f/predict_y... etc.
-        m = self.simple_model()
         x = np.random.rand(10,2)
-        m.predict_f(x)
-        self.assertTrue(hasattr(m, '_predict_f_AF_storage'))
-        w = MethodOverride(m)
+        self.m.predict_f(x)
+        self.assertTrue(hasattr(self.m, '_predict_f_AF_storage'))
+        w = MethodOverride(self.m)
         self.assertFalse(hasattr(w, '_predict_f_AF_storage'))
         w.predict_f(x)
         self.assertTrue(hasattr(w, '_predict_f_AF_storage'))
 
     def test_set_wrapped_attributes(self):
         # Regression test for setting certain keys in the right object
-        m = self.simple_model()
-        w = GPflowOpt.models.ModelWrapper(m)
+        w = GPflowOpt.models.ModelWrapper(self.m)
         w._needs_recompile = False
         self.assertFalse('_needs_recompile' in w.__dict__)
-        self.assertTrue('_needs_recompile' in m.__dict__)
+        self.assertTrue('_needs_recompile' in self.m.__dict__)
         self.assertFalse(w._needs_recompile)
-        self.assertFalse(m._needs_recompile)
+        self.assertFalse(self.m._needs_recompile)
 
     def test_double_wrap(self):
-        m = self.simple_model()
-        n = GPflowOpt.models.ModelWrapper(MethodOverride(m))
+        n = GPflowOpt.models.ModelWrapper(MethodOverride(self.m))
         n.optimize(maxiter=10)
         Xt = np.random.rand(10, 2)
         n.predict_f(Xt)
@@ -95,7 +88,7 @@ class TestModelWrapper(unittest.TestCase):
         self.assertTrue('_predict_f_AF_storage' in n.wrapped.__dict__)
         self.assertFalse('_predict_f_AF_storage' in n.wrapped.wrapped.__dict__)
 
-        n = MethodOverride(GPflowOpt.models.ModelWrapper(m))
+        n = MethodOverride(GPflowOpt.models.ModelWrapper(self.m))
         Xn = np.random.rand(10, 2)
         Yn = np.random.rand(10, 1)
         n.X = Xn
@@ -110,40 +103,39 @@ class TestModelWrapper(unittest.TestCase):
         self.assertFalse('foo' in n.wrapped.wrapped.__dict__)
 
     def test_name(self):
-        n = GPflowOpt.models.ModelWrapper(self.simple_model())
+        n = GPflowOpt.models.ModelWrapper(self.m)
         self.assertEqual(n.name, 'unnamed.modelwrapper')
         p = GPflow.param.Parameterized()
         p.model = n
         self.assertEqual(n.name, 'model.modelwrapper')
-        n = MethodOverride(self.simple_model())
+        n = MethodOverride(create_parabola_model(GPflowOpt.domain.UnitCube(2)))
         self.assertEqual(n.name, 'unnamed.methodoverride')
 
     def test_parent_hook(self):
-        m = self.simple_model()
-        m.optimize(maxiter=5)
-        w = GPflowOpt.models.ModelWrapper(m)
-        self.assertTrue(isinstance(m.highest_parent, GPflowOpt.models.ParentHook))
-        self.assertEqual(m.highest_parent._hp, w)
-        self.assertEqual(m.highest_parent._hm, w)
+        self.m.optimize(maxiter=5)
+        w = GPflowOpt.models.ModelWrapper(self.m)
+        self.assertTrue(isinstance(self.m.highest_parent, GPflowOpt.models.ParentHook))
+        self.assertEqual(self.m.highest_parent._hp, w)
+        self.assertEqual(self.m.highest_parent._hm, w)
 
         w2 = GPflowOpt.models.ModelWrapper(w)
-        self.assertEqual(m.highest_parent._hp, w2)
-        self.assertEqual(m.highest_parent._hm, w2)
+        self.assertEqual(self.m.highest_parent._hp, w2)
+        self.assertEqual(self.m.highest_parent._hm, w2)
 
         p = GPflow.param.Parameterized()
         p.model = w2
-        self.assertEqual(m.highest_parent._hp, p)
-        self.assertEqual(m.highest_parent._hm, w2)
+        self.assertEqual(self.m.highest_parent._hp, p)
+        self.assertEqual(self.m.highest_parent._hm, w2)
 
-        p.predictor = self.simple_model()
+        p.predictor = create_parabola_model(GPflowOpt.domain.UnitCube(2))
         p.predictor.predict_f(p.predictor.X.value)
         self.assertTrue(hasattr(p.predictor, '_predict_f_AF_storage'))
-        self.assertFalse(m._needs_recompile)
-        m.highest_parent._needs_recompile = True
+        self.assertFalse(self.m._needs_recompile)
+        self.m.highest_parent._needs_recompile = True
         self.assertFalse('_needs_recompile' in p.__dict__)
         self.assertFalse('_needs_recompile' in w.__dict__)
         self.assertFalse('_needs_recompile' in w2.__dict__)
-        self.assertTrue(m._needs_recompile)
+        self.assertTrue(self.m._needs_recompile)
         self.assertFalse(hasattr(p.predictor, '_predict_f_AF_storage'))
 
 
