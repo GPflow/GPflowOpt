@@ -45,7 +45,7 @@ def setup_required(method):
             # 2 - setup
             # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
             # e.g. through feasible_data_index.
-            hp.setup()
+            hp._setup()
         results = method(instance, *args, **kwargs)
         return results
 
@@ -213,11 +213,14 @@ class Acquisition(Parameterized):
         """
         return np.ones(self.data[0].shape[0], dtype=bool)
 
-    def setup(self):
+    def _setup(self):
         """
         Pre-calculation of quantities used later in the evaluation of the acquisition function for candidate points.
         
-        Automatically triggered by :meth:`~.Acquisition.set_data`.
+        Subclasses can implement this method to compute quantites (such as fmin). The decision when to run this function
+        is governed by the acquisition class, based on the setup_required decorator on methods and methods which require
+        setup to be run (e.g. set_data). This method shouldn't be called directly as the results are likely to be
+        overwritten at a later point when the Acquisition object decides to run the method.
         """
         pass
 
@@ -226,14 +229,14 @@ class Acquisition(Parameterized):
         Run only if some outputs handled by this acquisition are constraints. Used in aggregation.
         """
         if self.constraint_indices().size > 0:
-            self.setup()
+            self._setup()
 
     def _setup_objectives(self):
         """
         Run only if all outputs handled by this acquisition are objectives. Used in aggregation.
         """
         if self.constraint_indices().size == 0:
-            self.setup()
+            self._setup()
 
     @setup_required
     @AutoFlow((float_type, [None, None]))
@@ -331,7 +334,7 @@ class AcquisitionAggregation(Acquisition):
         for oper in self.operands:
             oper._setup_objectives()
 
-    def setup(self):
+    def _setup(self):
         # First setup acquisitions involving constraints
         self._setup_constraints()
         # Then objectives

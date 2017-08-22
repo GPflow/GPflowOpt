@@ -51,7 +51,7 @@ class TestExpectedImprovement(unittest.TestCase):
 
     def test_setup(self):
         self.acquisition._optimize_models()
-        self.acquisition.setup()
+        self.acquisition._setup()
         fmin = np.min(self.acquisition.data[1])
         self.assertGreater(self.acquisition.fmin.value, 0, msg="The minimum (0) is not amongst the design.")
         self.assertTrue(np.allclose(self.acquisition.fmin.value, fmin, atol=1e-2), msg="fmin computed incorrectly")
@@ -61,7 +61,7 @@ class TestExpectedImprovement(unittest.TestCase):
         self.acquisition.set_data(np.vstack((self.acquisition.data[0], p)),
                                   np.vstack((self.acquisition.data[1], parabola2d(p))))
         self.acquisition._optimize_models()
-        self.acquisition.setup()
+        self.acquisition._setup()
         self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-1), msg="fmin not updated")
 
     def test_EI_validity(self):
@@ -91,7 +91,7 @@ class TestProbabilityOfImprovement(unittest.TestCase):
 
     def test_setup(self):
         self.acquisition._optimize_models()
-        self.acquisition.setup()
+        self.acquisition._setup()
         fmin = np.min(self.acquisition.data[1])
         self.assertGreater(self.acquisition.fmin.value, 0, msg="The minimum (0) is not amongst the design.")
         self.assertTrue(np.allclose(self.acquisition.fmin.value, fmin, atol=1e-2), msg="fmin computed incorrectly")
@@ -101,7 +101,7 @@ class TestProbabilityOfImprovement(unittest.TestCase):
         self.acquisition.set_data(np.vstack((self.acquisition.data[0], p)),
                                   np.vstack((self.acquisition.data[1], parabola2d(p))))
         self.acquisition._optimize_models()
-        self.acquisition.setup()
+        self.acquisition._setup()
         self.assertTrue(np.allclose(self.acquisition.fmin.value, 0, atol=1e-1), msg="fmin not updated")
 
     def test_PoI_validity(self):
