@@ -90,7 +90,7 @@ class DataScaler(ModelWrapper):
         
         :param t: :class:`.DataTransform` object: the new input transform.
         """
-        assert (isinstance(t, DataTransform))
+        assert isinstance(t, DataTransform)
         X = self.X.value
         self._input_transform.assign(t)
         self.X = X
