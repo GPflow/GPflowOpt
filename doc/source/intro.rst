@@ -12,27 +12,22 @@ contributing then please contact us on `GitHub <https://github.com/GPflow/GPflow
 
 Install
 --------
-1. Install TensorFlow
+1. Install package
 
-We find that for many users pip installation is the fastest way to get going:
-
-``pip install tensorflow``
-
-For alternative installations, please see the instructions on the main `TensorFlow webpage <https://www.tensorflow.org/install/>`_.
-
-2. Install package
-
-A straightforward way to install GPflowOpt including all of its dependencies:
+A straightforward way to install GPflowOpt is to clone its repository and run
 
 ``pip install . --process-dependency-links``
 
-3. Development
+in the root folder. This also installs required dependencies including TensorFlow.
+For alternative TensorFlow installations (e.g., gpu), please see the instructions on the main `TensorFlow webpage <https://www.tensorflow.org/install/>`_.
+
+2. Development
 
 GPflowOpt is a pure python library so you could just add it to your python path. We use
 
 ``pip  install -e . --process-dependency-links``
 
-4. Testing and documentation
+3. Testing and documentation
 
 The tests require some additional dependencies that need to be installed first with
 ``pip install -e .[test]``. Afterwards the tests can be run with ``python setup.py test``.
