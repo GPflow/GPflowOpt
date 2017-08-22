@@ -230,7 +230,7 @@ class TestAcquisitionAggregation(unittest.TestCase):
         for oper in acquisition.operands[1:]:
             self.assertNotEqual(acquisition.operands[0], oper)
         self.assertFalse(acquisition._needs_new_copies)
-        acquisition.setup()
+        acquisition._setup()
         Xt = np.random.rand(20, 2) * 2 - 1
         ei_mle = acquisition.operands[0].evaluate(Xt)
         ei_mcmc = acquisition.evaluate(Xt)
