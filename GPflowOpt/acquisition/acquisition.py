@@ -39,12 +39,12 @@ def setup_required(method):
         assert isinstance(instance, Acquisition)
         hp = instance.highest_parent
         if hp._needs_setup:
+            hp._needs_setup = False
             # 1 - optimize
             hp._optimize_models()
             # 2 - setup
             # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
             # e.g. through feasible_data_index.
-            hp._needs_setup = False
             hp.setup()
         results = method(instance, *args, **kwargs)
         return results
