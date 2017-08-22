@@ -14,8 +14,8 @@ class SimpleAcquisition(GPflowOpt.acquisition.Acquisition):
         super(SimpleAcquisition, self).__init__(model)
         self.counter = 0
 
-    def setup(self):
-        super(SimpleAcquisition, self).setup()
+    def _setup(self):
+        super(SimpleAcquisition, self)._setup()
         self.counter += 1
 
     def build_acquisition(self, Xcand):
@@ -33,7 +33,7 @@ class TestAcquisition(unittest.TestCase):
     def run_setup(self):
         # Optimize models & perform acquisition setup call.
         self.acquisition._optimize_models()
-        self.acquisition.setup()
+        self.acquisition._setup()
 
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
@@ -212,7 +212,7 @@ class TestAcquisitionAggregation(unittest.TestCase):
     @parameterized.expand(list(zip([aggregations[2]])))
     def test_marginalized_score(self, acquisition):
         acquisition._optimize_models()
-        acquisition.setup()
+        acquisition._setup()
         Xt = np.random.rand(20, 2) * 2 - 1
         ei_mle = acquisition.operands[0].evaluate(Xt)
         ei_mcmc = acquisition.evaluate(Xt)
@@ -257,7 +257,7 @@ class TestJointAcquisition(unittest.TestCase):
 
         # Test proper setup
         joint._optimize_models()
-        joint.setup()
+        joint._setup()
         self.assertGreater(ei.fmin.value, np.min(ei.data[1]), msg="The best objective value is in an infeasible area")
         self.assertTrue(np.allclose(ei.fmin.value, np.min(ei.data[1][pof.feasible_data_index(), :]), atol=1e-3),
                         msg="fmin computed incorrectly")

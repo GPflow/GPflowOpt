@@ -72,7 +72,7 @@ class HVProbabilityOfImprovement(Acquisition):
         num_objectives = self.data[1].shape[1]
         assert num_objectives > 1
 
-        # Keep pareto empty for now - its updated in setup()
+        # Keep pareto empty for now - it is updated in setup()
         self.pareto = Pareto(np.empty((0, num_objectives)))
         self.reference = DataHolder(np.ones((1, num_objectives)))
 
@@ -81,11 +81,11 @@ class HVProbabilityOfImprovement(Acquisition):
         f = np.max(pf, axis=0, keepdims=True) - np.min(pf, axis=0, keepdims=True)
         return np.max(pf, axis=0, keepdims=True) + 2 * f / pf.shape[0]
 
-    def setup(self):
+    def _setup(self):
         """
         Pre-computes the Pareto set and cell bounds for integrating over the non-dominated region.
         """
-        super(HVProbabilityOfImprovement, self).setup()
+        super(HVProbabilityOfImprovement, self)._setup()
 
         # Obtain hypervolume cell bounds, use prediction mean
         feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]

@@ -37,10 +37,10 @@ class ProbabilityOfImprovement(Acquisition):
         """
         super(ProbabilityOfImprovement, self).__init__(model)
         self.fmin = DataHolder(np.zeros(1))
-        self.setup()
+        self._setup()
 
-    def setup(self):
-        super(ProbabilityOfImprovement, self).setup()
+    def _setup(self):
+        super(ProbabilityOfImprovement, self)._setup()
         feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
         samples_mean, _ = self.models[0].predict_f(feasible_samples)
         self.fmin.set_data(np.min(samples_mean, axis=0))

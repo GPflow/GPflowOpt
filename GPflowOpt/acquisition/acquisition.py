@@ -39,13 +39,13 @@ def setup_required(method):
         assert isinstance(instance, Acquisition)
         hp = instance.highest_parent
         if hp._needs_setup:
+            hp._needs_setup = False
             # 1 - optimize
             hp._optimize_models()
             # 2 - setup
             # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
             # e.g. through feasible_data_index.
-            hp._needs_setup = False
-            hp.setup()
+            hp._setup()
         results = method(instance, *args, **kwargs)
         return results
 
@@ -213,13 +213,30 @@ class Acquisition(Parameterized):
         """
         return np.ones(self.data[0].shape[0], dtype=bool)
 
-    def setup(self):
+    def _setup(self):
         """
         Pre-calculation of quantities used later in the evaluation of the acquisition function for candidate points.
         
-        Automatically triggered by :meth:`~.Acquisition.set_data`.
+        Subclasses can implement this method to compute quantites (such as fmin). The decision when to run this function
+        is governed by the acquisition class, based on the setup_required decorator on methods and methods which require
+        setup to be run (e.g. set_data). This method shouldn't be called directly as the results are likely to be
+        overwritten at a later point when the Acquisition object decides to run the method.
         """
         pass
+
+    def _setup_constraints(self):
+        """
+        Run only if some outputs handled by this acquisition are constraints. Used in aggregation.
+        """
+        if self.constraint_indices().size > 0:
+            self._setup()
+
+    def _setup_objectives(self):
+        """
+        Run only if all outputs handled by this acquisition are objectives. Used in aggregation.
+        """
+        if self.constraint_indices().size == 0:
+            self._setup()
 
     @setup_required
     @AutoFlow((float_type, [None, None]))
@@ -310,15 +327,14 @@ class AcquisitionAggregation(Acquisition):
 
     def _setup_constraints(self):
         for oper in self.operands:
-            if oper.constraint_indices().size > 0:
-                oper._setup_constraints() if isinstance(oper, AcquisitionAggregation) else oper.setup()
+            if oper.constraint_indices().size > 0:  # Small optimization, skip subtrees with objectives only
+                oper._setup_constraints()
 
     def _setup_objectives(self):
         for oper in self.operands:
-            if oper.constraint_indices().size == 0:
-                oper._setup_objectives() if isinstance(oper, AcquisitionAggregation) else oper.setup()
+            oper._setup_objectives()
 
-    def setup(self):
+    def _setup(self):
         # First setup acquisitions involving constraints
         self._setup_constraints()
         # Then objectives
