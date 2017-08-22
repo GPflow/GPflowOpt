@@ -23,7 +23,7 @@ GPflowOpt's documentation is not comprehensive, but covers enough to get users s
 
 ## Keeping up with GPflow and TensorFlow
 
-GPflowOpt currently tries to keep up with the GPflow master, though at some point we will start depending on the latest released version. Hence, GPflowOpt also adheres to the api of the TensorFlow version as required by GPflow. In practice this hopefully means we will support the latest (stable) TensorFlow, which is supported by GPflow. Any change in the version of GPflow or TensorFlow will bump the minor version number of GPflowOpt.
+GPflowOpt currently tries to keep up with the GPflow master, though at some point we will start depending on the latest released version. Hence, GPflowOpt also adheres to the api of the TensorFlow version as required by GPflow. In practice this hopefully means we will support the latest (stable) TensorFlow, which is supported by GPflow. Any change in the supported version of GPflow or TensorFlow will bump the minor version number of GPflowOpt.
 
 Changing the minimum required version of TensorFlow that we're compatible with requires a few tasks:
  - update versions in `setup.py`
@@ -32,7 +32,7 @@ Changing the minimum required version of TensorFlow that we're compatible with r
  - Increment the GPflowOpt version (see below). 
 
 ## Version numbering
-The main purpose of versioning GPflowOpt is user convenience: to keep the number of releases down, we try to combine seversal PRs into one increment. As we work towards something that we might call 1.0, including changes to thhe GPflowOpt API. Minor version bumps (X.1) are used for updates to follow a new GPflow or TensorFlow API, or introduce incremental new features.
+The main purpose of versioning GPflowOpt is user convenience: to keep the number of releases down, we try to combine seversal PRs into one increment. As we work towards something that we might call 1.0, including changes to the GPflowOpt API. Minor version bumps (X.1) are used for updates to follow a new GPflow or TensorFlow API, or introduce incremental new features.
 When incrementing the version number, the following tasks are required:
  - Update the version in `GPflowOpt/_version.py`
  - Add a note to `RELEASE.md`
