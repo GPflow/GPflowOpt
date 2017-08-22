@@ -221,6 +221,20 @@ class Acquisition(Parameterized):
         """
         pass
 
+    def _setup_constraints(self):
+        """
+        Run only if some outputs handled by this acquisition are constraints. Used in aggregation.
+        """
+        if self.constraint_indices().size > 0:
+            self.setup()
+
+    def _setup_objectives(self):
+        """
+        Run only if all outputs handled by this acquisition are objectives. Used in aggregation.
+        """
+        if self.constraint_indices().size == 0:
+            self.setup()
+
     @setup_required
     @AutoFlow((float_type, [None, None]))
     def evaluate_with_gradients(self, Xcand):
@@ -310,13 +324,12 @@ class AcquisitionAggregation(Acquisition):
 
     def _setup_constraints(self):
         for oper in self.operands:
-            if oper.constraint_indices().size > 0:
-                oper._setup_constraints() if isinstance(oper, AcquisitionAggregation) else oper.setup()
+            if oper.constraint_indices().size > 0:  # Small optimization, skip subtrees with objectives only
+                oper._setup_constraints()
 
     def _setup_objectives(self):
         for oper in self.operands:
-            if oper.constraint_indices().size == 0:
-                oper._setup_objectives() if isinstance(oper, AcquisitionAggregation) else oper.setup()
+            oper._setup_objectives()
 
     def setup(self):
         # First setup acquisitions involving constraints
