@@ -214,8 +214,8 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         result = optimizer.optimize(vlmop2, n_iter=2)
         self.assertTrue(result.success)
         self.assertEqual(result.nfev, 2, "Only 2 evaluations permitted")
-        self.assertTupleEqual(result.x.shape, (9, 2))
-        self.assertTupleEqual(result.fun.shape, (9, 2))
+        self.assertTupleEqual(result.x.shape, (7, 2))
+        self.assertTupleEqual(result.fun.shape, (7, 2))
         _, dom = GPflowOpt.pareto.non_dominated_sort(result.fun)
         self.assertTrue(np.all(dom==0))
 
@@ -297,7 +297,7 @@ class TestBayesianOptimizerConfigurations(unittest.TestCase):
                 self.counter += 1
 
         c = DummyCallback()
-        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, iter_callback=c)
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, callback=c)
         result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=2)
         self.assertEqual(c.counter, 2)
 
@@ -312,7 +312,7 @@ class TestBayesianOptimizerConfigurations(unittest.TestCase):
                 self.recompile = models[0]._needs_recompile
 
         c = DummyCallback()
-        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, iter_callback=c)
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, callback=c)
         self.acquisition.evaluate(np.zeros((1,2))) # Make sure its run and setup to skip
         result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
         self.assertFalse(c.recompile)
@@ -331,7 +331,7 @@ class TestBayesianOptimizerConfigurations(unittest.TestCase):
                 self.no_models = len(models)
 
         c = DummyCallback()
-        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, hyper_draws=5, iter_callback=c)
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, hyper_draws=5, callback=c)
         opers = optimizer.acquisition.operands
         result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
         self.assertEqual(c.no_models, 1)

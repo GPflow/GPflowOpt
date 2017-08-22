@@ -375,8 +375,8 @@ class MCMCAcquistion(AcquisitionSum):
     """
     Apply MCMC over the hyperparameters of an acquisition function (= over the hyperparameters of the contained models).
     
-    The models passed into an object of this class are optimized with MLE, and then further sampled with HMC.
-    These hyperparameter samples are then set in copies of the acquisition.
+    The models passed into an object of this class are optimized with MLE (fast burn-in), and then further sampled with
+    HMC. These hyperparameter samples are then set in copies of the acquisition.
 
     For evaluating the underlying acquisition function, the predictions of the acquisition copies are averaged.
     """

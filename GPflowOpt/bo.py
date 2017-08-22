@@ -33,7 +33,7 @@ class BayesianOptimizer(Optimizer):
     """
 
     def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=None,
-                 iter_callback=None):
+                 callback=None):
         """
         :param Domain domain: The optimization space.
         :param Acquisition acquisition: The acquisition function to optimize over the domain.
@@ -52,7 +52,7 @@ class BayesianOptimizer(Optimizer):
             are obtained using Hamiltonian MC.
             (see `GPflow documentation <https://gpflow.readthedocs.io/en/latest//>`_ for details) for each model.
             The acquisition score is computed for each draw, and averaged.
-        :param callable iter_callback: (optional) this function or object will be called after each evaluate, after the
+        :param callable callback: (optional) this function or object will be called after each evaluate, after the
             data of all models has been updated with all models as retrieved by acquisition.models as argument without
             the wrapping model handling any scaling . This allows custom model optimization strategies to be implemented.
             All manipulations of GPflow models are permitted. Combined with the optimize_restarts parameter of
@@ -76,7 +76,7 @@ class BayesianOptimizer(Optimizer):
         initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
 
-        self._iter_callback = iter_callback
+        self._iter_callback = callback
 
     @Optimizer.domain.setter
     def domain(self, dom):

@@ -220,7 +220,7 @@ class TestAcquisitionAggregation(unittest.TestCase):
 
     def test_mcmc_acq(self):
         acquisition = GPflowOpt.acquisition.MCMCAcquistion(
-            GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)), 5)
+            GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)), 10)
         for oper in acquisition.operands:
             self.assertListEqual(acquisition.models, oper.models)
             self.assertEqual(acquisition.operands[0], oper)
@@ -230,7 +230,11 @@ class TestAcquisitionAggregation(unittest.TestCase):
         for oper in acquisition.operands[1:]:
             self.assertNotEqual(acquisition.operands[0], oper)
         self.assertFalse(acquisition._needs_new_copies)
-
+        acquisition.setup()
+        Xt = np.random.rand(20, 2) * 2 - 1
+        ei_mle = acquisition.operands[0].evaluate(Xt)
+        ei_mcmc = acquisition.evaluate(Xt)
+        np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
 
 class TestJointAcquisition(unittest.TestCase):
 
