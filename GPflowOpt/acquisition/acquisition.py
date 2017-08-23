@@ -39,12 +39,14 @@ def setup_required(method):
         assert isinstance(instance, Acquisition)
         hp = instance.highest_parent
         if hp._needs_setup:
-            hp._needs_setup = False
-            # 1 - optimize
-            hp._optimize_models()
-            # 2 - setup
             # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
             # e.g. through feasible_data_index.
+            hp._needs_setup = False
+
+            # 1 - optimize
+            hp._optimize_models()
+
+            # 2 - setup
             hp._setup()
         results = method(instance, *args, **kwargs)
         return results
@@ -67,11 +69,10 @@ class Acquisition(Parameterized):
     for constrained optimization. The objects then form a tree hierarchy.
 
     Acquisition models implement a lazy strategy to optimize models and run setup. This is implemented by a _needs_setup
-    attribute (similar to the _needs_recompile in GPflow). Calling set_data sets this flag to true. Calling methods
+    attribute (similar to the _needs_recompile in GPflow). Calling :meth:`set_data` sets this flag to True. Calling methods
     marked with the setup_require decorator (such as evaluate) optimize all models, then call setup if this flag is set.
     In hierarchies, first acquisition objects handling constraint objectives are set up, then the objects handling
     objectives.
-
     """
 
     def __init__(self, models=[], optimize_restarts=5):
@@ -92,8 +93,8 @@ class Acquisition(Parameterized):
         """
         Optimizes the hyperparameters of all models that the acquisition function is based on.
 
-        It is called automatically during initialization and each time set_data() is called.
-        When using the high-level :class:`..BayesianOptimizer` class calling set_data() is taken care of.
+        It is called automatically during initialization and each time :meth:`set_data` is called.
+        When using the high-level :class:`..BayesianOptimizer` class calling :meth:`set_data` is taken care of.
 
         For each model the hyperparameters of the model at the time it was passed to __init__() are used as initial
         point and optimized. If optimize_restarts is set to >1, additional randomization
@@ -127,6 +128,9 @@ class Acquisition(Parameterized):
         """
         Enables and configures the :class:`.DataScaler` objects wrapping the GP models.
         
+        Sets the _needs_setup attribute to True so the contained models are optimized and :meth:`setup` is run again
+        right before evaluating the :class:`Acquisition` function.
+
         :param domain: :class:`.Domain` object, the input transform of the data scalers is configured as a transform
             from domain to the unit cube with the same dimensionality.
         """
@@ -139,8 +143,10 @@ class Acquisition(Parameterized):
 
     def set_data(self, X, Y):
         """
-        Update the training data of the contained models. Automatically triggers a hyperparameter optimization
-        step by calling _optimize_all() and an update of pre-computed quantities by calling setup().
+        Update the training data of the contained models
+
+        Sets the _needs_setup attribute to True so the contained models are optimized and :meth:`setup` is run again
+        right before evaluating the :class:`Acquisition` function.
 
         Let Q be the the sum of the output dimensions of all contained models, Y should have a minimum of
         Q columns. Only the first Q columns of Y are used while returning the scalar Q
@@ -217,10 +223,9 @@ class Acquisition(Parameterized):
         """
         Pre-calculation of quantities used later in the evaluation of the acquisition function for candidate points.
         
-        Subclasses can implement this method to compute quantites (such as fmin). The decision when to run this function
-        is governed by the acquisition class, based on the setup_required decorator on methods and methods which require
-        setup to be run (e.g. set_data). This method shouldn't be called directly as the results are likely to be
-        overwritten at a later point when the Acquisition object decides to run the method.
+        Subclasses can implement this method to compute quantities (such as fmin). The decision when to run this function
+        is governed by :class:`Acquisition`, based on the setup_required decorator on methods which require
+        setup to be run (e.g. set_data).
         """
         pass
 
@@ -335,9 +340,9 @@ class AcquisitionAggregation(Acquisition):
             oper._setup_objectives()
 
     def _setup(self):
-        # First setup acquisitions involving constraints
+        # Important: First setup acquisitions involving constraints
         self._setup_constraints()
-        # Then objectives
+        # Then objectives as these might depend on the constraint acquisition
         self._setup_objectives()
 
     def constraint_indices(self):
@@ -420,7 +425,7 @@ class MCMCAcquistion(AcquisitionSum):
         # Sample each model of the acquisition function - results in a list of 2D ndarrays.
         hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
 
-        # Now visit all copies, and set state
+        # Now visit all acquisition copies, and set state
         for idx, draw in enumerate(self.operands):
             draw.set_state(hypers[idx, :])
 

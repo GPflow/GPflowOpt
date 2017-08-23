@@ -146,8 +146,7 @@ class TestAcquisitionAggregation(unittest.TestCase):
         for oper in acquisition.operands:
             self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
                             msg="All operands should be an acquisition object")
-            self.assertTrue(all(isinstance(m, GPflowOpt.models.ModelWrapper) for m in acquisition.models))
-
+        self.assertTrue(all(isinstance(m, GPflowOpt.models.ModelWrapper) for m in acquisition.models))
 
     @parameterized.expand(list(zip(aggregations)))
     def test_data(self, acquisition):
@@ -235,6 +234,7 @@ class TestAcquisitionAggregation(unittest.TestCase):
         ei_mle = acquisition.operands[0].evaluate(Xt)
         ei_mcmc = acquisition.evaluate(Xt)
         np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
+
 
 class TestJointAcquisition(unittest.TestCase):
 
@@ -325,6 +325,7 @@ class TestRecompile(unittest.TestCase):
         m = GPflow.vgp.VGP(X, Y, GPflow.kernels.RBF(2), GPflow.likelihoods.Gaussian())
         m._compile()
         acq = GPflowOpt.acquisition.ExpectedImprovement(m)
+        m._compile()
         self.assertFalse(m._needs_recompile)
         acq.evaluate(GPflowOpt.design.RandomDesign(10, domain).generate())
         self.assertTrue(hasattr(acq, '_evaluate_AF_storage'))
