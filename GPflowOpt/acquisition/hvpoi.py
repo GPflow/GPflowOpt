@@ -69,23 +69,27 @@ class HVProbabilityOfImprovement(Acquisition):
         :param models: A list of (possibly multioutput) GPflow representing our belief of the objectives.
         """
         super(HVProbabilityOfImprovement, self).__init__(models)
-        assert self.data[1].shape[1] > 1
-        self.pareto = Pareto(np.hstack((m.predict_f(self.data[0])[0] for m in self.models)))
-        self.reference = DataHolder(self._estimate_reference())
+        num_objectives = self.data[1].shape[1]
+        assert num_objectives > 1
+
+        # Keep empty for now - it is updated in _setup()
+        self.pareto = Pareto(np.empty((0, num_objectives)))
+        self.reference = DataHolder(np.ones((1, num_objectives)))
 
     def _estimate_reference(self):
         pf = self.pareto.front.value
         f = np.max(pf, axis=0, keepdims=True) - np.min(pf, axis=0, keepdims=True)
         return np.max(pf, axis=0, keepdims=True) + 2 * f / pf.shape[0]
 
-    def setup(self):
+    def _setup(self):
         """
         Pre-computes the Pareto set and cell bounds for integrating over the non-dominated region.
         """
-        super(HVProbabilityOfImprovement, self).setup()
+        super(HVProbabilityOfImprovement, self)._setup()
 
         # Obtain hypervolume cell bounds, use prediction mean
-        F = np.hstack((m.predict_f(self.data[0])[0] for m in self.models))
+        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
+        F = np.hstack((m.predict_f(feasible_samples)[0] for m in self.models))
         self.pareto.update(F)
 
         # Calculate reference point.

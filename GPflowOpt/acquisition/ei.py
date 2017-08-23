@@ -58,10 +58,10 @@ class ExpectedImprovement(Acquisition):
         """
         super(ExpectedImprovement, self).__init__(model)
         self.fmin = DataHolder(np.zeros(1))
-        self.setup()
+        self._setup()
 
-    def setup(self):
-        super(ExpectedImprovement, self).setup()
+    def _setup(self):
+        super(ExpectedImprovement, self)._setup()
         # Obtain the lowest posterior mean for the previous - feasible - evaluations
         feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
         samples_mean, _ = self.models[0].predict_f(feasible_samples)
