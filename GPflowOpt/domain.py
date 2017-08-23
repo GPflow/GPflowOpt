@@ -76,8 +76,15 @@ class Domain(Parentable):
         for v in chain(*map(iter, self._parameters)):
             yield v
 
-    def __getitem__(self, item):
-        return self._parameters[item]
+    def __getitem__(self, items):
+        if isinstance(items, list):
+            return np.sum([self[item] for item in items])
+
+        if isinstance(items, str):
+            labels = [param.label for param in self._parameters]
+            items = labels.index(items)
+
+        return self._parameters[items]
 
     def __rshift__(self, other):
         assert(self.size == other.size)
@@ -120,6 +127,7 @@ class Domain(Parentable):
 
     def _html_table_rows(self):
         return ''.join(map(lambda l: l._html_table_rows(), self._parameters))
+
 
 class Parameter(Domain):
     """
@@ -191,7 +199,9 @@ class ContinuousParameter(Parameter):
 
 
 class UnitCube(Domain):
+    """
+    The unit domain [0, 1]^d
+    """
     def __init__(self, n_inputs):
         params = [ContinuousParameter('u{0}'.format(i), 0, 1) for i in np.arange(n_inputs)]
         super(UnitCube, self).__init__(params)
-

@@ -1,5 +1,5 @@
-GPflowOpt Interfaces
-========================
+Interfaces
+==========
 
 Domain
 -------
@@ -35,4 +35,12 @@ Transform
 .. automodule:: GPflowOpt.transforms
    :special-members:
 .. autoclass:: GPflowOpt.transforms.DataTransform
+   :special-members:
+
+ModelWrapper
+------------
+.. automodule:: GPflowOpt.models
+   :special-members:
+.. autoclass:: GPflowOpt.models.ModelWrapper
+   :members:
    :special-members:

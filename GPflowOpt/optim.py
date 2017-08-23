@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-from scipy.optimize import OptimizeResult, minimize
-from GPflow import settings
 import contextlib
-import sys
 import os
+import sys
+import warnings
+
+import numpy as np
+from GPflow import settings
+from scipy.optimize import OptimizeResult, minimize
 
 from .design import RandomDesign
 from .objective import ObjectiveWrapper
@@ -39,10 +41,22 @@ class Optimizer(object):
 
     @property
     def domain(self):
+        """
+        The current domain the optimizer operates on.
+        
+        :return: :class:'~.domain.Domain` object 
+        """
         return self._domain
 
     @domain.setter
     def domain(self, dom):
+        """
+        Sets a new domain for the optimizer.
+        
+        Resets the initial points to the middle of the domain.
+        
+        :param dom: new :class:'~.domain.Domain` 
+        """
         self._domain = dom
         self.set_initial(dom.value)
 
@@ -56,7 +70,7 @@ class Optimizer(object):
         The actual optimization routine is implemented in _optimize, to be implemented in subclasses.
 
         :param objectivefx: callable, taking one argument: a 2D numpy array. The number of columns correspond to the 
-        dimensionality of the input domain.
+            dimensionality of the input domain.
         :return: OptimizeResult reporting the results.
         """
         objective = ObjectiveWrapper(objectivefx, **self._wrapper_args)
@@ -73,13 +87,18 @@ class Optimizer(object):
     def get_initial(self):
         """
         Return the initial set of points.
+        
+        :return: initial set of points, size N x D
         """
         return self._initial
 
     def set_initial(self, initial):
         """
-        Set the initial set of points. The dimensionality should match the domain dimensionality, and all points should 
-        be within the domain
+        Set the initial set of points.
+        
+        The dimensionality should match the domain dimensionality, and all points should 
+        be within the domain.
+    
         :param initial: initial points, should all be within the domain of the optimizer.
         """
         initial = np.atleast_2d(initial)
@@ -109,47 +128,33 @@ class Optimizer(object):
         sys.stdout = save_stdout
 
 
-class CandidateOptimizer(Optimizer):
+class MCOptimizer(Optimizer):
     """
-    Optimization of an objective function by evaluating a set of pre-defined candidate points.
+    Optimization of an objective function by evaluating a set of random points.
 
-    Returns the point with minimal objective value.
-
-    For compatibility with the StagedOptimizer, the candidate points are concatenated with
-    the initial points and evaluated.
+    Note: each call to optimize, a different set of random points is evaluated.
     """
 
-    def __init__(self, domain, candidates, batch=False):
+    def __init__(self, domain, nsamples):
         """
-        :param domain: Optimization domain.
-        :param candidates: candidate points, should be within the optimization domain. 
-        :param batch: bool, evaluate the objective function on all points at once or one by one?
+        :param domain: Optimization :class:`~.domain.Domain`.
+        :param nsamples: number of random points to use
         """
-        super(CandidateOptimizer, self).__init__(domain, exclude_gradient=True)
-        assert(candidates in domain)
-        self.candidates = candidates
-        self._batch_mode = batch
+        super(MCOptimizer, self).__init__(domain, exclude_gradient=True)
+        self._nsamples = nsamples
+        # Clear the initial data points
+        self.set_initial(np.empty((0, self.domain.size)))
 
     @Optimizer.domain.setter
     def domain(self, dom):
-        # Attempt to transform candidates
-        t = self.domain >> dom
-        self.candidates = t.forward(self.candidates)
         self._domain = dom
-        self.set_initial(dom.value)
 
-    def get_initial(self):
-        return np.vstack((super(CandidateOptimizer, self).get_initial(), self.candidates))
-
-    def _evaluate_one_by_one(self, objective, X):
-        """
-        Evaluates each row of X individually.
-        """
-        return np.vstack(map(lambda x: objective(x), X))
+    def _get_eval_points(self):
+        return RandomDesign(self._nsamples, self.domain).generate()
 
     def _optimize(self, objective):
-        points = self.get_initial()
-        evaluations = objective(points) if self._batch_mode else self._evaluate_one_by_one(objective, points)
+        points = self._get_eval_points()
+        evaluations = objective(points)
         idx_best = np.argmin(evaluations, axis=0)
 
         return OptimizeResult(x=points[idx_best, :],
@@ -158,21 +163,39 @@ class CandidateOptimizer(Optimizer):
                               nfev=points.shape[0],
                               message="OK")
 
+    def set_initial(self, initial):
+        initial = np.atleast_2d(initial)
+        if initial.size > 0:
+            warnings.warn("Initial points set in {0} are ignored.".format(self.__class__.__name__), UserWarning)
+            return
 
-class MCOptimizer(CandidateOptimizer):
+        super(MCOptimizer, self).set_initial(initial)
+
+
+class CandidateOptimizer(MCOptimizer):
     """
-    Optimization of an objective function by evaluating a set of random points.
+    Optimization of an objective function by evaluating a set of pre-defined candidate points.
 
-    Note: each call to optimize, a different set of random points is evaluated.
+    Returns the point with minimal objective value.
     """
 
-    def __init__(self, domain, nsamples, batch=False):
-        super(MCOptimizer, self).__init__(domain, np.empty((0, domain.size)), batch=batch)
-        self._nsamples = nsamples
+    def __init__(self, domain, candidates):
+        """
+        :param domain: Optimization :class:`~.domain.Domain`.
+        :param candidates: candidate points, should be within the optimization domain.
+        """
+        super(CandidateOptimizer, self).__init__(domain, candidates.shape[0])
+        assert (candidates in domain)
+        self.candidates = candidates
 
-    def _optimize(self, objective):
-        self.candidates = RandomDesign(self._nsamples, self.domain).generate()
-        return super(MCOptimizer, self)._optimize(objective)
+    def _get_eval_points(self):
+        return self.candidates
+
+    @MCOptimizer.domain.setter
+    def domain(self, dom):
+        t = self.domain >> dom
+        super(CandidateOptimizer, self.__class__).domain.fset(self, dom)
+        self.candidates = t.forward(self.candidates)
 
 
 class SciPyOptimizer(Optimizer):
@@ -214,6 +237,17 @@ class StagedOptimizer(Optimizer):
         no_gradient = any(map(lambda opt: not opt.gradient_enabled(), optimizers))
         super(StagedOptimizer, self).__init__(optimizers[0].domain, exclude_gradient=no_gradient)
         self.optimizers = optimizers
+        del self._initial
+
+    @Optimizer.domain.setter
+    def domain(self, domain):
+        self._domain = domain
+        for optimizer in self.optimizers:
+            optimizer.domain = domain
+
+    def _best_x(self, results):
+        best_idx = np.argmin([r.fun for r in results if r.success])
+        return results[best_idx].x, results[best_idx].fun
 
     def optimize(self, objectivefx):
         """
@@ -222,19 +256,27 @@ class StagedOptimizer(Optimizer):
         is returned.
         """
 
-        self.optimizers[0].set_initial(self.get_initial())
-        fun_evals = []
-        for current, next in zip(self.optimizers[:-1], self.optimizers[1:]):
+        results = []
+        for current, following in zip(self.optimizers[:-1], self.optimizers[1:]):
             result = current.optimize(objectivefx)
-            fun_evals.append(result.nfev)
+            results.append(result)
             if not result.success:
                 result.message += " StagedOptimizer interrupted after {0}.".format(current.__class__.__name__)
                 break
-            next.set_initial(result.x)
+            following.set_initial(self._best_x(results)[0])
 
         if result.success:
             result = self.optimizers[-1].optimize(objectivefx)
-            fun_evals.append(result.nfev)
-        result.nfev = sum(fun_evals)
-        result.nstages = len(fun_evals)
+            results.append(result)
+
+        result.nfev = sum(r.nfev for r in results)
+        result.nstages = len(results)
+        if any(r.success for r in results):
+            result.x, result.fun = self._best_x(results)
         return result
+
+    def get_initial(self):
+        return self.optimizers[0].get_initial()
+
+    def set_initial(self, initial):
+        self.optimizers[0].set_initial(initial)

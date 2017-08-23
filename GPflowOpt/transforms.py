@@ -38,6 +38,7 @@ class DataTransform(Parameterized):
     def build_forward(self, X):
         """
         Tensorflow graph for the transformation of U -> V
+
         :param X: N x P tensor
         :return: N x Q tensor
         """
@@ -45,9 +46,10 @@ class DataTransform(Parameterized):
 
     def backward(self, Y):
         """
-        Performs the transformation of V -> U. By default, calls the :func:`.forward` transform on the inverted
+        Performs the transformation of V -> U. By default, calls the :meth:`.forward` transform on the inverted
         transform object which requires implementation of __invert__. The method can be overwritten in subclasses if a
-        more efficient (direct) transformation is  possible.
+        more efficient (direct) transformation is possible.
+
         :param Y: N x Q matrix
         :return: N x P matrix
         """
@@ -57,9 +59,6 @@ class DataTransform(Parameterized):
         """
         Return a :class:`.DataTransform` object implementing the reverse transform V -> U
         """
-        raise NotImplementedError
-
-    def __str__(self):
         raise NotImplementedError
 
 
@@ -75,9 +74,11 @@ class LinearTransform(DataTransform):
     def __init__(self, A, b):
         """
         :param A: scaling matrix. Either a P-dimensional vector, or a P x P transformation matrix. For the latter, 
-        the inverse and backward methods are not guaranteed to work as A must be invertible. It is also possible to 
-        specify a matrix with size P x Q with Q != P to achieve a lower dimensional representation of X. In this case, 
-        A is not invertible, hence inverse and backward are not supported.
+            the inverse and backward methods are not guaranteed to work as A must be invertible.
+            
+            It is also possible to specify a matrix with size P x Q with Q != P to achieve 
+            a lower dimensional representation of X.
+            In this case, A is not invertible, hence inverse and backward transforms are not supported.
         :param b: A P-dimensional offset vector.
         """
         super(LinearTransform, self).__init__()
@@ -117,8 +118,9 @@ class LinearTransform(DataTransform):
         """
         Additional method for scaling variance backward (used in :class:`.Normalizer`). Can process both the diagonal
         variances returned by predict_f, as well as full covariance matrices.
-        :param Yvar: N x N x P or N x P
-        :return: Yvar scaled, same rank and dimensionality as input
+
+        :param Yvar: size N x N x P or size N x P
+        :return: Yvar scaled, same rank and size as input
         """
         rank = tf.rank(Yvar)
         # Because TensorFlow evaluates both fn1 and fn2, the transpose can't be in the same line. If a full cov
@@ -136,8 +138,9 @@ class LinearTransform(DataTransform):
 
     def assign(self, other):
         """
-        Assign the parameters of another  to this transform. Can be useful to avoid graph
+        Assign the parameters of another :class:`LinearTransform`. Can be useful to avoid graph
         re-compilation.
+
         :param other: :class:`.LinearTransform` object
         """
         assert other is not None
@@ -149,5 +152,3 @@ class LinearTransform(DataTransform):
         A_inv = np.linalg.inv(self.A.value.T)
         return LinearTransform(A_inv, -np.dot(self.b.value, A_inv))
 
-    def __str__(self):
-        return 'XA + b'

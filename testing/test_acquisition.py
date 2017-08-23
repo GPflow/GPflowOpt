@@ -3,14 +3,24 @@ import unittest
 import numpy as np
 import GPflow
 import tensorflow as tf
+import os
 
 
 def parabola2d(X):
     return np.atleast_2d(np.sum(X ** 2, axis=1)).T
 
-
 def plane(X):
     return X[:, [0]] - 0.5
+
+
+def vlmop2(x):
+    transl = 1 / np.sqrt(2)
+    part1 = (x[:, [0]] - transl) ** 2 + (x[:, [1]] - transl) ** 2
+    part2 = (x[:, [0]] + transl) ** 2 + (x[:, [1]] + transl) ** 2
+    y1 = 1 - np.exp(-1 * part1)
+    y2 = 1 - np.exp(-1 * part2)
+    return np.hstack((y1, y2))
+
 
 
 class _TestAcquisition(object):
@@ -23,6 +33,10 @@ class _TestAcquisition(object):
     @property
     def domain(self):
         return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+
+    def load_data(self, file):
+        path = os.path.dirname(os.path.realpath(__file__))
+        return np.load(os.path.join(path, 'data', file))
 
     def create_parabola_model(self, design=None):
         if design is None:
@@ -37,6 +51,12 @@ class _TestAcquisition(object):
         X, Y = design.generate(), plane(design.generate())
         m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
         return m
+
+    def create_vlmop2_model(self):
+        data = self.load_data('vlmop.npz')
+        m1 = GPflow.gpr.GPR(data['X'], data['Y'][:, [0]], kern=GPflow.kernels.Matern32(2))
+        m2 = GPflow.gpr.GPR(data['X'], data['Y'][:, [1]], kern=GPflow.kernels.Matern32(2))
+        return [m1, m2]
 
     def setUp(self):
         self.acquisition = None
@@ -95,10 +115,6 @@ class _TestAcquisition(object):
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored in ExpectedImprovement")
-        self.assertEqual(len(self.acquisition._default_params), 1)
-        self.assertTrue(
-            np.allclose(np.sort(self.acquisition._default_params[0]), np.sort(np.array([0.5413] * 4)), atol=1e-2),
-            msg="Initial hypers improperly stored")
 
     def test_enable_scaling(self):
         self.assertFalse(
@@ -209,12 +225,39 @@ class TestLowerConfidenceBound(_TestAcquisition, unittest.TestCase):
         np.testing.assert_allclose(q, p)
 
 
+class TestHVProbabilityOfImprovement(_TestAcquisition, unittest.TestCase):
+
+    @_TestAcquisition.domain.getter
+    def domain(self):
+        return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -2, 2) for i in range(1, 3)])
+
+    def setUp(self):
+        super(TestHVProbabilityOfImprovement, self).setUp()
+        self.model = self.create_vlmop2_model()
+        data = self.load_data('vlmop.npz')
+        self.candidates = data['candidates']
+        self.acquisition = GPflowOpt.acquisition.HVProbabilityOfImprovement(self.model)
+
+    def test_object_integrity(self):
+        self.assertEqual(len(self.acquisition.models), 2, msg="Model list has incorrect length.")
+        for m1, m2 in zip(self.acquisition.models, self.model):
+            self.assertEqual(m1, m2, msg="Incorrect model stored in ExpectedImprovement")
+
+    def test_hvpoi_validity(self):
+        scores = self.acquisition.evaluate(self.candidates)
+        np.testing.assert_almost_equal(scores.ravel(), np.array(
+            [2.23723742e-03, 1.00906739e-03, 1.21152340e-02, 6.51774004e-03, 4.42413300e-03, 3.99320061e-02,
+             6.24365778e-04, 1.67279166e-02, 3.70006497e-03, 2.79794264e-02, 1.33966839e-02, 5.08016917e-03,
+             7.85351395e-04, 1.69967446e-02, 5.16896760e-03, 3.87581677e-05, 2.59530418e-03, 1.42613142e-02,
+             4.71508049e-02, 1.01988869e-02, 4.27149696e-04, 2.20649794e-02, 0.00000000e+00]), decimal=2,
+                                       err_msg="hvPoI ranker produced the wrong candidate scores")
+
+
 class _TestAcquisitionAggregation(_TestAcquisition):
     def test_object_integrity(self):
         for oper in self.acquisition.operands:
             self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
                             msg="All operands should be an acquisition object")
-        self.assertEqual(len(self.acquisition._default_params), 0)
         self.assertListEqual(self.acquisition.models.sorted_params, self.models)
 
     def test_data(self):
