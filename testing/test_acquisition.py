@@ -146,7 +146,8 @@ class TestAcquisitionAggregation(unittest.TestCase):
         for oper in acquisition.operands:
             self.assertTrue(isinstance(oper, GPflowOpt.acquisition.Acquisition),
                             msg="All operands should be an acquisition object")
-        self.assertTrue(all(isinstance(m, GPflowOpt.models.ModelWrapper) for m in acquisition.models.sorted_params))
+
+        self.assertTrue(all(isinstance(m, GPflowOpt.models.ModelWrapper) for m in acquisition.models))
 
     @parameterized.expand(list(zip(aggregations)))
     def test_data(self, acquisition):
@@ -219,7 +220,7 @@ class TestAcquisitionAggregation(unittest.TestCase):
 
     @parameterized.expand(list(zip([aggregations[2]])))
     def test_mcmc_acq_models(self, acquisition):
-        self.assertListEqual(acquisition.models.sorted_params, acquisition.operands[0].models.sorted_params)
+        self.assertListEqual(acquisition.models, acquisition.operands[0].models)
 
 
 class TestJointAcquisition(unittest.TestCase):
@@ -298,3 +299,26 @@ class TestJointAcquisition(unittest.TestCase):
         joint = first * second
         self.assertIsInstance(joint, GPflowOpt.acquisition.AcquisitionProduct)
         self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3, acq4])
+
+
+class TestRecompile(unittest.TestCase):
+    """
+    Regression test for #37
+    """
+    def test_vgp(self):
+        domain = GPflowOpt.domain.UnitCube(2)
+        X = GPflowOpt.design.RandomDesign(10, domain).generate()
+        Y = np.sin(X[:,[0]])
+        m = GPflow.vgp.VGP(X, Y, GPflow.kernels.RBF(2), GPflow.likelihoods.Gaussian())
+        acq = GPflowOpt.acquisition.ExpectedImprovement(m)
+        m._compile()
+        self.assertFalse(m._needs_recompile)
+        acq.evaluate(GPflowOpt.design.RandomDesign(10, domain).generate())
+        self.assertTrue(hasattr(acq, '_evaluate_AF_storage'))
+
+        Xnew = GPflowOpt.design.RandomDesign(5, domain).generate()
+        Ynew = np.sin(Xnew[:,[0]])
+        acq.set_data(np.vstack((X, Xnew)), np.vstack((Y, Ynew)))
+        self.assertFalse(hasattr(acq, '_needs_recompile'))
+        self.assertFalse(hasattr(acq, '_evaluate_AF_storage'))
+        acq.evaluate(GPflowOpt.design.RandomDesign(10, domain).generate())

@@ -106,3 +106,4 @@ class TestDataScaler(unittest.TestCase):
         fs = n.predict_density(Xt, Yt)
         np.testing.assert_allclose(fr, fs, rtol=1e-2)
 
+

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from GPflow.param import DataHolder, AutoFlow
-from GPflow.model import GPModel
 from GPflow import settings
 import numpy as np
 from .transforms import LinearTransform, DataTransform
@@ -53,6 +52,7 @@ class DataScaler(ModelWrapper):
     required, it is the responsibility of the implementation to rescale the hyperparameters. Additionally, applying
     hyperpriors should anticipate for the scaled data.
     """
+
     def __init__(self, model, domain=None, normalize_Y=False):
         """
         :param model: model to be wrapped

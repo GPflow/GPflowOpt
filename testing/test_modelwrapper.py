@@ -111,6 +111,35 @@ class TestModelWrapper(unittest.TestCase):
         n = MethodOverride(create_parabola_model(GPflowOpt.domain.UnitCube(2)))
         self.assertEqual(n.name, 'unnamed.methodoverride')
 
+    def test_parent_hook(self):
+        self.m.optimize(maxiter=5)
+        w = GPflowOpt.models.ModelWrapper(self.m)
+        self.assertTrue(isinstance(self.m.highest_parent, GPflowOpt.models.ParentHook))
+        self.assertEqual(self.m.highest_parent._hp, w)
+        self.assertEqual(self.m.highest_parent._hm, w)
 
+        w2 = GPflowOpt.models.ModelWrapper(w)
+        self.assertEqual(self.m.highest_parent._hp, w2)
+        self.assertEqual(self.m.highest_parent._hm, w2)
 
+        p = GPflow.param.Parameterized()
+        p.model = w2
+        self.assertEqual(self.m.highest_parent._hp, p)
+        self.assertEqual(self.m.highest_parent._hm, w2)
+
+        p.predictor = create_parabola_model(GPflowOpt.domain.UnitCube(2))
+        p.predictor.predict_f(p.predictor.X.value)
+        self.assertTrue(hasattr(p.predictor, '_predict_f_AF_storage'))
+        self.assertFalse(self.m._needs_recompile)
+        self.m.highest_parent._needs_recompile = True
+        self.assertFalse('_needs_recompile' in p.__dict__)
+        self.assertFalse('_needs_recompile' in w.__dict__)
+        self.assertFalse('_needs_recompile' in w2.__dict__)
+        self.assertTrue(self.m._needs_recompile)
+        self.assertFalse(hasattr(p.predictor, '_predict_f_AF_storage'))
+
+        self.assertEqual(self.m.highest_parent.get_free_state, p.get_free_state)
+        self.m.highest_parent._needs_setup = True
+        self.assertTrue(hasattr(p, '_needs_setup'))
+        self.assertTrue(p._needs_setup)
 
