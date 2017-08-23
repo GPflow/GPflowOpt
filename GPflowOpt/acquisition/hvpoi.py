@@ -72,7 +72,7 @@ class HVProbabilityOfImprovement(Acquisition):
         num_objectives = self.data[1].shape[1]
         assert num_objectives > 1
 
-        # Keep pareto empty for now - it is updated in setup()
+        # Keep empty for now - it is updated in _setup()
         self.pareto = Pareto(np.empty((0, num_objectives)))
         self.reference = DataHolder(np.ones((1, num_objectives)))
 

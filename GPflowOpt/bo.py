@@ -71,7 +71,7 @@ class BayesianOptimizer(Optimizer):
 
     @Optimizer.domain.setter
     def domain(self, dom):
-        assert (self.domain.size == dom.size)
+        assert self.domain.size == dom.size
         super(BayesianOptimizer, self.__class__).domain.fset(self, dom)
         if self._scaling:
             self.acquisition.enable_scaling(dom)
@@ -175,7 +175,7 @@ class BayesianOptimizer(Optimizer):
         :return: OptimizeResult object
         """
 
-        assert(isinstance(fx, ObjectiveWrapper))
+        assert isinstance(fx, ObjectiveWrapper)
 
         # Evaluate and add the initial design (if any)
         initial = self.get_initial()
