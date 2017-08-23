@@ -190,7 +190,7 @@ class BayesianOptimizer(Optimizer):
         # Optimization loop
         for i in range(n_iter):
             result = self.optimizer.optimize(inverse_acquisition)
-            Xnew = np.vstack(np.split(result.x, self.acquisition.batch_size), axis=1)
+            Xnew = np.vstack(np.split(result.x, self.acquisition.batch_size, axis=1))
             self._update_model_data(Xnew, fx(Xnew))
 
         return self._create_bo_result(True, "OK")
