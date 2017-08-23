@@ -24,6 +24,7 @@ from .objective import ObjectiveWrapper
 from .design import Design, EmptyDesign
 from .pareto import non_dominated_sort
 
+
 class BayesianOptimizer(Optimizer):
     """
     A traditional Bayesian optimization framework implementation.
@@ -60,11 +61,11 @@ class BayesianOptimizer(Optimizer):
 
         batch_domain = domain.batch(acquisition.batch_size)
 
-        # Configure scaling
-        if scaling:
+        # Configure MCMC
+        self._scaling = scaling
+        if self._scaling:
             acquisition.enable_scaling(domain)
 
-        # Configure MCMC
         self.acquisition = acquisition if hyper_draws is None else MCMCAcquistion(acquisition, hyper_draws)
 
         # Setup optimizer
@@ -74,6 +75,13 @@ class BayesianOptimizer(Optimizer):
         # Setup initial evaluations
         initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
+
+    @Optimizer.domain.setter
+    def domain(self, dom):
+        assert self.domain.size == dom.size
+        super(BayesianOptimizer, self.__class__).domain.fset(self, dom)
+        if self._scaling:
+            self.acquisition.enable_scaling(dom)
 
     def _update_model_data(self, newX, newY):
         """
@@ -174,7 +182,7 @@ class BayesianOptimizer(Optimizer):
         :return: OptimizeResult object
         """
 
-        assert(isinstance(fx, ObjectiveWrapper))
+        assert isinstance(fx, ObjectiveWrapper)
 
         # Evaluate and add the initial design (if any)
         initial = self.get_initial()

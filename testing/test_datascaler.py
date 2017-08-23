@@ -10,6 +10,9 @@ def parabola2d(X):
 
 
 class TestDataScaler(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
+
     @property
     def domain(self):
         return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
@@ -102,4 +105,5 @@ class TestDataScaler(unittest.TestCase):
         fr = m.predict_density(Xt, Yt)
         fs = n.predict_density(Xt, Yt)
         np.testing.assert_allclose(fr, fs, rtol=1e-2)
+
 

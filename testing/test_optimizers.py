@@ -8,19 +8,11 @@ import os
 import warnings
 from contextlib import contextmanager
 from scipy.optimize import OptimizeResult
+from .utility import vlmop2, create_parabola_model, create_vlmop2_model
 
 
 def parabola2d(X):
     return np.atleast_2d(np.sum(X ** 2, axis=1)).T, 2 * X
-
-
-def vlmop2(x):
-    transl = 1 / np.sqrt(2)
-    part1 = (x[:, [0]] - transl) ** 2 + (x[:, [1]] - transl) ** 2
-    part2 = (x[:, [0]] + transl) ** 2 + (x[:, [1]] + transl) ** 2
-    y1 = 1 - np.exp(-1 * part1)
-    y2 = 1 - np.exp(-1 * part2)
-    return np.hstack((y1, y2))
 
 
 class KeyboardRaiser:
@@ -202,20 +194,8 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
 class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
         super(TestBayesianOptimizer, self).setUp()
-        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
-        X, Y = design.generate(), parabola2d(design.generate())[0]
-        model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
-        acquisition = GPflowOpt.acquisition.ExpectedImprovement(model)
+        acquisition = GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(self.domain))
         self.optimizer = GPflowOpt.BayesianOptimizer(self.domain, acquisition)
-
-    def setup_multi_objective(self):
-        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
-        X = design.generate()
-        Y = vlmop2(X)
-        m1 = GPflow.gpr.GPR(X, Y[:,[0]], GPflow.kernels.RBF(2, ARD=True))
-        m2 = GPflow.gpr.GPR(X.copy(), Y[:,[1]], GPflow.kernels.RBF(2, ARD=True))
-        acquisition = GPflowOpt.acquisition.ExpectedImprovement(m1) + GPflowOpt.acquisition.ExpectedImprovement(m2)
-        return GPflowOpt.BayesianOptimizer(self.domain, acquisition)
 
     def test_default_initial(self):
         self.assertTupleEqual(self.optimizer._initial.shape, (0, 2), msg="Invalid shape of initial points array")
@@ -228,12 +208,14 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
 
     def test_optimize_multi_objective(self):
-        optimizer = self.setup_multi_objective()
+        m1, m2 = create_vlmop2_model()
+        acquisition = GPflowOpt.acquisition.ExpectedImprovement(m1) + GPflowOpt.acquisition.ExpectedImprovement(m2)
+        optimizer = GPflowOpt.BayesianOptimizer(self.domain, acquisition)
         result = optimizer.optimize(vlmop2, n_iter=2)
         self.assertTrue(result.success)
         self.assertEqual(result.nfev, 2, "Only 2 evaluations permitted")
-        self.assertTupleEqual(result.x.shape, (8, 2))
-        self.assertTupleEqual(result.fun.shape, (8, 2))
+        self.assertTupleEqual(result.x.shape, (9, 2))
+        self.assertTupleEqual(result.fun.shape, (9, 2))
         _, dom = GPflowOpt.pareto.non_dominated_sort(result.fun)
         self.assertTrue(np.all(dom==0))
 
@@ -253,6 +235,7 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         with self.assertRaises(RuntimeError) as e:
             with self.optimizer.failsafe():
                 self.optimizer.acquisition.set_data(X, Y)
+                self.optimizer.acquisition.evaluate(X)
 
         fname = 'failed_bopt_{0}.npz'.format(id(e.exception))
         self.assertTrue(os.path.isfile(fname))
@@ -261,15 +244,22 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
             np.testing.assert_almost_equal(data['Y'], Y)
         os.remove(fname)
 
+    def test_set_domain(self):
+        with self.assertRaises(AssertionError):
+            super(TestBayesianOptimizer, self).test_set_domain()
+
+        domain = GPflowOpt.domain.ContinuousParameter("x1", -2.0, 2.0) + \
+                 GPflowOpt.domain.ContinuousParameter("x2", -2.0, 2.0)
+        self.optimizer.domain = domain
+        expected = GPflowOpt.design.LatinHyperCube(16, self.domain).generate() / 4 + 0.5
+        self.assertTrue(np.allclose(expected, self.optimizer.acquisition.models[0].wrapped.X.value))
+
 
 class TestBayesianOptimizerConfigurations(unittest.TestCase):
     def setUp(self):
         self.domain = GPflowOpt.domain.ContinuousParameter("x1", 0.0, 1.0) + \
                       GPflowOpt.domain.ContinuousParameter("x2", 0.0, 1.0)
-        design = GPflowOpt.design.LatinHyperCube(16, self.domain)
-        X, Y = design.generate(), parabola2d(design.generate())[0]
-        model = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True, lengthscales=X.var(axis=0)))
-        self.acquisition = GPflowOpt.acquisition.ExpectedImprovement(model)
+        self.acquisition = GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(self.domain))
 
     def test_initial_design(self):
         design = GPflowOpt.design.RandomDesign(5, self.domain)

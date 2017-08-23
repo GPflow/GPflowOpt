@@ -24,8 +24,34 @@ import numpy as np
 import tensorflow as tf
 
 import copy
+from functools import wraps
 
 float_type = settings.dtypes.float_type
+
+
+def setup_required(method):
+    """
+    Decorator function to mark methods in Acquisition classes which require running setup if indicated by _needs_setup
+    :param method: acquisition method
+    """
+    @wraps(method)
+    def runnable(instance, *args, **kwargs):
+        assert isinstance(instance, Acquisition)
+        hp = instance.highest_parent
+        if hp._needs_setup:
+            # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
+            # e.g. through feasible_data_index.
+            hp._needs_setup = False
+
+            # 1 - optimize
+            hp._optimize_models()
+
+            # 2 - setup
+            hp._setup()
+        results = method(instance, *args, **kwargs)
+        return results
+
+    return runnable
 
 
 class Acquisition(Parameterized):
@@ -34,14 +60,19 @@ class Acquisition(Parameterized):
     score indicating how promising a point is for evaluation.
 
     In Bayesian Optimization this function is typically optimized over the optimization domain
-    to determine the next point for evaluation.
+    to determine the next point for evaluation. An object of this class holds a list of GPflow models. Subclasses
+    implement a build_acquisition function which computes the acquisition function (usually from the predictive
+    distribution) using TensorFlow. Optionally, a method setup can be implemented which computes some quantities which
+    are used to compute the acquisition, but do not depend on candidate points.
 
-    An object of this class holds a list of GPflow models. Subclasses implement a build_acquisition function
-    which computes the acquisition function (usually from the predictive distribution) using TensorFlow.
-    Each model is automatically optimized when an acquisition object is constructed or when set_data is called.
+    Acquisition functions can be combined through addition or multiplication to construct joint criteria. For instance,
+    for constrained optimization. The objects then form a tree hierarchy.
 
-    Acquisition functions can be combined through addition or multiplication to construct joint criteria. 
-    For instance, for constrained optimization.
+    Acquisition models implement a lazy strategy to optimize models and run setup. This is implemented by a _needs_setup
+    attribute (similar to the _needs_recompile in GPflow). Calling :meth:`set_data` sets this flag to True. Calling methods
+    marked with the setup_require decorator (such as evaluate) optimize all models, then call setup if this flag is set.
+    In hierarchies, first acquisition objects handling constraint objectives are set up, then the objects handling
+    objectives.
     """
 
     def __init__(self, models=[], optimize_restarts=5, batch_size=1):
@@ -56,15 +87,15 @@ class Acquisition(Parameterized):
 
         assert (optimize_restarts >= 0)
         self.optimize_restarts = optimize_restarts
-        self._optimize_models()
         self.batch_size = batch_size
+        self._needs_setup = True
 
     def _optimize_models(self):
         """
         Optimizes the hyperparameters of all models that the acquisition function is based on.
 
-        It is called automatically during initialization and each time set_data() is called.
-        When using the high-level :class:`..BayesianOptimizer` class calling set_data() is taken care of.
+        It is called automatically during initialization and each time :meth:`set_data` is called.
+        When using the high-level :class:`..BayesianOptimizer` class calling :meth:`set_data` is taken care of.
 
         For each model the hyperparameters of the model at the time it was passed to __init__() are used as initial
         point and optimized. If optimize_restarts is set to >1, additional randomization
@@ -98,6 +129,9 @@ class Acquisition(Parameterized):
         """
         Enables and configures the :class:`.DataScaler` objects wrapping the GP models.
         
+        Sets the _needs_setup attribute to True so the contained models are optimized and :meth:`setup` is run again
+        right before evaluating the :class:`Acquisition` function.
+
         :param domain: :class:`.Domain` object, the input transform of the data scalers is configured as a transform
             from domain to the unit cube with the same dimensionality.
         """
@@ -106,12 +140,14 @@ class Acquisition(Parameterized):
         for m in self.models:
             m.input_transform = domain >> UnitCube(n_inputs)
             m.normalize_output = True
-        self._optimize_models()
+        self.highest_parent._needs_setup = True
 
     def set_data(self, X, Y):
         """
-        Update the training data of the contained models. Automatically triggers a hyperparameter optimization
-        step by calling _optimize_all() and an update of pre-computed quantities by calling setup().
+        Update the training data of the contained models
+
+        Sets the _needs_setup attribute to True so the contained models are optimized and :meth:`setup` is run again
+        right before evaluating the :class:`Acquisition` function.
 
         Let Q be the the sum of the output dimensions of all contained models, Y should have a minimum of
         Q columns. Only the first Q columns of Y are used while returning the scalar Q
@@ -129,11 +165,7 @@ class Acquisition(Parameterized):
             model.X = X
             model.Y = Ypart
 
-        self._optimize_models()
-
-        # Only call setup for the high-level acquisition function
-        if self.highest_parent == self:
-            self.setup()
+        self.highest_parent._needs_setup = True
         return num_outputs_sum
 
     @property
@@ -143,7 +175,7 @@ class Acquisition(Parameterized):
         
         :return: list of GPflow models 
         """
-        return self._models
+        return self._models.sorted_params
 
     @property
     def data(self):
@@ -188,14 +220,31 @@ class Acquisition(Parameterized):
         """
         return np.ones(self.data[0].shape[0], dtype=bool)
 
-    def setup(self):
+    def _setup(self):
         """
         Pre-calculation of quantities used later in the evaluation of the acquisition function for candidate points.
         
-        Automatically triggered by :meth:`~.Acquisition.set_data`.
+        Subclasses can implement this method to compute quantities (such as fmin). The decision when to run this function
+        is governed by :class:`Acquisition`, based on the setup_required decorator on methods which require
+        setup to be run (e.g. set_data).
         """
         pass
 
+    def _setup_constraints(self):
+        """
+        Run only if some outputs handled by this acquisition are constraints. Used in aggregation.
+        """
+        if self.constraint_indices().size > 0:
+            self._setup()
+
+    def _setup_objectives(self):
+        """
+        Run only if all outputs handled by this acquisition are objectives. Used in aggregation.
+        """
+        if self.constraint_indices().size == 0:
+            self._setup()
+
+    @setup_required
     @AutoFlow((float_type, [None, None]))
     def evaluate_with_gradients(self, Xcand):
         """
@@ -207,6 +256,7 @@ class Acquisition(Parameterized):
         acq = self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size, axis=1))
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
+    @setup_required
     @AutoFlow((float_type, [None, None]))
     def evaluate(self, Xcand):
         """
@@ -242,6 +292,11 @@ class Acquisition(Parameterized):
             return AcquisitionProduct([self] + other.operands.sorted_params)
         return AcquisitionProduct([self, other])
 
+    def __setattr__(self, key, value):
+        super(Acquisition, self).__setattr__(key, value)
+        if key is '_parent':
+            self.highest_parent._needs_setup = True
+
 
 class AcquisitionAggregation(Acquisition):
     """
@@ -257,14 +312,14 @@ class AcquisitionAggregation(Acquisition):
         assert (all([isinstance(x, Acquisition) for x in operands]))
         self.operands = ParamList(operands)
         self._oper = oper
-        self.setup()
 
     def _optimize_models(self):
-        pass
+        for oper in self.operands:
+            oper._optimize_models()
 
     @Acquisition.models.getter
     def models(self):
-        return ParamList([model for acq in self.operands for model in acq.models.sorted_params])
+        return [model for acq in self.operands for model in acq.models]
 
     def enable_scaling(self, domain):
         for oper in self.operands:
@@ -274,13 +329,22 @@ class AcquisitionAggregation(Acquisition):
         offset = 0
         for operand in self.operands:
             offset += operand.set_data(X, Y[:, offset:])
-        if self.highest_parent == self:
-            self.setup()
         return offset
 
-    def setup(self):
+    def _setup_constraints(self):
         for oper in self.operands:
-            oper.setup()
+            if oper.constraint_indices().size > 0:  # Small optimization, skip subtrees with objectives only
+                oper._setup_constraints()
+
+    def _setup_objectives(self):
+        for oper in self.operands:
+            oper._setup_objectives()
+
+    def _setup(self):
+        # Important: First setup acquisitions involving constraints
+        self._setup_constraints()
+        # Then objectives as these might depend on the constraint acquisition
+        self._setup_objectives()
 
     def constraint_indices(self):
         offset = [0]
@@ -305,7 +369,6 @@ class AcquisitionSum(AcquisitionAggregation):
     """
     Sum of acquisition functions
     """
-
     def __init__(self, operands):
         super(AcquisitionSum, self).__init__(operands, tf.reduce_sum)
 
@@ -320,7 +383,6 @@ class AcquisitionProduct(AcquisitionAggregation):
     """
     Product of acquisition functions
     """
-
     def __init__(self, operands):
         super(AcquisitionProduct, self).__init__(operands, tf.reduce_prod)
 
@@ -351,14 +413,16 @@ class MCMCAcquistion(AcquisitionSum):
         # the call to the constructor of the parent classes, will optimize acquisition, so it obtains the MLE solution.
         super(MCMCAcquistion, self).__init__([acquisition] + copies)
         self._sample_opt = kwargs
-        # Update the hyperparameters of the copies using HMC
-        self._update_hyper_draws()
 
-    def _update_hyper_draws(self):
+    def _optimize_models(self):
+        # Optimize model #1
+        self.operands[0]._optimize_models()
+
+        # Draw samples using HMC
         # Sample each model of the acquisition function - results in a list of 2D ndarrays.
         hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
 
-        # Now visit all copies, and set state
+        # Now visit all acquisition copies, and set state
         for idx, draw in enumerate(self.operands):
             draw.set_state(hypers[idx, :])
 
@@ -372,9 +436,6 @@ class MCMCAcquistion(AcquisitionSum):
             # This triggers model.optimize() on self.operands[0]
             # All copies have optimization disabled, but must have update data.
             offset = operand.set_data(X, Y)
-        self._update_hyper_draws()
-        if self.highest_parent == self:
-            self.setup()
         return offset
 
     def build_acquisition(self, *args):

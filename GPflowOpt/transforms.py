@@ -55,6 +55,9 @@ class DataTransform(Parameterized):
         """
         return (~self).forward(Y)
 
+    def assign(self, other):
+        raise NotImplementedError
+
     def __invert__(self):
         """
         Return a :class:`.DataTransform` object implementing the reverse transform V -> U
@@ -138,8 +141,9 @@ class LinearTransform(DataTransform):
 
     def assign(self, other):
         """
-        Assign the parameters of another :class:`LinearTransform`. Can be useful to avoid graph
-        re-compilation.
+        Assign the parameters of another :class:`LinearTransform`.
+
+        Useful to avoid graph re-compilation.
 
         :param other: :class:`.LinearTransform` object
         """
