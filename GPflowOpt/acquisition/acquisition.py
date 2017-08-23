@@ -204,7 +204,7 @@ class Acquisition(Parameterized):
         :return: acquisition scores, size N x 1
             the gradients of the acquisition scores, size N x D 
         """
-        acq = self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size))
+        acq = self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size, axis=1))
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
     @AutoFlow((float_type, [None, None]))
@@ -214,7 +214,7 @@ class Acquisition(Parameterized):
         
         :return: acquisition scores, size N x 1
         """
-        return self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size))
+        return self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size, axis=1))
 
     def __add__(self, other):
         """

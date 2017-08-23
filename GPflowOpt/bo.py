@@ -58,7 +58,7 @@ class BayesianOptimizer(Optimizer):
         assert initial is None or isinstance(initial, Design)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
 
-        batch_domain = np.sum([copy.deepcopy(domain) for i in range(acquisition.batch_size)])
+        batch_domain = domain.batch(acquisition.batch_size)
 
         # Configure scaling
         if scaling:
@@ -190,7 +190,7 @@ class BayesianOptimizer(Optimizer):
         # Optimization loop
         for i in range(n_iter):
             result = self.optimizer.optimize(inverse_acquisition)
-            Xnew = np.vstack(np.split(result.x, self.acquisition.batch_size))
+            Xnew = np.vstack(np.split(result.x, self.acquisition.batch_size), axis=1)
             self._update_model_data(Xnew, fx(Xnew))
 
         return self._create_bo_result(True, "OK")

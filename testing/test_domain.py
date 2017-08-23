@@ -70,6 +70,13 @@ class TestContinuousParameter(unittest.TestCase):
         self.assertTupleEqual(p.value.shape, (1,), msg="Default value has incorrect shape.")
         self.assertTrue(np.allclose(p.value, 0.2), msg="Parameter has incorrect initialized value")
 
+    def test_batch(self):
+        p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
+        b = p.batch(3)
+        self.assertEqual(b.size, 3)
+        self.assertTrue(np.allclose(b.lower, 0))
+        self.assertTrue(np.allclose(b.upper, 1))
+
 
 class TestHypercubeDomain(unittest.TestCase):
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import copy
 from itertools import chain
 from GPflow.param import Parentable
 
@@ -52,6 +53,9 @@ class Domain(Parentable):
         Returns the dimensionality of the domain
         """
         return sum(map(lambda param: param.size, self._parameters))
+
+    def batch(self, size):
+        return np.sum([copy.deepcopy(self) for i in range(size)])
 
     def __setattr__(self, key, value):
         super(Domain, self).__setattr__(key, value)
