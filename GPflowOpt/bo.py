@@ -16,12 +16,30 @@ from contextlib import contextmanager
 
 import numpy as np
 from scipy.optimize import OptimizeResult
+import tensorflow as tf
 
 from .acquisition import Acquisition, MCMCAcquistion
 from .design import Design, EmptyDesign
 from .objective import ObjectiveWrapper
 from .optim import Optimizer, SciPyOptimizer
 from .pareto import non_dominated_sort
+
+
+def jitchol_callback(models):
+    for m in models:
+        try:
+            m.likelihood.variance
+        except AttributeError:
+            continue
+        s = m.get_free_state()
+        eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.value)))
+        for e in [0] + [10**ex for ex in range(-6,-1)]:
+            try:
+                m.likelihood.variance = m.likelihood.variance.value + e * eKdiag
+                m.optimize(maxiter=5)
+                break
+            except tf.errors.InvalidArgumentError:
+                m.set_state(s)
 
 
 class BayesianOptimizer(Optimizer):
@@ -33,7 +51,7 @@ class BayesianOptimizer(Optimizer):
     """
 
     def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=None,
-                 callback=None):
+                 callback=jitchol_callback):
         """
         :param Domain domain: The optimization space.
         :param Acquisition acquisition: The acquisition function to optimize over the domain.
