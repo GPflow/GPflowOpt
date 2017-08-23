@@ -17,6 +17,7 @@ from contextlib import contextmanager
 import numpy as np
 from scipy.optimize import OptimizeResult
 import tensorflow as tf
+from GPflow.gpr import GPR
 
 from .acquisition import Acquisition, MCMCAcquistion
 from .design import Design, EmptyDesign
@@ -26,10 +27,13 @@ from .pareto import non_dominated_sort
 
 
 def jitchol_callback(models):
+    """
+    Default callback for BayesianOptimizer. For all GPR models, increase the likelihood variance in case of cholesky
+    faillures. This is similar to the use of jitchol in GPy
+    :return:
+    """
     for m in models:
-        try:
-            m.likelihood.variance
-        except AttributeError:
+        if not isinstance(m, GPR):
             continue
         s = m.get_free_state()
         eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.value)))
@@ -38,7 +42,7 @@ def jitchol_callback(models):
                 m.likelihood.variance = m.likelihood.variance.value + e * eKdiag
                 m.optimize(maxiter=5)
                 break
-            except tf.errors.InvalidArgumentError:
+            except tf.errors.InvalidArgumentError:  # pragma: no cover
                 m.set_state(s)
 
 
