@@ -52,11 +52,11 @@ class ExpectedImprovement(Acquisition):
        \\alpha(\\mathbf x_{\\star}) = \\int \\max(f_{\\min} - f_{\\star}, 0) \\, p( f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
     """
 
-    def __init__(self, model):
+    def __init__(self, model, batch_size=1):
         """
         :param model: GPflow model (single output) representing our belief of the objective
         """
-        super(ExpectedImprovement, self).__init__(model)
+        super(ExpectedImprovement, self).__init__(model, batch_size=batch_size)
         self.fmin = DataHolder(np.zeros(1))
         self._setup()
 

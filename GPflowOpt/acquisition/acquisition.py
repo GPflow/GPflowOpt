@@ -75,7 +75,7 @@ class Acquisition(Parameterized):
     objectives.
     """
 
-    def __init__(self, models=[], optimize_restarts=5):
+    def __init__(self, models=[], optimize_restarts=5, batch_size=1):
         """
         :param models: list of GPflow models representing our beliefs about the problem
         :param optimize_restarts: number of optimization restarts to use when training the models
@@ -87,6 +87,7 @@ class Acquisition(Parameterized):
 
         assert (optimize_restarts >= 0)
         self.optimize_restarts = optimize_restarts
+        self.batch_size = batch_size
         self._needs_setup = True
 
     def _optimize_models(self):

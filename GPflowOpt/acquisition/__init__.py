@@ -19,6 +19,8 @@ from .acquisition import Acquisition, AcquisitionAggregation, AcquisitionProduct
 from .ei import ExpectedImprovement
 from .poi import ProbabilityOfImprovement
 from .lcb import LowerConfidenceBound
+# Batch optimisation
+from .qei_cl import QEI_CL
 
 # Multiobjective
 from .hvpoi import HVProbabilityOfImprovement
