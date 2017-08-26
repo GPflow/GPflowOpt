@@ -190,8 +190,19 @@ class BayesianOptimizer(Optimizer):
 
         # Optimization loop
         for i in range(n_iter):
-            result = self.optimizer.optimize(inverse_acquisition)
-            self._update_model_data(result.x, fx(result.x))
+            if self.acquisition.batch_size > 1:
+                batch = []
+                with self.acquisition:
+                    for j in range(self.acquisition.batch_size):
+                        result = self.optimizer.optimize(inverse_acquisition)
+                        batch.append(result.x)
+                        self.acquisition.set_batch(*batch)
+
+                batch_array = np.concatenate(batch)
+                self._update_model_data(batch_array, fx(batch_array))
+            else:
+                result = self.optimizer.optimize(inverse_acquisition)
+                self._update_model_data(result.x, fx(result.x))
 
         return self._create_bo_result(True, "OK")
 
