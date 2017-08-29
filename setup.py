@@ -20,7 +20,7 @@ import re
 from setuptools import setup
 from pkg_resources import parse_version
 
-VERSIONFILE="GPflowOpt/_version.py"
+VERSIONFILE="gpflowopt/_version.py"
 verstrline = open(VERSIONFILE, "rt").read()
 VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
 mo = re.search(VSRE, verstrline, re.M)
@@ -46,7 +46,7 @@ except (ImportError, DeprecationWarning) as e:
     # Add TensorFlow to dependencies to trigger installation/update
     dependencies.append('tensorflow>={0}'.format(min_tf_version))
 
-setup(name='GPflowOpt',
+setup(name='gpflowopt',
       version=verstr,
       author="Joachim van der Herten, Ivo Couckuyt",
       author_email="joachim.vanderherten@ugent.be",
@@ -57,9 +57,9 @@ setup(name='GPflowOpt',
       package_data={},
       include_package_data=True,
       ext_modules=[],
-      packages=["GPflowOpt", "GPflowOpt.acquisition"],
-      package_dir={'GPflowOpt': 'GPflowOpt'},
-      py_modules=['GPflowOpt.__init__'],
+      packages=["gpflowopt", "gpflowopt.acquisition"],
+      package_dir={'gpflowopt': 'gpflowopt'},
+      py_modules=['gpflowopt.__init__'],
       test_suite='testing',
       install_requires=dependencies,
       extras_require={'gpu': ['tensorflow-gpu>=1.0.0'],

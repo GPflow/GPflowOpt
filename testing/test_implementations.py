@@ -1,15 +1,15 @@
 import unittest
-import GPflowOpt
+import gpflowopt
 import numpy as np
 from parameterized import parameterized
 from .utility import create_parabola_model, create_plane_model, create_vlmop2_model, parabola2d, load_data
 
-domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
-acquisitions = [GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(domain)),
-                GPflowOpt.acquisition.ProbabilityOfImprovement(create_parabola_model(domain)),
-                GPflowOpt.acquisition.ProbabilityOfFeasibility(create_parabola_model(domain)),
-                GPflowOpt.acquisition.LowerConfidenceBound(create_parabola_model(domain)),
-                GPflowOpt.acquisition.HVProbabilityOfImprovement([create_parabola_model(domain),
+domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+acquisitions = [gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)),
+                gpflowopt.acquisition.ProbabilityOfImprovement(create_parabola_model(domain)),
+                gpflowopt.acquisition.ProbabilityOfFeasibility(create_parabola_model(domain)),
+                gpflowopt.acquisition.LowerConfidenceBound(create_parabola_model(domain)),
+                gpflowopt.acquisition.HVProbabilityOfImprovement([create_parabola_model(domain),
                                                                   create_parabola_model(domain)])
                 ]
 
@@ -20,7 +20,7 @@ class TestAcquisitionEvaluate(unittest.TestCase):
 
     @parameterized.expand(list(zip(acquisitions)))
     def test_evaluate(self, acquisition):
-        X = GPflowOpt.design.RandomDesign(10, domain).generate()
+        X = gpflowopt.design.RandomDesign(10, domain).generate()
         p = acquisition.evaluate(X)
         self.assertTrue(isinstance(p, np.ndarray))
         self.assertTupleEqual(p.shape, (10, 1))
@@ -41,9 +41,9 @@ class TestExpectedImprovement(unittest.TestCase):
     _multiprocess_can_split_ = True
 
     def setUp(self):
-        self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+        self.domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
         self.model = create_parabola_model(self.domain)
-        self.acquisition = GPflowOpt.acquisition.ExpectedImprovement(self.model)
+        self.acquisition = gpflowopt.acquisition.ExpectedImprovement(self.model)
 
     def test_objective_indices(self):
         self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
@@ -81,9 +81,9 @@ class TestProbabilityOfImprovement(unittest.TestCase):
     _multiprocess_can_split_ = True
 
     def setUp(self):
-        self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+        self.domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
         self.model = create_parabola_model(self.domain)
-        self.acquisition = GPflowOpt.acquisition.ProbabilityOfImprovement(self.model)
+        self.acquisition = gpflowopt.acquisition.ProbabilityOfImprovement(self.model)
 
     def test_objective_indices(self):
         self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
@@ -121,9 +121,9 @@ class TestProbabilityOfFeasibility(unittest.TestCase):
     _multiprocess_can_split_ = True
 
     def setUp(self):
-        self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+        self.domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
         self.model = create_plane_model(self.domain)
-        self.acquisition = GPflowOpt.acquisition.ProbabilityOfFeasibility(self.model)
+        self.acquisition = gpflowopt.acquisition.ProbabilityOfFeasibility(self.model)
 
     def test_constraint_indices(self):
         self.assertEqual(self.acquisition.constraint_indices(), np.arange(1, dtype=int),
@@ -142,9 +142,9 @@ class TestLowerConfidenceBound(unittest.TestCase):
     _multiprocess_can_split_ = True
 
     def setUp(self):
-        self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+        self.domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
         self.model = create_plane_model(self.domain)
-        self.acquisition = GPflowOpt.acquisition.LowerConfidenceBound(self.model, 3.2)
+        self.acquisition = gpflowopt.acquisition.LowerConfidenceBound(self.model, 3.2)
 
     def test_objective_indices(self):
         self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
@@ -154,13 +154,13 @@ class TestLowerConfidenceBound(unittest.TestCase):
         self.assertEqual(self.acquisition.sigma, 3.2)
 
     def test_LCB_validity(self):
-        design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
+        design = gpflowopt.design.RandomDesign(200, self.domain).generate()
         q = self.acquisition.evaluate(design)
         p = self.acquisition.models[0].predict_f(design)[0]
         np.testing.assert_array_less(q, p)
 
     def test_LCB_validity_2(self):
-        design = GPflowOpt.design.RandomDesign(200, self.domain).generate()
+        design = gpflowopt.design.RandomDesign(200, self.domain).generate()
         self.acquisition.sigma = 0
         q = self.acquisition.evaluate(design)
         p = self.acquisition.models[0].predict_f(design)[0]
@@ -174,7 +174,7 @@ class TestHVProbabilityOfImprovement(unittest.TestCase):
     def setUp(self):
         self.model = create_vlmop2_model()
         self.data = load_data('vlmop.npz')
-        self.acquisition = GPflowOpt.acquisition.HVProbabilityOfImprovement(self.model)
+        self.acquisition = gpflowopt.acquisition.HVProbabilityOfImprovement(self.model)
 
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 2, msg="Model list has incorrect length.")

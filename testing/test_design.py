@@ -1,4 +1,4 @@
-import GPflowOpt
+import gpflowopt
 import unittest
 import numpy as np
 import os
@@ -14,7 +14,7 @@ class _TestDesign(object):
 
     @property
     def domains(self):
-        createfx = lambda j: np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -i, 2 * i) for i in range(1, j+1)])
+        createfx = lambda j: np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -i, 2 * i) for i in range(1, j + 1)])
         return list(map(createfx, np.arange(1, 6)))
 
     def test_design_compliance(self):
@@ -44,7 +44,7 @@ class TestRandomDesign(_TestDesign, unittest.TestCase):
 
     @_TestDesign.designs.getter
     def designs(self):
-        return [GPflowOpt.design.RandomDesign(200, domain) for domain in self.domains]
+        return [gpflowopt.design.RandomDesign(200, domain) for domain in self.domains]
 
     def test_create_to_generate(self):
         pass
@@ -53,13 +53,13 @@ class TestRandomDesign(_TestDesign, unittest.TestCase):
 class TestEmptyDesign(_TestDesign, unittest.TestCase):
     @_TestDesign.designs.getter
     def designs(self):
-        return [GPflowOpt.design.EmptyDesign(domain) for domain in self.domains]
+        return [gpflowopt.design.EmptyDesign(domain) for domain in self.domains]
 
 
 class TestFactorialDesign(_TestDesign, unittest.TestCase):
     @_TestDesign.designs.getter
     def designs(self):
-        return [GPflowOpt.design.FactorialDesign(4, domain) for domain in self.domains]
+        return [gpflowopt.design.FactorialDesign(4, domain) for domain in self.domains]
 
     def test_validity(self):
         for design in self.designs:
@@ -73,7 +73,7 @@ class TestLatinHyperCubeDesign(_TestDesign, unittest.TestCase):
 
     @_TestDesign.designs.getter
     def designs(self):
-        return [GPflowOpt.design.LatinHyperCube(20, domain) for domain in self.domains]
+        return [gpflowopt.design.LatinHyperCube(20, domain) for domain in self.domains]
 
     def test_validity(self):
         groundtruth = np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'lhd.npz'))

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from GPflow.param import DataHolder, AutoFlow
-from GPflow import settings
+from gpflow.param import DataHolder, AutoFlow
+from gpflow import settings
 import numpy as np
 from .transforms import LinearTransform, DataTransform
 from .domain import UnitCube

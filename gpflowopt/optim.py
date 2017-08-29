@@ -18,7 +18,7 @@ import sys
 import warnings
 
 import numpy as np
-from GPflow import settings
+from gpflow import settings
 from scipy.optimize import OptimizeResult, minimize
 
 from .design import RandomDesign

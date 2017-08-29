@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-import GPflowOpt
+import gpflowopt
 
 
 class TestUtilities(unittest.TestCase):
@@ -10,7 +10,7 @@ class TestUtilities(unittest.TestCase):
     def test_nonDominatedSort(self):
         scores = np.array([[0.9575, 0.4218], [0.9649, 0.9157], [0.1576, 0.7922], [0.9706, 0.9595], [0.9572, 0.6557],
                            [0.4854, 0.0357], [0.8003, 0.8491], [0.1419, 0.9340]])
-        d1, d2 = GPflowOpt.pareto.non_dominated_sort(scores)
+        d1, d2 = gpflowopt.pareto.non_dominated_sort(scores)
         np.testing.assert_almost_equal(d1, [[0.1576, 0.7922], [0.4854, 0.0357], [0.1419, 0.934 ]], err_msg='Returned incorrect Pareto set.')
         np.testing.assert_almost_equal(d2, [1, 5, 0, 7, 1, 0, 2, 0], err_msg='Returned incorrect dominance')
 
@@ -28,8 +28,8 @@ class TestPareto(unittest.TestCase):
                                      [0.4854, 0.0357],
                                      [0.8003, 0.8491],
                                      [0.1419, 0.9340]])
-        self.p_2d = GPflowOpt.pareto.Pareto(objective_scores)
-        self.p_generic = GPflowOpt.pareto.Pareto(np.zeros((1, 2)))
+        self.p_2d = gpflowopt.pareto.Pareto(objective_scores)
+        self.p_generic = gpflowopt.pareto.Pareto(np.zeros((1, 2)))
         self.p_generic.update(objective_scores, generic_strategy=True)
 
     def test_update(self):

@@ -13,8 +13,8 @@
 # limitations under the License.
 
 
-from GPflow import settings
-from GPflow.param import Parameterized, DataHolder, AutoFlow
+from gpflow import settings
+from gpflow.param import Parameterized, DataHolder, AutoFlow
 import numpy as np
 import tensorflow as tf
 
