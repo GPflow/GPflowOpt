@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# gpflowopt documentation build configuration file, created by
+# GPflowOpt documentation build configuration file, created by
 # sphinx-quickstart on Sun Apr 30 20:34:41 2017.
 #
 # This file is execfile()d with the current directory set to its

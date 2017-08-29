@@ -45,7 +45,7 @@ class DataScaler(ModelWrapper):
     specialized classes such as the BayesianOptimizer) to correctly configure the datascalers involved.
 
     By carrying out the scaling at such a deep level in the framework, it is possible to keep the scaling
-    hidden throughout the rest of gpflowopt. This means that, during implementation of acquisition functions it is safe
+    hidden throughout the rest of GPflowOpt. This means that, during implementation of acquisition functions it is safe
     to assume the data is not scaled, and is within the configured optimization domain. There is only one exception:
     the hyperparameters are determined on the scaled data, and are NOT automatically unscaled by this class because the
     datascaler does not know what model is wrapped and what kernels are used. Should hyperparameters of the model be
