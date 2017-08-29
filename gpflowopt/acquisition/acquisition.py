@@ -16,9 +16,9 @@ from ..scaling import DataScaler
 from ..domain import UnitCube
 from ..models import ModelWrapper
 
-from GPflow.param import Parameterized, AutoFlow, ParamList
-from GPflow.model import Model
-from GPflow import settings
+from gpflow.param import Parameterized, AutoFlow, ParamList
+from gpflow.model import Model
+from gpflow import settings
 
 import numpy as np
 import tensorflow as tf
@@ -269,10 +269,10 @@ class Acquisition(Parameterized):
         """
         Operator for adding acquisition functions. Example:
 
-        >>> a1 = GPflowOpt.acquisition.ExpectedImprovement(m1)
-        >>> a2 = GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
+        >>> a1 = gpflowopt.acquisition.ExpectedImprovement(m1)
+        >>> a2 = gpflowopt.acquisition.ProbabilityOfFeasibility(m2)
         >>> type(a1 + a2)
-        <type 'GPflowOpt.acquisition.AcquisitionSum'>
+        <type 'gpflowopt.acquisition.AcquisitionSum'>
         """
         if isinstance(other, AcquisitionSum):
             return AcquisitionSum([self] + other.operands.sorted_params)
@@ -282,10 +282,10 @@ class Acquisition(Parameterized):
         """
         Operator for multiplying acquisition functions. Example:
 
-        >>> a1 = GPflowOpt.acquisition.ExpectedImprovement(m1)
-        >>> a2 = GPflowOpt.acquisition.ProbabilityOfFeasibility(m2)
+        >>> a1 = gpflowopt.acquisition.ExpectedImprovement(m1)
+        >>> a2 = gpflowopt.acquisition.ProbabilityOfFeasibility(m2)
         >>> type(a1 * a2)
-        <type 'GPflowOpt.acquisition.AcquisitionProduct'>
+        <type 'gpflowopt.acquisition.AcquisitionProduct'>
         """
         if isinstance(other, AcquisitionProduct):
             return AcquisitionProduct([self] + other.operands.sorted_params)

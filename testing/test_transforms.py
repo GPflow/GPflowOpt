@@ -1,7 +1,7 @@
 import unittest
-import GPflowOpt
+import gpflowopt
 import tensorflow as tf
-from GPflow import settings
+from gpflow import settings
 import numpy as np
 from parameterized import parameterized
 
@@ -9,7 +9,7 @@ float_type = settings.dtypes.float_type
 np_float_type = np.float32 if float_type is tf.float32 else np.float64
 
 
-class DummyTransform(GPflowOpt.transforms.DataTransform):
+class DummyTransform(gpflowopt.transforms.DataTransform):
     """
     As linear transform overrides backward/build_backward, create a different transform to obtain coverage of the
     default implementations
@@ -29,7 +29,7 @@ class DummyTransform(GPflowOpt.transforms.DataTransform):
         return '(dummy)'
 
 
-transforms = [DummyTransform(2.0), GPflowOpt.transforms.LinearTransform([2.0, 3.5], [1.2, 0.7])]
+transforms = [DummyTransform(2.0), gpflowopt.transforms.LinearTransform([2.0, 3.5], [1.2, 0.7])]
 
 
 class LinearTransformTests(unittest.TestCase):
@@ -59,7 +59,7 @@ class LinearTransformTests(unittest.TestCase):
 
     def test_backward_variance_full_cov(self):
         tf.reset_default_graph()
-        t = ~GPflowOpt.transforms.LinearTransform([2.0, 1.0], [1.2, 0.7])
+        t = ~gpflowopt.transforms.LinearTransform([2.0, 1.0], [1.2, 0.7])
         x = tf.placeholder(float_type, [10, 10, 2])
         y = tf.placeholder(float_type, [None])
         t.make_tf_array(y)
@@ -84,7 +84,7 @@ class LinearTransformTests(unittest.TestCase):
 
     def test_backward_variance(self):
         tf.reset_default_graph()
-        t = ~GPflowOpt.transforms.LinearTransform([2.0, 1.0], [1.2, 0.7])
+        t = ~gpflowopt.transforms.LinearTransform([2.0, 1.0], [1.2, 0.7])
         x = tf.placeholder(float_type, [10, 2])
         y = tf.placeholder(float_type, [None])
         t.make_tf_array(y)
@@ -103,8 +103,8 @@ class LinearTransformTests(unittest.TestCase):
         self.assertTrue(np.allclose(Bs, B * np.array([4, 1])))
 
     def test_assign(self):
-        t1 = GPflowOpt.transforms.LinearTransform([2.0, 1.0], [1.2, 0.7])
-        t2 = GPflowOpt.transforms.LinearTransform([1.0, 1.0], [0, 0])
+        t1 = gpflowopt.transforms.LinearTransform([2.0, 1.0], [1.2, 0.7])
+        t2 = gpflowopt.transforms.LinearTransform([1.0, 1.0], [0, 0])
         t1.assign(t2)
         np.testing.assert_allclose(t1.A.value, t2.A.value)
         np.testing.assert_allclose(t1.b.value, t2.b.value)

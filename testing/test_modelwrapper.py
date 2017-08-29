@@ -1,19 +1,19 @@
-import GPflowOpt
+import gpflowopt
 import unittest
-import GPflow
+import gpflow
 import numpy as np
 from .utility import create_parabola_model
 
-float_type = GPflow.settings.dtypes.float_type
+float_type = gpflow.settings.dtypes.float_type
 
 
-class MethodOverride(GPflowOpt.models.ModelWrapper):
+class MethodOverride(gpflowopt.models.ModelWrapper):
 
     def __init__(self, m):
         super(MethodOverride, self).__init__(m)
-        self.A = GPflow.param.DataHolder(np.array([1.0]))
+        self.A = gpflow.param.DataHolder(np.array([1.0]))
 
-    @GPflow.param.AutoFlow((float_type, [None, None]))
+    @gpflow.param.AutoFlow((float_type, [None, None]))
     def predict_f(self, Xnew):
         """
         Compute the mean and variance of held-out data at the points Xnew
@@ -41,16 +41,16 @@ class MethodOverride(GPflowOpt.models.ModelWrapper):
 class TestModelWrapper(unittest.TestCase):
 
     def setUp(self):
-        self.m = create_parabola_model(GPflowOpt.domain.UnitCube(2))
+        self.m = create_parabola_model(gpflowopt.domain.UnitCube(2))
 
     def test_object_integrity(self):
-        w = GPflowOpt.models.ModelWrapper(self.m)
+        w = gpflowopt.models.ModelWrapper(self.m)
         self.assertEqual(w.wrapped, self.m)
         self.assertEqual(self.m._parent, w)
         self.assertEqual(w.optimize, self.m.optimize)
 
     def test_optimize(self):
-        w = GPflowOpt.models.ModelWrapper(self.m)
+        w = gpflowopt.models.ModelWrapper(self.m)
         logL = self.m.compute_log_likelihood()
         self.assertTrue(np.allclose(logL, w.compute_log_likelihood()))
 
@@ -72,7 +72,7 @@ class TestModelWrapper(unittest.TestCase):
 
     def test_set_wrapped_attributes(self):
         # Regression test for setting certain keys in the right object
-        w = GPflowOpt.models.ModelWrapper(self.m)
+        w = gpflowopt.models.ModelWrapper(self.m)
         w._needs_recompile = False
         self.assertFalse('_needs_recompile' in w.__dict__)
         self.assertTrue('_needs_recompile' in self.m.__dict__)
@@ -80,7 +80,7 @@ class TestModelWrapper(unittest.TestCase):
         self.assertFalse(self.m._needs_recompile)
 
     def test_double_wrap(self):
-        n = GPflowOpt.models.ModelWrapper(MethodOverride(self.m))
+        n = gpflowopt.models.ModelWrapper(MethodOverride(self.m))
         n.optimize(maxiter=10)
         Xt = np.random.rand(10, 2)
         n.predict_f(Xt)
@@ -88,7 +88,7 @@ class TestModelWrapper(unittest.TestCase):
         self.assertTrue('_predict_f_AF_storage' in n.wrapped.__dict__)
         self.assertFalse('_predict_f_AF_storage' in n.wrapped.wrapped.__dict__)
 
-        n = MethodOverride(GPflowOpt.models.ModelWrapper(self.m))
+        n = MethodOverride(gpflowopt.models.ModelWrapper(self.m))
         Xn = np.random.rand(10, 2)
         Yn = np.random.rand(10, 1)
         n.X = Xn
@@ -103,31 +103,31 @@ class TestModelWrapper(unittest.TestCase):
         self.assertFalse('foo' in n.wrapped.wrapped.__dict__)
 
     def test_name(self):
-        n = GPflowOpt.models.ModelWrapper(self.m)
+        n = gpflowopt.models.ModelWrapper(self.m)
         self.assertEqual(n.name, 'unnamed.modelwrapper')
-        p = GPflow.param.Parameterized()
+        p = gpflow.param.Parameterized()
         p.model = n
         self.assertEqual(n.name, 'model.modelwrapper')
-        n = MethodOverride(create_parabola_model(GPflowOpt.domain.UnitCube(2)))
+        n = MethodOverride(create_parabola_model(gpflowopt.domain.UnitCube(2)))
         self.assertEqual(n.name, 'unnamed.methodoverride')
 
     def test_parent_hook(self):
         self.m.optimize(maxiter=5)
-        w = GPflowOpt.models.ModelWrapper(self.m)
-        self.assertTrue(isinstance(self.m.highest_parent, GPflowOpt.models.ParentHook))
+        w = gpflowopt.models.ModelWrapper(self.m)
+        self.assertTrue(isinstance(self.m.highest_parent, gpflowopt.models.ParentHook))
         self.assertEqual(self.m.highest_parent._hp, w)
         self.assertEqual(self.m.highest_parent._hm, w)
 
-        w2 = GPflowOpt.models.ModelWrapper(w)
+        w2 = gpflowopt.models.ModelWrapper(w)
         self.assertEqual(self.m.highest_parent._hp, w2)
         self.assertEqual(self.m.highest_parent._hm, w2)
 
-        p = GPflow.param.Parameterized()
+        p = gpflow.param.Parameterized()
         p.model = w2
         self.assertEqual(self.m.highest_parent._hp, p)
         self.assertEqual(self.m.highest_parent._hm, w2)
 
-        p.predictor = create_parabola_model(GPflowOpt.domain.UnitCube(2))
+        p.predictor = create_parabola_model(gpflowopt.domain.UnitCube(2))
         p.predictor.predict_f(p.predictor.X.value)
         self.assertTrue(hasattr(p.predictor, '_predict_f_AF_storage'))
         self.assertFalse(self.m._needs_recompile)

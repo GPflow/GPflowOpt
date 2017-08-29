@@ -15,8 +15,8 @@
 from .acquisition import Acquisition
 from ..pareto import Pareto
 
-from GPflow.param import DataHolder
-from GPflow import settings
+from gpflow.param import DataHolder
+from gpflow import settings
 
 import numpy as np
 import tensorflow as tf

@@ -14,9 +14,9 @@
 
 from .acquisition import Acquisition
 
-from GPflow.model import Model
-from GPflow.param import DataHolder
-from GPflow import settings
+from gpflow.model import Model
+from gpflow.param import DataHolder
+from gpflow import settings
 
 import numpy as np
 import tensorflow as tf
