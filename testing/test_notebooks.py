@@ -4,12 +4,12 @@ from nbconvert.preprocessors import ExecutePreprocessor
 from nbconvert.preprocessors.execute import CellExecutionError
 import glob
 import traceback
-import unittest
 import sys
 import time
 import os
 from nose.plugins.attrib import attr
 from parameterized import parameterized
+from .utility import GPflowOptTestCase
 
 this_dir = os.path.dirname(__file__)
 nbpath = os.path.join(this_dir, '../doc/source/notebooks/')
@@ -18,9 +18,7 @@ lfiles = [(f,) for f in glob.glob(nbpath+"*.ipynb") if f not in blacklist]
 
 
 @attr('notebooks')
-class TestNotebooks(unittest.TestCase):
-
-    _multiprocess_can_split_ = True
+class TestNotebooks(GPflowOptTestCase):
 
     def _execNotebook(self, notebook_filename, nbpath):
         with open(notebook_filename) as f:
