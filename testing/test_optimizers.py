@@ -349,7 +349,7 @@ class TestBayesianOptimizerConfigurations(unittest.TestCase):
         X, Y = design.generate(), parabola2d(design.generate())[0]
         m = gpflow.vgp.VGP(X, Y, gpflow.kernels.RBF(2, ARD=True), likelihood=gpflow.likelihoods.Gaussian())
         acq = gpflowopt.acquisition.ExpectedImprovement(m)
-        optimizer = gpflowopt.BayesianOptimizer(self.domain, self.acquisition)
+        optimizer = gpflowopt.BayesianOptimizer(self.domain, acq)
         result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
         self.assertTrue(result.success)
 
