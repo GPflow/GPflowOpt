@@ -67,7 +67,7 @@ setup(name='gpflowopt',
                       'test': ['nose', 'coverage', 'six', 'parameterized', 'nbconvert', 'nbformat','jupyter',
                                'jupyter_client', 'matplotlib']
                       },
-      dependency_links=['https://github.com/GPflow/GPflow/tarball/master#egg=GPflow-0.3.5'],
+      dependency_links=['https://github.com/GPflow/GPflow/tarball/fe3abdc55da55cabe1c31f157f2434e17dd0defe#egg=GPflow-0.3.5'],
       classifiers=['License :: OSI Approved :: Apache Software License',
                    'Natural Language :: English',
                    'Operating System :: POSIX :: Linux',
