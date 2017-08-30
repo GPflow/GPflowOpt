@@ -17,7 +17,7 @@ from contextlib import contextmanager
 import numpy as np
 from scipy.optimize import OptimizeResult
 import tensorflow as tf
-from GPflow.gpr import GPR
+from gpflow.gpr import GPR
 
 from .acquisition import Acquisition, MCMCAcquistion
 from .design import Design, EmptyDesign

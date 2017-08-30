@@ -14,7 +14,7 @@
 
 import numpy as np
 from scipy.spatial.distance import cdist, pdist
-from GPflowOpt.domain import ContinuousParameter
+from .domain import ContinuousParameter
 
 
 class Design(object):

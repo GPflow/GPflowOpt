@@ -1,6 +1,6 @@
 import numpy as np
-import GPflow
-import GPflowOpt
+import gpflow
+import gpflowopt
 import os
 
 
@@ -28,22 +28,22 @@ def load_data(file):
 
 def create_parabola_model(domain, design=None):
     if design is None:
-        design = GPflowOpt.design.LatinHyperCube(16, domain)
+        design = gpflowopt.design.LatinHyperCube(16, domain)
     X, Y = design.generate(), parabola2d(design.generate())
-    m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
+    m = gpflow.gpr.GPR(X, Y, gpflow.kernels.RBF(2, ARD=True))
     return m
 
 
 def create_plane_model(domain, design=None):
     if design is None:
-        design = GPflowOpt.design.LatinHyperCube(25, domain)
+        design = gpflowopt.design.LatinHyperCube(25, domain)
     X, Y = design.generate(), plane(design.generate())
-    m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
+    m = gpflow.gpr.GPR(X, Y, gpflow.kernels.RBF(2, ARD=True))
     return m
 
 
 def create_vlmop2_model():
     data = load_data('vlmop.npz')
-    m1 = GPflow.gpr.GPR(data['X'], data['Y'][:, [0]], kern=GPflow.kernels.Matern32(2))
-    m2 = GPflow.gpr.GPR(data['X'], data['Y'][:, [1]], kern=GPflow.kernels.Matern32(2))
+    m1 = gpflow.gpr.GPR(data['X'], data['Y'][:, [0]], kern=gpflow.kernels.Matern32(2))
+    m2 = gpflow.gpr.GPR(data['X'], data['Y'][:, [1]], kern=gpflow.kernels.Matern32(2))
     return [m1, m2]
