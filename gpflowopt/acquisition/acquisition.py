@@ -447,6 +447,8 @@ class MCMCAcquistion(AcquisitionSum):
 
     def _kill_autoflow(self):
         """
+        Flag for recreation on next optimize.
+
         Following the recompilation of models, the free state might have changed. This means updating the samples can
         cause inconsistencies and errors. Flag for recreation on next optimize
         """

@@ -24,17 +24,23 @@ from .design import Design, EmptyDesign
 from .objective import ObjectiveWrapper
 from .optim import Optimizer, SciPyOptimizer
 from .pareto import non_dominated_sort
+from .models import ModelWrapper
 
 
 def jitchol_callback(models):
     """
-    Default callback for BayesianOptimizer. For all GPR models, increase the likelihood variance in case of cholesky
-    faillures. This is similar to the use of jitchol in GPy
-    :return:
+    Increase the likelihood in case of cholesky faillures.
+
+    This is similar to the use of jitchol in GPy. Default callback for BayesianOptimizer.
+    Only usable on GPR models, other types are ignored.
     """
-    for m in models:
+    for m in np.atleast_1d(models):
+        if isinstance(m, ModelWrapper):
+            jitchol_callback(m.wrapped)  # pragma: no cover
+
         if not isinstance(m, GPR):
             continue
+
         s = m.get_free_state()
         eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.value)))
         for e in [0] + [10**ex for ex in range(-6,-1)]:
@@ -74,12 +80,12 @@ class BayesianOptimizer(Optimizer):
             are obtained using Hamiltonian MC.
             (see `GPflow documentation <https://gpflow.readthedocs.io/en/latest//>`_ for details) for each model.
             The acquisition score is computed for each draw, and averaged.
-        :param callable callback: (optional) this function or object will be called after each evaluate, after the
+        :param callable callback: (optional) this function or object will be called, after the
             data of all models has been updated with all models as retrieved by acquisition.models as argument without
             the wrapping model handling any scaling . This allows custom model optimization strategies to be implemented.
             All manipulations of GPflow models are permitted. Combined with the optimize_restarts parameter of
             :class:`~.Acquisition` this allows several scenarios: do the optimization manually from the callback
-            (optimize_restarts equals zero),  orchoose the starting point + some random restarts (optimize_restarts > 0).
+            (optimize_restarts equals 0), or choose the starting point + some random restarts (optimize_restarts > 0).
         """
         assert isinstance(acquisition, Acquisition)
         assert hyper_draws is None or hyper_draws > 0
@@ -98,7 +104,7 @@ class BayesianOptimizer(Optimizer):
         initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
 
-        self._iter_callback = callback
+        self._model_callback = callback
 
     @Optimizer.domain.setter
     def domain(self, dom):
@@ -224,8 +230,8 @@ class BayesianOptimizer(Optimizer):
         for i in range(n_iter):
             # If callback specified, and acquisition has the setup flag enabled (indicating an upcoming compilation,
             # run the callback.
-            if self._iter_callback and self.acquisition._needs_setup:
-                self._iter_callback([m.wrapped for m in self.acquisition.models])
+            if self._model_callback and self.acquisition._needs_setup:
+                self._model_callback([m.wrapped for m in self.acquisition.models])
             result = self.optimizer.optimize(inverse_acquisition)
             self._update_model_data(result.x, fx(result.x))
 

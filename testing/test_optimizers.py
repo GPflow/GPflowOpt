@@ -344,6 +344,15 @@ class TestBayesianOptimizerConfigurations(unittest.TestCase):
         for op1, op2 in zip(opers[1:], optimizer.acquisition.operands[1:]):
             self.assertNotEqual(id(op1), id(op2))
 
+    def test_nongpr_model(self):
+        design = gpflowopt.design.LatinHyperCube(16, self.domain)
+        X, Y = design.generate(), parabola2d(design.generate())[0]
+        m = gpflow.vgp.VGP(X, Y, gpflow.kernels.RBF(2, ARD=True), likelihood=gpflow.likelihoods.Gaussian())
+        acq = gpflowopt.acquisition.ExpectedImprovement(m)
+        optimizer = gpflowopt.BayesianOptimizer(self.domain, self.acquisition)
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+        self.assertTrue(result.success)
+
 
 class TestSilentOptimization(unittest.TestCase):
     @contextmanager
