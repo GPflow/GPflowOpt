@@ -214,8 +214,8 @@ class TestBayesianOptimizer(_TestOptimizer, GPflowOptTestCase):
             result = optimizer.optimize(vlmop2, n_iter=2)
             self.assertTrue(result.success)
             self.assertEqual(result.nfev, 2, "Only 2 evaluations permitted")
-            self.assertTupleEqual(result.x.shape, (9, 2))
-            self.assertTupleEqual(result.fun.shape, (9, 2))
+            self.assertTupleEqual(result.x.shape, (7, 2))
+            self.assertTupleEqual(result.fun.shape, (7, 2))
             _, dom = gpflowopt.pareto.non_dominated_sort(result.fun)
             self.assertTrue(np.all(dom==0))
 
