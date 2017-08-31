@@ -396,26 +396,30 @@ class MCMCAcquistion(AcquisitionSum):
     """
     Apply MCMC over the hyperparameters of an acquisition function (= over the hyperparameters of the contained models).
     
-    The models passed into an object of this class are optimized with MLE, and then further sampled with HMC.
-    These hyperparameter samples are then set in copies of the acquisition.
+    The models passed into an object of this class are optimized with MLE (fast burn-in), and then further sampled with
+    HMC. These hyperparameter samples are then set in copies of the acquisition.
 
     For evaluating the underlying acquisition function, the predictions of the acquisition copies are averaged.
     """
     def __init__(self, acquisition, n_slices, **kwargs):
         assert isinstance(acquisition, Acquisition)
         assert n_slices > 0
-
-        copies = [copy.deepcopy(acquisition) for _ in range(n_slices - 1)]
-        for c in copies:
-            c.optimize_restarts = 0
-
         # the call to the constructor of the parent classes, will optimize acquisition, so it obtains the MLE solution.
-        super(MCMCAcquistion, self).__init__([acquisition] + copies)
+        super(MCMCAcquistion, self).__init__([acquisition]*n_slices)
+        self._needs_new_copies = True
         self._sample_opt = kwargs
 
     def _optimize_models(self):
         # Optimize model #1
         self.operands[0]._optimize_models()
+
+        # Copy it again if needed due to changed free state
+        if self._needs_new_copies:
+            new_copies = [copy.deepcopy(self.operands[0]) for _ in range(len(self.operands) - 1)]
+            for c in new_copies:
+                c.optimize_restarts = 0
+            self.operands = ParamList([self.operands[0]] + new_copies)
+            self._needs_new_copies = False
 
         # Draw samples using HMC
         # Sample each model of the acquisition function - results in a list of 2D ndarrays.
@@ -440,3 +444,13 @@ class MCMCAcquistion(AcquisitionSum):
     def build_acquisition(self, Xcand):
         # Average the predictions of the copies.
         return 1. / len(self.operands) * super(MCMCAcquistion, self).build_acquisition(Xcand)
+
+    def _kill_autoflow(self):
+        """
+        Flag for recreation on next optimize.
+
+        Following the recompilation of models, the free state might have changed. This means updating the samples can
+        cause inconsistencies and errors.
+        """
+        super(MCMCAcquistion, self)._kill_autoflow()
+        self._needs_new_copies = True
