@@ -450,7 +450,7 @@ class MCMCAcquistion(AcquisitionSum):
         Flag for recreation on next optimize.
 
         Following the recompilation of models, the free state might have changed. This means updating the samples can
-        cause inconsistencies and errors. Flag for recreation on next optimize
+        cause inconsistencies and errors.
         """
         super(MCMCAcquistion, self)._kill_autoflow()
         self._needs_new_copies = True

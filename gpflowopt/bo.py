@@ -29,7 +29,7 @@ from .models import ModelWrapper
 
 def jitchol_callback(models):
     """
-    Increase the likelihood in case of cholesky faillures.
+    Increase the likelihood in case of Cholesky failures.
 
     This is similar to the use of jitchol in GPy. Default callback for BayesianOptimizer.
     Only usable on GPR models, other types are ignored.
@@ -228,8 +228,8 @@ class BayesianOptimizer(Optimizer):
 
         # Optimization loop
         for i in range(n_iter):
-            # If callback specified, and acquisition has the setup flag enabled (indicating an upcoming compilation,
-            # run the callback.
+            # If a callback is specified, and acquisition has the setup flag enabled (indicating an upcoming
+            # compilation), run the callback.
             if self._model_callback and self.acquisition._needs_setup:
                 self._model_callback([m.wrapped for m in self.acquisition.models])
             result = self.optimizer.optimize(inverse_acquisition)
