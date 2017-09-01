@@ -51,13 +51,13 @@ class TestAcquisition(GPflowOptTestCase):
     def test_data(self):
         # Test the data property
         with self.test_session(graph=tf.Graph()):
-                free_vars = tf.placeholder(tf.float64, [None])
-                l = self.acquisition.make_tf_array(free_vars)
-                with self.acquisition.tf_mode():
-                    self.assertTrue(isinstance(self.acquisition.data[0], tf.Tensor),
-                                    msg="data property should return Tensors")
-                    self.assertTrue(isinstance(self.acquisition.data[1], tf.Tensor),
-                                    msg="data property should return Tensors")
+            free_vars = tf.placeholder(tf.float64, [None])
+            l = self.acquisition.make_tf_array(free_vars)
+            with self.acquisition.tf_mode():
+                self.assertTrue(isinstance(self.acquisition.data[0], tf.Tensor),
+                                msg="data property should return Tensors")
+                self.assertTrue(isinstance(self.acquisition.data[1], tf.Tensor),
+                                msg="data property should return Tensors")
 
     def test_data_update(self):
         # Verify the effect of setting the data
@@ -90,13 +90,12 @@ class TestAcquisition(GPflowOptTestCase):
         # Verify the returned shape of evaluate
         design = gpflowopt.design.RandomDesign(50, domain)
         with self.test_session(graph=tf.Graph()):
-            with tf.Graph().as_default():
-                free_vars = tf.placeholder(tf.float64, [None])
-                l = self.acquisition.make_tf_array(free_vars)
-                x_tf = tf.placeholder(tf.float64, shape=(50, 2))
-                with self.acquisition.tf_mode():
-                    tens = self.acquisition.build_acquisition(x_tf)
-                    self.assertTrue(isinstance(tens, tf.Tensor), msg="no Tensor was returned")
+            free_vars = tf.placeholder(tf.float64, [None])
+            l = self.acquisition.make_tf_array(free_vars)
+            x_tf = tf.placeholder(tf.float64, shape=(50, 2))
+            with self.acquisition.tf_mode():
+                tens = self.acquisition.build_acquisition(x_tf)
+                self.assertTrue(isinstance(tens, tf.Tensor), msg="no Tensor was returned")
 
     def test_result_shape_np(self):
         with self.test_session():
