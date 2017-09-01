@@ -50,8 +50,7 @@ class TestAcquisition(GPflowOptTestCase):
 
     def test_data(self):
         # Test the data property
-        with self.test_session():
-            with tf.Graph().as_default():
+        with self.test_session(graph=tf.Graph()):
                 free_vars = tf.placeholder(tf.float64, [None])
                 l = self.acquisition.make_tf_array(free_vars)
                 with self.acquisition.tf_mode():
@@ -90,7 +89,7 @@ class TestAcquisition(GPflowOptTestCase):
     def test_result_shape_tf(self):
         # Verify the returned shape of evaluate
         design = gpflowopt.design.RandomDesign(50, domain)
-        with self.test_session():
+        with self.test_session(graph=tf.Graph()):
             with tf.Graph().as_default():
                 free_vars = tf.placeholder(tf.float64, [None])
                 l = self.acquisition.make_tf_array(free_vars)
