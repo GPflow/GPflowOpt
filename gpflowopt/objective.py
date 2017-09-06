@@ -13,7 +13,7 @@
 # limitations under the License.
 import numpy as np
 from functools import wraps
-from GPflow import model
+from gpflow import model
 
 
 def batch_apply(fun):

@@ -17,12 +17,40 @@ import copy
 
 import numpy as np
 from scipy.optimize import OptimizeResult
+import tensorflow as tf
+from gpflow.gpr import GPR
 
 from .acquisition import Acquisition, MCMCAcquistion
-from .optim import Optimizer, SciPyOptimizer
-from .objective import ObjectiveWrapper
 from .design import Design, EmptyDesign
+from .objective import ObjectiveWrapper
+from .optim import Optimizer, SciPyOptimizer
 from .pareto import non_dominated_sort
+from .models import ModelWrapper
+
+
+def jitchol_callback(models):
+    """
+    Increase the likelihood in case of Cholesky failures.
+
+    This is similar to the use of jitchol in GPy. Default callback for BayesianOptimizer.
+    Only usable on GPR models, other types are ignored.
+    """
+    for m in np.atleast_1d(models):
+        if isinstance(m, ModelWrapper):
+            jitchol_callback(m.wrapped)  # pragma: no cover
+
+        if not isinstance(m, GPR):
+            continue
+
+        s = m.get_free_state()
+        eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.value)))
+        for e in [0] + [10**ex for ex in range(-6,-1)]:
+            try:
+                m.likelihood.variance = m.likelihood.variance.value + e * eKdiag
+                m.optimize(maxiter=5)
+                break
+            except tf.errors.InvalidArgumentError:  # pragma: no cover
+                m.set_state(s)
 
 
 class BayesianOptimizer(Optimizer):
@@ -33,7 +61,8 @@ class BayesianOptimizer(Optimizer):
     Additionally, it is configured with a separate optimizer for the acquisition function.
     """
 
-    def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=None):
+    def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=None,
+                 callback=jitchol_callback):
         """
         :param Domain domain: The optimization space.
         :param Acquisition acquisition: The acquisition function to optimize over the domain.
@@ -52,6 +81,12 @@ class BayesianOptimizer(Optimizer):
             are obtained using Hamiltonian MC.
             (see `GPflow documentation <https://gpflow.readthedocs.io/en/latest//>`_ for details) for each model.
             The acquisition score is computed for each draw, and averaged.
+        :param callable callback: (optional) this function or object will be called, after the
+            data of all models has been updated with all models as retrieved by acquisition.models as argument without
+            the wrapping model handling any scaling . This allows custom model optimization strategies to be implemented.
+            All manipulations of GPflow models are permitted. Combined with the optimize_restarts parameter of
+            :class:`~.Acquisition` this allows several scenarios: do the optimization manually from the callback
+            (optimize_restarts equals 0), or choose the starting point + some random restarts (optimize_restarts > 0).
         """
         assert isinstance(acquisition, Acquisition)
         assert hyper_draws is None or hyper_draws > 0
@@ -76,6 +111,8 @@ class BayesianOptimizer(Optimizer):
         initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
 
+        self._model_callback = callback
+
     @Optimizer.domain.setter
     def domain(self, dom):
         assert self.domain.size == dom.size
@@ -93,6 +130,8 @@ class BayesianOptimizer(Optimizer):
         assert self.acquisition.data[0].shape[1] == newX.shape[-1]
         assert self.acquisition.data[1].shape[1] == newY.shape[-1]
         assert newX.shape[0] == newY.shape[0]
+        if newX.size == 0:
+            return
         X = np.vstack((self.acquisition.data[0], newX))
         Y = np.vstack((self.acquisition.data[1], newY))
         self.acquisition.set_data(X, Y)
@@ -181,7 +220,6 @@ class BayesianOptimizer(Optimizer):
         :param n_iter: number of iterations to run
         :return: OptimizeResult object
         """
-
         assert isinstance(fx, ObjectiveWrapper)
 
         # Evaluate and add the initial design (if any)
@@ -197,6 +235,10 @@ class BayesianOptimizer(Optimizer):
 
         # Optimization loop
         for i in range(n_iter):
+            # If a callback is specified, and acquisition has the setup flag enabled (indicating an upcoming
+            # compilation), run the callback.
+            if self._model_callback and self.acquisition._needs_setup:
+                self._model_callback([m.wrapped for m in self.acquisition.models])
             result = self.optimizer.optimize(inverse_acquisition)
             Xnew = np.vstack(np.split(result.x, self.acquisition.batch_size, axis=1))
             self._update_model_data(Xnew, fx(Xnew))

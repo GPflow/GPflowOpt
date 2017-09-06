@@ -18,7 +18,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-from GPflowOpt import __version__
+from gpflowopt import __version__
 
 # on_rtd is whether we are on readthedocs.org, this line of code grabbed from docs.readthedocs.org
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -151,7 +151,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'GPflowOpt.tex', 'GPflowOpt Documentation',
+    (master_doc, 'gpflowopt.tex', 'GPflowOpt Documentation',
      'Joachim van der Herten', 'manual'),
 ]
 
@@ -161,7 +161,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'gpflowopt', 'GPflowOpt Documentation',
+    (master_doc, 'GPflowOpt', 'GPflowOpt Documentation',
      [author], 1)
 ]
 

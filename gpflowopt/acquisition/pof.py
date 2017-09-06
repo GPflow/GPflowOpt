@@ -14,7 +14,7 @@
 
 from .acquisition import Acquisition
 
-from GPflow import settings
+from gpflow import settings
 
 import numpy as np
 import tensorflow as tf

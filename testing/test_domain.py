@@ -1,4 +1,4 @@
-import GPflowOpt
+import gpflowopt
 import unittest
 import numpy as np
 
@@ -8,7 +8,7 @@ class TestContinuousParameter(unittest.TestCase):
     _multiprocess_can_split_ = True
 
     def test_simple(self):
-        p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
+        p = gpflowopt.domain.ContinuousParameter("x1", 0, 1)
         self.assertTrue(np.allclose(p._range, [0,1]), msg="Internal storage of object incorrect")
         self.assertEqual(p.lower, 0, msg="Lower should equal 0")
         self.assertEqual(p.upper, 1, msg="Upper should equal 1")
@@ -19,26 +19,26 @@ class TestContinuousParameter(unittest.TestCase):
         p.lower = 1
         self.assertEqual(p.lower, 1, msg="After assignment, lower should equal 2")
 
-        p = np.sum([GPflowOpt.domain.ContinuousParameter("x1", 0, 1)])
+        p = np.sum([gpflowopt.domain.ContinuousParameter("x1", 0, 1)])
         self.assertTrue(p.size == 1, msg="Construction of domain by list using sum failed")
 
     def test_equality(self):
-        p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
-        pne = GPflowOpt.domain.ContinuousParameter("x1", 0, 2)
+        p = gpflowopt.domain.ContinuousParameter("x1", 0, 1)
+        pne = gpflowopt.domain.ContinuousParameter("x1", 0, 2)
         self.assertNotEqual(p, pne, msg="Should not be equal (invalid upper)")
-        pne = GPflowOpt.domain.ContinuousParameter("x1", -1, 1)
+        pne = gpflowopt.domain.ContinuousParameter("x1", -1, 1)
         self.assertNotEqual(p, pne, msg="Should not be equal (invalid lower)")
-        pne = GPflowOpt.domain.ContinuousParameter("x1", -1, 2)
+        pne = gpflowopt.domain.ContinuousParameter("x1", -1, 2)
         self.assertNotEqual(p, pne, msg="Should not be equal (invalid lower/upper)")
         p.lower = -1
         p.upper = 2
         self.assertEqual(p, pne, msg="Should be equal after adjusting bounds")
 
     def test_indexing(self):
-        p = np.sum([GPflowOpt.domain.ContinuousParameter("x1", 0, 1),
-                 GPflowOpt.domain.ContinuousParameter("x2", 0, 1),
-                 GPflowOpt.domain.ContinuousParameter("x3", 0, 1),
-                 GPflowOpt.domain.ContinuousParameter("x4", 0, 1)])
+        p = np.sum([gpflowopt.domain.ContinuousParameter("x1", 0, 1),
+                    gpflowopt.domain.ContinuousParameter("x2", 0, 1),
+                    gpflowopt.domain.ContinuousParameter("x3", 0, 1),
+                    gpflowopt.domain.ContinuousParameter("x4", 0, 1)])
 
         subdomain = p[['x4', 'x1', 2]]
         self.assertTrue(subdomain.size == 3, msg="Subdomain should have size 3")
@@ -47,7 +47,7 @@ class TestContinuousParameter(unittest.TestCase):
         self.assertTrue(subdomain[2].label == 'x3', msg="Subdomain's third parameter should be 'x3'")
 
     def test_containment(self):
-        p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
+        p = gpflowopt.domain.ContinuousParameter("x1", 0, 1)
         self.assertIn(0, p, msg="Point is within domain")
         self.assertIn(0.5, p, msg="Point is within domain")
         self.assertIn(1, p, msg="Point is within domain")
@@ -55,7 +55,7 @@ class TestContinuousParameter(unittest.TestCase):
         self.assertNotIn(-0.5, p, msg="Point is not within domain")
 
     def test_value(self):
-        p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
+        p = gpflowopt.domain.ContinuousParameter("x1", 0, 1)
         self.assertTupleEqual(p.value.shape, (1,), msg="Default value has incorrect shape.")
         self.assertTrue(np.allclose(p.value, 0.5), msg="Parameter has incorrect default value")
 
@@ -66,12 +66,12 @@ class TestContinuousParameter(unittest.TestCase):
         self.assertTupleEqual(p.value.shape, (2,), msg="Default value has incorrect shape.")
         np.testing.assert_allclose(p.value, np.array([0.6, 0.8]), err_msg="Parameter has incorrect value after update")
 
-        p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1, 0.2)
+        p = gpflowopt.domain.ContinuousParameter("x1", 0, 1, 0.2)
         self.assertTupleEqual(p.value.shape, (1,), msg="Default value has incorrect shape.")
         self.assertTrue(np.allclose(p.value, 0.2), msg="Parameter has incorrect initialized value")
 
     def test_batch(self):
-        p = GPflowOpt.domain.ContinuousParameter("x1", 0, 1)
+        p = gpflowopt.domain.ContinuousParameter("x1", 0, 1)
         b = p.batch(3)
         self.assertEqual(b.size, 3)
         self.assertTrue(np.allclose(b.lower, 0))
@@ -83,7 +83,7 @@ class TestHypercubeDomain(unittest.TestCase):
     _multiprocess_can_split_ = True
 
     def setUp(self):
-        self.domain = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1,4)])
+        self.domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 4)])
 
     def test_object_integrity(self):
         self.assertEqual(len(self.domain._parameters), 3)
@@ -94,15 +94,15 @@ class TestHypercubeDomain(unittest.TestCase):
         self.assertTrue(np.allclose(self.domain.upper, 1.0), msg="Lower of domain should equal 1 for all parameters")
 
     def test_equality(self):
-        dne = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1,3)] +
-                      [GPflowOpt.domain.ContinuousParameter("x3", -3, 1)])
+        dne = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)] +
+                     [gpflowopt.domain.ContinuousParameter("x3", -3, 1)])
         self.assertNotEqual(self.domain, dne, msg="One lower bound mismatch, should not be equal.")
-        dne = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)] +
-                      [GPflowOpt.domain.ContinuousParameter("x3", -1, 2)])
+        dne = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)] +
+                     [gpflowopt.domain.ContinuousParameter("x3", -1, 2)])
         self.assertNotEqual(self.domain, dne, msg="One upper bound mismatch, should not be equal.")
-        dne = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+        dne = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
         self.assertNotEqual(self.domain, dne, msg="Size mismatch")
-        de = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 4)])
+        de = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 4)])
         self.assertEqual(self.domain, de, msg="No mismatches, should be equal")
 
     def test_parenting(self):
@@ -115,8 +115,8 @@ class TestHypercubeDomain(unittest.TestCase):
                                                                      "incorrect labels")
 
         self.domain[2].lower = -2
-        de = np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)] +
-                     [GPflowOpt.domain.ContinuousParameter("x3", -2, 1)])
+        de = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)] +
+                    [gpflowopt.domain.ContinuousParameter("x3", -2, 1)])
 
         self.assertEqual(self.domain, de, msg="No mismatches, should be equal")
 
@@ -141,7 +141,7 @@ class TestHypercubeDomain(unittest.TestCase):
 
     def test_transformation(self):
         X = np.random.rand(50,3)*2-1
-        target = GPflowOpt.domain.UnitCube(3)
+        target = gpflowopt.domain.UnitCube(3)
         transform = self.domain >> target
         self.assertTrue(np.allclose(transform.forward(X), (X + 1) / 2), msg="Transformation to [0,1] incorrect")
         self.assertTrue(np.allclose(transform.backward(transform.forward(X)), X),
@@ -155,7 +155,7 @@ class TestHypercubeDomain(unittest.TestCase):
         self.assertTrue(np.allclose((~transform).b.value, inv_transform.b.value))
 
     def test_unitcube(self):
-        domain = GPflowOpt.domain.UnitCube(3)
+        domain = gpflowopt.domain.UnitCube(3)
         self.assertTrue(np.allclose(domain.lower, 0))
         self.assertTrue(np.allclose(domain.upper, 1))
         self.assertEqual(domain.size, 3)

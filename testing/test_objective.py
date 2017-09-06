@@ -1,5 +1,5 @@
 import unittest
-import GPflowOpt
+import gpflowopt
 import numpy as np
 from parameterized import parameterized
 
@@ -10,46 +10,46 @@ def ref_function(X):
     return np.sum(X, axis=1, keepdims=True), X
 
 # For to_kwargs
-domain = GPflowOpt.domain.ContinuousParameter('x', 0, 1) + GPflowOpt.domain.ContinuousParameter('y', 0, 1)
+domain = gpflowopt.domain.ContinuousParameter('x', 0, 1) + gpflowopt.domain.ContinuousParameter('y', 0, 1)
 
 
 # Some versions
-@GPflowOpt.objective.to_args
+@gpflowopt.objective.to_args
 def add_to_args(x, y):
     return ref_function(np.vstack((x, y)).T)
 
 
-@GPflowOpt.objective.to_kwargs(domain)
+@gpflowopt.objective.to_kwargs(domain)
 def add_to_kwargs(x=None, y=None):
     return ref_function(np.vstack((x, y)).T)
 
 
-@GPflowOpt.objective.batch_apply
+@gpflowopt.objective.batch_apply
 def add_batch_apply(Xflat):
     f, g = ref_function(Xflat)
     return f, g[0, :]
 
 
-@GPflowOpt.objective.batch_apply
+@gpflowopt.objective.batch_apply
 def add_batch_apply_no_dims(Xflat):
     return np.sum(Xflat), Xflat
 
 
-@GPflowOpt.objective.batch_apply
-@GPflowOpt.objective.to_args
+@gpflowopt.objective.batch_apply
+@gpflowopt.objective.to_args
 def add_batch_apply_to_args(x, y):
     f, g = ref_function(np.vstack((x, y)).T)
     return f, g[0, :]
 
 
-@GPflowOpt.objective.batch_apply
-@GPflowOpt.objective.to_kwargs(domain)
+@gpflowopt.objective.batch_apply
+@gpflowopt.objective.to_kwargs(domain)
 def add_batch_apply_to_kwargs(x=None, y=None):
     f, g = ref_function(np.vstack((x, y)).T)
     return f, g[0, :]
 
 
-@GPflowOpt.objective.batch_apply
+@gpflowopt.objective.batch_apply
 def triple_objective(Xflat):
     f1, g1 = ref_function(Xflat)
     f2, g2 = ref_function(2 * Xflat)
@@ -57,7 +57,7 @@ def triple_objective(Xflat):
     return np.hstack((f1, f2, f3)), np.vstack((g1, g2, g3)).T
 
 
-@GPflowOpt.objective.batch_apply
+@gpflowopt.objective.batch_apply
 def add_batch_apply_no_grad(Xflat):
     f, g = ref_function(Xflat)
     return f

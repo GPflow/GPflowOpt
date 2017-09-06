@@ -1,7 +1,7 @@
-import GPflowOpt
+import gpflowopt
 import unittest
 import numpy as np
-import GPflow
+import gpflow
 import six
 import sys
 import os
@@ -41,8 +41,8 @@ class _TestOptimizer(object):
 
     @property
     def domain(self):
-        return GPflowOpt.domain.ContinuousParameter("x1", -1.0, 1.0) + \
-               GPflowOpt.domain.ContinuousParameter("x2", -1.0, 1.0)
+        return gpflowopt.domain.ContinuousParameter("x1", -1.0, 1.0) + \
+               gpflowopt.domain.ContinuousParameter("x2", -1.0, 1.0)
 
     def test_default_initial(self):
         self.assertTupleEqual(self.optimizer._initial.shape, (1, 2), msg="Invalid shape of initial points array")
@@ -54,17 +54,17 @@ class _TestOptimizer(object):
         self.assertTrue(np.allclose(self.optimizer._initial, 1), msg="Specified initial point not loaded.")
 
     def test_set_domain(self):
-        self.optimizer.domain = GPflowOpt.domain.UnitCube(3)
+        self.optimizer.domain = gpflowopt.domain.UnitCube(3)
         self.assertNotEqual(self.optimizer.domain, self.domain)
-        self.assertEqual(self.optimizer.domain, GPflowOpt.domain.UnitCube(3))
+        self.assertEqual(self.optimizer.domain, gpflowopt.domain.UnitCube(3))
         self.assertTrue(np.allclose(self.optimizer.get_initial(), 0.5))
 
 
 class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
         super(TestCandidateOptimizer, self).setUp()
-        design = GPflowOpt.design.FactorialDesign(4, self.domain)
-        self.optimizer = GPflowOpt.optim.CandidateOptimizer(self.domain, design.generate())
+        design = gpflowopt.design.FactorialDesign(4, self.domain)
+        self.optimizer = gpflowopt.optim.CandidateOptimizer(self.domain, design.generate())
 
     def test_default_initial(self):
         self.assertTupleEqual(self.optimizer._initial.shape, (0, 2), msg="Invalid shape of initial points array")
@@ -86,10 +86,10 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
     def test_set_domain(self):
         with self.assertRaises(AssertionError):
             super(TestCandidateOptimizer, self).test_set_domain()
-        self.optimizer.domain = GPflowOpt.domain.UnitCube(2)
+        self.optimizer.domain = gpflowopt.domain.UnitCube(2)
         self.assertNotEqual(self.optimizer.domain, self.domain)
-        self.assertEqual(self.optimizer.domain, GPflowOpt.domain.UnitCube(2))
-        rescaled_candidates = GPflowOpt.design.FactorialDesign(4, GPflowOpt.domain.UnitCube(2)).generate()
+        self.assertEqual(self.optimizer.domain, gpflowopt.domain.UnitCube(2))
+        rescaled_candidates = gpflowopt.design.FactorialDesign(4, gpflowopt.domain.UnitCube(2)).generate()
         self.assertTrue(np.allclose(self.optimizer.candidates, rescaled_candidates))
 
     def test_optimize(self):
@@ -109,7 +109,7 @@ class TestCandidateOptimizer(_TestOptimizer, unittest.TestCase):
 class TestSciPyOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
         super(TestSciPyOptimizer, self).setUp()
-        self.optimizer = GPflowOpt.optim.SciPyOptimizer(self.domain, maxiter=10)
+        self.optimizer = gpflowopt.optim.SciPyOptimizer(self.domain, maxiter=10)
 
     def test_object_integrity(self):
         self.assertDictEqual(self.optimizer.config, {'tol': None, 'method': 'L-BFGS-B',
@@ -137,9 +137,9 @@ class TestSciPyOptimizer(_TestOptimizer, unittest.TestCase):
 class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
         super(TestStagedOptimizer, self).setUp()
-        self.optimizer = GPflowOpt.optim.StagedOptimizer([GPflowOpt.optim.MCOptimizer(self.domain, 5),
-                                                          GPflowOpt.optim.MCOptimizer(self.domain, 5),
-                                                          GPflowOpt.optim.SciPyOptimizer(self.domain, maxiter=10)])
+        self.optimizer = gpflowopt.optim.StagedOptimizer([gpflowopt.optim.MCOptimizer(self.domain, 5),
+                                                          gpflowopt.optim.MCOptimizer(self.domain, 5),
+                                                          gpflowopt.optim.SciPyOptimizer(self.domain, maxiter=10)])
 
     def test_default_initial(self):
         self.assertTupleEqual(self.optimizer.optimizers[0]._initial.shape, (0,2))
@@ -188,14 +188,14 @@ class TestStagedOptimizer(_TestOptimizer, unittest.TestCase):
     def test_set_domain(self):
         super(TestStagedOptimizer, self).test_set_domain()
         for opt in self.optimizer.optimizers:
-            self.assertEqual(opt.domain, GPflowOpt.domain.UnitCube(3))
+            self.assertEqual(opt.domain, gpflowopt.domain.UnitCube(3))
 
 
 class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
     def setUp(self):
         super(TestBayesianOptimizer, self).setUp()
-        acquisition = GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(self.domain))
-        self.optimizer = GPflowOpt.BayesianOptimizer(self.domain, acquisition)
+        acquisition = gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(self.domain))
+        self.optimizer = gpflowopt.BayesianOptimizer(self.domain, acquisition)
 
     def test_default_initial(self):
         self.assertTupleEqual(self.optimizer._initial.shape, (0, 2), msg="Invalid shape of initial points array")
@@ -209,14 +209,14 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
 
     def test_optimize_multi_objective(self):
         m1, m2 = create_vlmop2_model()
-        acquisition = GPflowOpt.acquisition.ExpectedImprovement(m1) + GPflowOpt.acquisition.ExpectedImprovement(m2)
-        optimizer = GPflowOpt.BayesianOptimizer(self.domain, acquisition)
+        acquisition = gpflowopt.acquisition.ExpectedImprovement(m1) + gpflowopt.acquisition.ExpectedImprovement(m2)
+        optimizer = gpflowopt.BayesianOptimizer(self.domain, acquisition)
         result = optimizer.optimize(vlmop2, n_iter=2)
         self.assertTrue(result.success)
         self.assertEqual(result.nfev, 2, "Only 2 evaluations permitted")
-        self.assertTupleEqual(result.x.shape, (9, 2))
-        self.assertTupleEqual(result.fun.shape, (9, 2))
-        _, dom = GPflowOpt.pareto.non_dominated_sort(result.fun)
+        self.assertTupleEqual(result.x.shape, (7, 2))
+        self.assertTupleEqual(result.fun.shape, (7, 2))
+        _, dom = gpflowopt.pareto.non_dominated_sort(result.fun)
         self.assertTrue(np.all(dom==0))
 
     def test_optimizer_interrupt(self):
@@ -229,7 +229,7 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         X, Y = self.optimizer.acquisition.data[0], self.optimizer.acquisition.data[1]
         # Provoke cholesky faillure
         self.optimizer.acquisition.optimize_restarts = 1
-        self.optimizer.acquisition.models[0].likelihood.variance.transform = GPflow.transforms.Identity()
+        self.optimizer.acquisition.models[0].likelihood.variance.transform = gpflow.transforms.Identity()
         self.optimizer.acquisition.models[0].likelihood.variance = -5.0
         self.optimizer.acquisition.models[0]._needs_recompile = True
         with self.assertRaises(RuntimeError) as e:
@@ -248,22 +248,22 @@ class TestBayesianOptimizer(_TestOptimizer, unittest.TestCase):
         with self.assertRaises(AssertionError):
             super(TestBayesianOptimizer, self).test_set_domain()
 
-        domain = GPflowOpt.domain.ContinuousParameter("x1", -2.0, 2.0) + \
-                 GPflowOpt.domain.ContinuousParameter("x2", -2.0, 2.0)
+        domain = gpflowopt.domain.ContinuousParameter("x1", -2.0, 2.0) + \
+                 gpflowopt.domain.ContinuousParameter("x2", -2.0, 2.0)
         self.optimizer.domain = domain
-        expected = GPflowOpt.design.LatinHyperCube(16, self.domain).generate() / 4 + 0.5
+        expected = gpflowopt.design.LatinHyperCube(16, self.domain).generate() / 4 + 0.5
         self.assertTrue(np.allclose(expected, self.optimizer.acquisition.models[0].wrapped.X.value))
 
 
 class TestBayesianOptimizerConfigurations(unittest.TestCase):
     def setUp(self):
-        self.domain = GPflowOpt.domain.ContinuousParameter("x1", 0.0, 1.0) + \
-                      GPflowOpt.domain.ContinuousParameter("x2", 0.0, 1.0)
-        self.acquisition = GPflowOpt.acquisition.ExpectedImprovement(create_parabola_model(self.domain))
+        self.domain = gpflowopt.domain.ContinuousParameter("x1", 0.0, 1.0) + \
+                      gpflowopt.domain.ContinuousParameter("x2", 0.0, 1.0)
+        self.acquisition = gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(self.domain))
 
     def test_initial_design(self):
-        design = GPflowOpt.design.RandomDesign(5, self.domain)
-        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, initial=design)
+        design = gpflowopt.design.RandomDesign(5, self.domain)
+        optimizer = gpflowopt.BayesianOptimizer(self.domain, self.acquisition, initial=design)
 
         result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=0)
         self.assertTrue(result.success)
@@ -278,8 +278,8 @@ class TestBayesianOptimizerConfigurations(unittest.TestCase):
         self.assertTupleEqual(optimizer.acquisition.data[1].shape, (21, 1))
 
     def test_mcmc(self):
-        optimizer = GPflowOpt.BayesianOptimizer(self.domain, self.acquisition, hyper_draws=10)
-        self.assertIsInstance(optimizer.acquisition, GPflowOpt.acquisition.MCMCAcquistion)
+        optimizer = gpflowopt.BayesianOptimizer(self.domain, self.acquisition, hyper_draws=10)
+        self.assertIsInstance(optimizer.acquisition, gpflowopt.acquisition.MCMCAcquistion)
         self.assertEqual(len(optimizer.acquisition.operands), 10)
         self.assertEqual(optimizer.acquisition.operands[0], self.acquisition)
 
@@ -287,6 +287,71 @@ class TestBayesianOptimizerConfigurations(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
         self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
+
+    def test_callback(self):
+        class DummyCallback(object):
+            def __init__(self):
+                self.counter = 0
+
+            def __call__(self, models):
+                self.counter += 1
+
+        c = DummyCallback()
+        optimizer = gpflowopt.BayesianOptimizer(self.domain, self.acquisition, callback=c)
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=2)
+        self.assertEqual(c.counter, 2)
+
+    def test_callback_recompile(self):
+        class DummyCallback(object):
+            def __init__(self):
+                self.recompile = False
+
+            def __call__(self, models):
+                c = np.random.randint(2, 10)
+                models[0].kern.variance.prior = gpflow.priors.Gamma(c, 1./c)
+                self.recompile = models[0]._needs_recompile
+
+        c = DummyCallback()
+        optimizer = gpflowopt.BayesianOptimizer(self.domain, self.acquisition, callback=c)
+        self.acquisition.evaluate(np.zeros((1,2))) # Make sure its run and setup to skip
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+        self.assertFalse(c.recompile)
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+        self.assertTrue(c.recompile)
+        self.assertFalse(self.acquisition.models[0]._needs_recompile)
+
+    def test_callback_recompile_mcmc(self):
+        class DummyCallback(object):
+            def __init__(self):
+                self.no_models = 0
+
+            def __call__(self, models):
+                c = np.random.randint(2, 10)
+                models[0].kern.variance.prior = gpflow.priors.Gamma(c, 1. / c)
+                self.no_models = len(models)
+
+        c = DummyCallback()
+        optimizer = gpflowopt.BayesianOptimizer(self.domain, self.acquisition, hyper_draws=5, callback=c)
+        opers = optimizer.acquisition.operands
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+        self.assertEqual(c.no_models, 1)
+        self.assertEqual(id(opers[0]), id(optimizer.acquisition.operands[0]))
+        for op1, op2 in zip(opers[1:], optimizer.acquisition.operands[1:]):
+            self.assertNotEqual(id(op1), id(op2))
+        opers = optimizer.acquisition.operands
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+        self.assertEqual(id(opers[0]), id(optimizer.acquisition.operands[0]))
+        for op1, op2 in zip(opers[1:], optimizer.acquisition.operands[1:]):
+            self.assertNotEqual(id(op1), id(op2))
+
+    def test_nongpr_model(self):
+        design = gpflowopt.design.LatinHyperCube(16, self.domain)
+        X, Y = design.generate(), parabola2d(design.generate())[0]
+        m = gpflow.vgp.VGP(X, Y, gpflow.kernels.RBF(2, ARD=True), likelihood=gpflow.likelihoods.Gaussian())
+        acq = gpflowopt.acquisition.ExpectedImprovement(m)
+        optimizer = gpflowopt.BayesianOptimizer(self.domain, acq)
+        result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+        self.assertTrue(result.success)
 
 
 class TestSilentOptimization(unittest.TestCase):
@@ -302,9 +367,9 @@ class TestSilentOptimization(unittest.TestCase):
             sys.stdout, sys.stderr = old_out, old_err
 
     def test_silent(self):
-        class EmittingOptimizer(GPflowOpt.optim.Optimizer):
+        class EmittingOptimizer(gpflowopt.optim.Optimizer):
             def __init__(self):
-                super(EmittingOptimizer, self).__init__(GPflowOpt.domain.ContinuousParameter('x0', 0, 1))
+                super(EmittingOptimizer, self).__init__(gpflowopt.domain.ContinuousParameter('x0', 0, 1))
 
             def _optimize(self, objective):
                 print('hello world!')
@@ -323,3 +388,4 @@ class TestSilentOptimization(unittest.TestCase):
                 opt.optimize(None)
                 output = out.getvalue().strip()
                 self.assertEqual(output, '')
+
