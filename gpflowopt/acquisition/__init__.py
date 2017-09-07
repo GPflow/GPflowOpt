@@ -14,7 +14,7 @@
 
 # Framework components and interfaces
 from .acquisition import (Acquisition, ParallelBatchAcquisition, AcquisitionAggregation, AcquisitionProduct, \
-                          AcquisitionSum, MCMCAcquistion)
+                          AcquisitionSum, MCMCAcquistion, setup_required)
 
 # Single objective
 from .ei import ExpectedImprovement

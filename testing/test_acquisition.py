@@ -10,43 +10,53 @@ domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) f
 
 
 class SimpleAcquisition(gpflowopt.acquisition.Acquisition):
-    def __init__(self, model):
-        super(SimpleAcquisition, self).__init__(model)
-        self.counter = 0
-
-    def _setup(self):
-        super(SimpleAcquisition, self)._setup()
-        self.counter += 1
 
     def build_acquisition(self, Xcand):
         return -self.models[0].build_predict(Xcand)[0]
 
 
-class TestAcquisition(unittest.TestCase):
+class SimpleParallelBatch(gpflowopt.acquisition.ParallelBatchAcquisition):
+    def __init__(self, model):
+        super(SimpleParallelBatch, self).__init__(model, batch_size=2)
+        self.n_args = 0
+        self.counter = 0
+
+    def _setup(self):
+        super(SimpleParallelBatch, self)._setup()
+        self.counter += 1
+
+    def build_acquisition(self, *args):
+        self.n_args = len(args)
+        return -tf.add(self.models[0].build_predict(args[0])[0], self.models[0].build_predict(args[1]+1)[0])
+
+
+class TestParallelBatchAcquisition(unittest.TestCase):
 
     _multiprocess_can_split_ = True
 
     def setUp(self):
         self.model = create_parabola_model(domain)
-        self.acquisition = SimpleAcquisition(self.model)
+        self.acquisition = SimpleParallelBatch(self.model)
 
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
         self.assertEqual(self.acquisition.models[0], self.model, msg="Incorrect model stored.")
 
     def test_setup_trigger(self):
+        Xrand = np.hstack((gpflowopt.design.RandomDesign(10, domain).generate(),
+                           gpflowopt.design.RandomDesign(10, domain).generate()))
         m = create_parabola_model(domain)
         self.assertTrue(np.allclose(m.get_free_state(), self.acquisition.models[0].get_free_state()))
         self.assertTrue(self.acquisition._needs_setup)
         self.assertEqual(self.acquisition.counter, 0)
-        self.acquisition.evaluate(gpflowopt.design.RandomDesign(10, domain).generate())
+        self.acquisition.evaluate(Xrand)
         self.assertFalse(self.acquisition._needs_setup)
         self.assertEqual(self.acquisition.counter, 1)
         self.assertFalse(np.allclose(m.get_free_state(), self.acquisition.models[0].get_free_state()))
 
         self.acquisition._needs_setup = True
         self.acquisition.models[0].set_state(m.get_free_state())
-        self.acquisition.evaluate_with_gradients(gpflowopt.design.RandomDesign(10, domain).generate())
+        self.acquisition.evaluate_with_gradients(Xrand)
         self.assertFalse(self.acquisition._needs_setup)
         self.assertEqual(self.acquisition.counter, 2)
 
@@ -87,25 +97,24 @@ class TestAcquisition(unittest.TestCase):
 
     def test_result_shape_tf(self):
         # Verify the returned shape of evaluate
-        design = gpflowopt.design.RandomDesign(50, domain)
-
         with tf.Graph().as_default():
             free_vars = tf.placeholder(tf.float64, [None])
             l = self.acquisition.make_tf_array(free_vars)
             x_tf = tf.placeholder(tf.float64, shape=(50, 2))
             with self.acquisition.tf_mode():
-                tens = self.acquisition.build_acquisition(x_tf)
+                tens = self.acquisition.build_acquisition(x_tf, x_tf)
                 self.assertTrue(isinstance(tens, tf.Tensor), msg="no Tensor was returned")
 
     def test_result_shape_np(self):
         design = gpflowopt.design.RandomDesign(50, domain)
-        res = self.acquisition.evaluate(design.generate())
+        candidates = np.hstack((design.generate(), design.generate()))
+        res = self.acquisition.evaluate(candidates)
         self.assertTupleEqual(res.shape, (50, 1))
-        res = self.acquisition.evaluate_with_gradients(design.generate())
+        res = self.acquisition.evaluate_with_gradients(candidates)
         self.assertTrue(isinstance(res, tuple))
         self.assertTrue(len(res), 2)
         self.assertTupleEqual(res[0].shape, (50, 1))
-        self.assertTupleEqual(res[1].shape, (50, domain.size))
+        self.assertTupleEqual(res[1].shape, (50, domain.size * 2))
 
     def test_optimize(self):
         self.acquisition.optimize_restarts = 0
@@ -116,31 +125,6 @@ class TestAcquisition(unittest.TestCase):
         self.acquisition.optimize_restarts = 1
         self.acquisition._optimize_models()
         self.assertFalse(np.allclose(state, self.acquisition.get_free_state()))
-
-    def test_get_suggestion(self):
-        opt = gpflowopt.optim.SciPyOptimizer(domain)
-        Xnew = self.acquisition.get_suggestion(opt)
-        self.assertTupleEqual(Xnew.shape, (1, 2))
-        self.assertTrue(np.allclose(Xnew, 0))
-
-
-class SimpleParallelBatch(gpflowopt.acquisition.ParallelBatchAcquisition):
-    def __init__(self, model):
-        super(SimpleParallelBatch, self).__init__(model, batch_size=2)
-        self.n_args = 0
-
-    def build_acquisition(self, *args):
-        self.n_args = len(args)
-        return -tf.add(self.models[0].build_predict(args[0])[0], self.models[0].build_predict(args[1]+1)[0])
-
-
-class TestParallelBatchAcquisition(unittest.TestCase):
-
-    _multiprocess_can_split_ = True
-
-    def setUp(self):
-        self.model = create_parabola_model(domain)
-        self.acquisition = SimpleParallelBatch(self.model)
 
     def test_arg_splitting(self):
         self.acquisition.evaluate(np.random.rand(10, 4))
@@ -158,6 +142,21 @@ class TestParallelBatchAcquisition(unittest.TestCase):
         self.assertTupleEqual(Xnew.shape, (2, 2))
         self.assertTrue(np.allclose(Xnew[0, :], 0, atol=1e-4))
         self.assertTrue(np.allclose(Xnew[1, :], -1, atol=1e-4))
+
+
+class TestAcquisition(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
+
+    def setUp(self):
+        self.model = create_parabola_model(domain)
+        self.acquisition = SimpleAcquisition(self.model)
+
+    def test_get_suggestion(self):
+        opt = gpflowopt.optim.SciPyOptimizer(domain)
+        Xnew = self.acquisition.get_suggestion(opt)
+        self.assertTupleEqual(Xnew.shape, (1, 2))
+        self.assertTrue(np.allclose(Xnew, 0))
 
 
 aggregations = list()
