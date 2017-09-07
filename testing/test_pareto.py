@@ -1,11 +1,9 @@
-import unittest
 import numpy as np
 import gpflowopt
+from .utility import GPflowOptTestCase
 
 
-class TestUtilities(unittest.TestCase):
-
-    _multiprocess_can_split_ = True
+class TestUtilities(GPflowOptTestCase):
 
     def test_nonDominatedSort(self):
         scores = np.array([[0.9575, 0.4218], [0.9649, 0.9157], [0.1576, 0.7922], [0.9706, 0.9595], [0.9572, 0.6557],
@@ -15,9 +13,7 @@ class TestUtilities(unittest.TestCase):
         np.testing.assert_almost_equal(d2, [1, 5, 0, 7, 1, 0, 2, 0], err_msg='Returned incorrect dominance')
 
 
-class TestPareto(unittest.TestCase):
-
-    _multiprocess_can_split_ = True
+class TestPareto(GPflowOptTestCase):
 
     def setUp(self):
         objective_scores = np.array([[0.9575, 0.4218],

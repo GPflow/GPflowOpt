@@ -1,7 +1,7 @@
-import unittest
 import gpflowopt
 import numpy as np
 from parameterized import parameterized
+from .utility import GPflowOptTestCase
 
 
 # This is what we expect the versions applying the decorators to produce (simple additions)
@@ -63,7 +63,7 @@ def add_batch_apply_no_grad(Xflat):
     return f
 
 
-class TestDecorators(unittest.TestCase):
+class TestDecorators(GPflowOptTestCase):
 
     @staticmethod
     def check_reference(f, g, X):
