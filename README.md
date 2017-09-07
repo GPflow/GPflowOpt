@@ -1,5 +1,5 @@
 # GPflowOpt
-GPflowOpt is a python package for Bayesian Optimization using [GPflow](https://github.com/GPflow/GPflow), and uses [TensorFlow](http://www.tensorflow.org). It was [initiated](https://github.com/GPflow/GPflow/issues/397) and is currently maintained by [Joachim van der Herten](http://sumo.intec.ugent.be/members?q=jvanderherten) and [Ivo Couckuyt](http://sumo.intec.ugent.be/icouckuy). The full list of contributors (in alphabetical order) is Ivo Couckuyt, Tom Dhaene, James Hensman, Nicolas Knudde, Alexander G. de G. Matthews and Joachim van der Herten. Special thanks also to all [GPflow contributors](http://github.com/GPflow/GPflow/graphs/contributors) as this package would not be able to exist without their effort. 
+GPflowOpt is a python package for Bayesian Optimization using [GPflow](https://github.com/GPflow/GPflow), and uses [TensorFlow](http://www.tensorflow.org). It was [initiated](https://github.com/GPflow/GPflow/issues/397) and is currently maintained by [Joachim van der Herten](http://sumo.intec.ugent.be/members?q=jvanderherten) and [Ivo Couckuyt](http://sumo.intec.ugent.be/icouckuy). The full list of contributors (in alphabetical order) is Ivo Couckuyt, Tom Dhaene, James Hensman, Nicolas Knudde, Alexander G. de G. Matthews and Joachim van der Herten. Special thanks also to all [GPflow contributors](http://github.com/GPflow/GPflow/graphs/contributors) as this package would not be able to exist without their effort.
 
 [![Build Status](https://travis-ci.org/GPflow/GPflowOpt.svg?branch=master)](https://travis-ci.org/GPflow/GPflowOpt)
 [![Coverage Status](https://codecov.io/gh/GPflow/GPflowOpt/branch/master/graph/badge.svg)](https://codecov.io/gh/GPflow/GPflowOpt)
@@ -15,5 +15,3 @@ in the source directory. This also installs all required dependencies (including
 
 # Contributing
 If you are interested in contributing to this open source project, contact us through an issue on this repository. For more information, see the [notes for contributors](contributing.md).
-
-
