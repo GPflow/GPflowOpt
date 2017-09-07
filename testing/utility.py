@@ -2,6 +2,20 @@ import numpy as np
 import gpflow
 import gpflowopt
 import os
+import tensorflow as tf
+
+
+class GPflowOptTestCase(tf.test.TestCase):
+    """
+    Wrapper for TestCase to avoid massive duplication of resetting
+    Tensorflow Graph.
+    """
+
+    _multiprocess_can_split_ = True
+
+    def tearDown(self):
+        tf.reset_default_graph()
+        super(GPflowOptTestCase, self).tearDown()
 
 
 def parabola2d(X):
