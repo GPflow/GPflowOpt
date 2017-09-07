@@ -13,7 +13,8 @@
 # limitations under the License.
 
 # Framework components and interfaces
-from .acquisition import Acquisition, AcquisitionAggregation, AcquisitionProduct, AcquisitionSum, MCMCAcquistion
+from .acquisition import (Acquisition, ParallelBatchAcquisition, AcquisitionAggregation, AcquisitionProduct, \
+                          AcquisitionSum, MCMCAcquistion)
 
 # Single objective
 from .ei import ExpectedImprovement
@@ -22,6 +23,8 @@ from .lcb import LowerConfidenceBound
 
 # Multiobjective
 from .hvpoi import HVProbabilityOfImprovement
+
+# Batch
 
 # Black-box constraint
 from .pof import ProbabilityOfFeasibility

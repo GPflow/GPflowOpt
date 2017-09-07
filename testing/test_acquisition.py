@@ -19,7 +19,7 @@ class SimpleAcquisition(gpflowopt.acquisition.Acquisition):
         self.counter += 1
 
     def build_acquisition(self, Xcand):
-        return self.models[0].build_predict(Xcand)[0]
+        return -self.models[0].build_predict(Xcand)[0]
 
 
 class TestAcquisition(unittest.TestCase):
@@ -29,11 +29,6 @@ class TestAcquisition(unittest.TestCase):
     def setUp(self):
         self.model = create_parabola_model(domain)
         self.acquisition = SimpleAcquisition(self.model)
-
-    def run_setup(self):
-        # Optimize models & perform acquisition setup call.
-        self.acquisition._optimize_models()
-        self.acquisition._setup()
 
     def test_object_integrity(self):
         self.assertEqual(len(self.acquisition.models), 1, msg="Model list has incorrect length.")
@@ -121,6 +116,48 @@ class TestAcquisition(unittest.TestCase):
         self.acquisition.optimize_restarts = 1
         self.acquisition._optimize_models()
         self.assertFalse(np.allclose(state, self.acquisition.get_free_state()))
+
+    def test_get_suggestion(self):
+        opt = gpflowopt.optim.SciPyOptimizer(domain)
+        Xnew = self.acquisition.get_suggestion(opt)
+        self.assertTupleEqual(Xnew.shape, (1, 2))
+        self.assertTrue(np.allclose(Xnew, 0))
+
+
+class SimpleParallelBatch(gpflowopt.acquisition.ParallelBatchAcquisition):
+    def __init__(self, model):
+        super(SimpleParallelBatch, self).__init__(model, batch_size=2)
+        self.n_args = 0
+
+    def build_acquisition(self, *args):
+        self.n_args = len(args)
+        return -tf.add(self.models[0].build_predict(args[0])[0], self.models[0].build_predict(args[1]+1)[0])
+
+
+class TestParallelBatchAcquisition(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
+
+    def setUp(self):
+        self.model = create_parabola_model(domain)
+        self.acquisition = SimpleParallelBatch(self.model)
+
+    def test_arg_splitting(self):
+        self.acquisition.evaluate(np.random.rand(10, 4))
+        self.assertEqual(self.acquisition.n_args, 2)
+
+        self.acquisition.n_args = 0
+        X = np.random.rand(10, 4)
+        A = self.acquisition.evaluate_with_gradients(X)
+        self.assertEqual(self.acquisition.n_args, 2)
+
+    def test_get_suggestion(self):
+        opt = gpflowopt.optim.StagedOptimizer([gpflowopt.optim.MCOptimizer(domain, 200),
+                                               gpflowopt.optim.SciPyOptimizer(domain)])
+        Xnew = self.acquisition.get_suggestion(opt)
+        self.assertTupleEqual(Xnew.shape, (2, 2))
+        self.assertTrue(np.allclose(Xnew[0, :], 0, atol=1e-4))
+        self.assertTrue(np.allclose(Xnew[1, :], -1, atol=1e-4))
 
 
 aggregations = list()
@@ -335,3 +372,6 @@ class TestRecompile(unittest.TestCase):
         self.assertFalse(hasattr(acq, '_needs_recompile'))
         self.assertFalse(hasattr(acq, '_evaluate_AF_storage'))
         acq.evaluate(gpflowopt.design.RandomDesign(10, domain).generate())
+
+
+

@@ -94,8 +94,6 @@ class BayesianOptimizer(Optimizer):
         assert initial is None or isinstance(initial, Design)
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
 
-        batch_domain = domain.batch(acquisition.batch_size)
-
         # Configure MCMC
         self._scaling = scaling
         if self._scaling:
@@ -104,8 +102,8 @@ class BayesianOptimizer(Optimizer):
         self.acquisition = acquisition if hyper_draws is None else MCMCAcquistion(acquisition, hyper_draws)
 
         # Setup optimizer
-        self.optimizer = optimizer or SciPyOptimizer(batch_domain)
-        self.optimizer.domain = batch_domain
+        self.optimizer = optimizer or SciPyOptimizer(domain)
+        self.optimizer.domain = domain
 
         # Setup initial evaluations
         initial = initial or EmptyDesign(domain)
@@ -230,17 +228,13 @@ class BayesianOptimizer(Optimizer):
         # Remove initial design for additional calls to optimize to proceed optimization
         self.set_initial(EmptyDesign(self.domain).generate())
 
-        def inverse_acquisition(x):
-            return tuple(map(lambda r: -r, self.acquisition.evaluate_with_gradients(np.atleast_2d(x))))
-
         # Optimization loop
         for i in range(n_iter):
             # If a callback is specified, and acquisition has the setup flag enabled (indicating an upcoming
-            # compilation), run the callback.
+            # setup), run the callback.
             if self._model_callback and self.acquisition._needs_setup:
                 self._model_callback([m.wrapped for m in self.acquisition.models])
-            result = self.optimizer.optimize(inverse_acquisition)
-            Xnew = np.vstack(np.split(result.x, self.acquisition.batch_size, axis=1))
+            Xnew = self.acquisition.get_suggestion(self.optimizer)
             self._update_model_data(Xnew, fx(Xnew))
 
         return self._create_bo_result(True, "OK")

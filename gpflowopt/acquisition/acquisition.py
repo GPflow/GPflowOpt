@@ -75,7 +75,7 @@ class Acquisition(Parameterized):
     objectives.
     """
 
-    def __init__(self, models=[], optimize_restarts=5, batch_size=1):
+    def __init__(self, models=[], optimize_restarts=5):
         """
         :param models: list of GPflow models representing our beliefs about the problem
         :param optimize_restarts: number of optimization restarts to use when training the models
@@ -87,7 +87,6 @@ class Acquisition(Parameterized):
 
         assert (optimize_restarts >= 0)
         self.optimize_restarts = optimize_restarts
-        self.batch_size = batch_size
         self._needs_setup = True
 
     def _optimize_models(self):
@@ -121,6 +120,13 @@ class Acquisition(Parameterized):
                 raise RuntimeError("All model hyperparameter optimization restarts failed, exiting.")
             best_idx = np.argmin([r.fun for r in runs])
             model.set_state(runs[best_idx].x)
+
+    def get_suggestion(self, optimizer):
+        def inverse_acquisition(x):
+            return tuple(map(lambda r: -r, self.evaluate_with_gradients(np.atleast_2d(x))))
+
+        result = optimizer.optimize(inverse_acquisition)
+        return result.x
 
     def build_acquisition(self, *args):
         raise NotImplementedError
@@ -253,7 +259,7 @@ class Acquisition(Parameterized):
         :return: acquisition scores, size N x 1
             the gradients of the acquisition scores, size N x D 
         """
-        acq = self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size, axis=1))
+        acq = self.build_acquisition(Xcand)
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
     @setup_required
@@ -264,7 +270,7 @@ class Acquisition(Parameterized):
         
         :return: acquisition scores, size N x 1
         """
-        return self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size, axis=1))
+        return self.build_acquisition(Xcand)
 
     def __add__(self, other):
         """
@@ -296,6 +302,35 @@ class Acquisition(Parameterized):
         super(Acquisition, self).__setattr__(key, value)
         if key is '_parent':
             self.highest_parent._needs_setup = True
+
+
+class ParallelBatchAcquisition(Acquisition):
+
+    def __init__(self, models=[], optimize_restarts=5, batch_size=1):
+        super(ParallelBatchAcquisition, self).__init__(models, optimize_restarts=optimize_restarts)
+        self.batch_size = batch_size
+
+    def get_suggestion(self, optimizer):
+        opt = copy.deepcopy(optimizer)
+        batch_domain = optimizer.domain.batch(self.batch_size)
+        opt.domain = batch_domain
+
+        def inverse_acquisition(x):
+            return tuple(map(lambda r: -r, self.evaluate_with_gradients(np.atleast_2d(x))))
+
+        result = opt.optimize(inverse_acquisition)
+        return np.vstack(np.split(result.x, self.batch_size, axis=1))
+
+    @setup_required
+    @AutoFlow((float_type, [None, None]))
+    def evaluate_with_gradients(self, Xcand):
+        acq = self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size, axis=1))
+        return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
+
+    @setup_required
+    @AutoFlow((float_type, [None, None]))
+    def evaluate(self, Xcand):
+        return self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size, axis=1))
 
 
 class AcquisitionAggregation(Acquisition):
