@@ -121,11 +121,11 @@ class Acquisition(Parameterized):
             best_idx = np.argmin([r.fun for r in runs])
             model.set_state(runs[best_idx].x)
 
-    def get_suggestion(self, optimizer):
-        def inverse_acquisition(x):
-            return tuple(map(lambda r: -r, self.evaluate_with_gradients(np.atleast_2d(x))))
+    def _inverse_acquisition(self, x):
+        return tuple(map(lambda r: -r, self.evaluate_with_gradients(np.atleast_2d(x))))
 
-        result = optimizer.optimize(inverse_acquisition)
+    def get_suggestion(self, optimizer):
+        result = optimizer.optimize(self._inverse_acquisition)
         return result.x
 
     def build_acquisition(self, *args):
@@ -314,11 +314,7 @@ class ParallelBatchAcquisition(Acquisition):
         opt = copy.deepcopy(optimizer)
         batch_domain = optimizer.domain.batch(self.batch_size)
         opt.domain = batch_domain
-
-        def inverse_acquisition(x):
-            return tuple(map(lambda r: -r, self.evaluate_with_gradients(np.atleast_2d(x))))
-
-        result = opt.optimize(inverse_acquisition)
+        result = opt.optimize(self._inverse_acquisition)
         return np.vstack(np.split(result.x, self.batch_size, axis=1))
 
     @setup_required
