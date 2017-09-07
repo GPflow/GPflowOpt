@@ -128,7 +128,7 @@ class Acquisition(Parameterized):
         result = optimizer.optimize(self._inverse_acquisition)
         return result.x
 
-    def build_acquisition(self, *args):
+    def build_acquisition(self, candidates):
         raise NotImplementedError
 
     def enable_scaling(self, domain):
@@ -316,6 +316,9 @@ class ParallelBatchAcquisition(Acquisition):
         opt.domain = batch_domain
         result = opt.optimize(self._inverse_acquisition)
         return np.vstack(np.split(result.x, self.batch_size, axis=1))
+
+    def build_acquisition(self, *args):
+        raise NotImplementedError
 
     @setup_required
     @AutoFlow((float_type, [None, None]))
