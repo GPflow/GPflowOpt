@@ -28,11 +28,11 @@ GPflowOpt currently tries to keep up with the GPflow master, though at some poin
 Changing the minimum required version of TensorFlow that we're compatible with requires a few tasks:
  - update versions in `setup.py`
  - update versions used on travis via `.travis.yml`
- - update version ussed by readthedocs.org via `docsrequire.txt`
+ - update version used by readthedocs.org via `docsrequire.txt`
  - Increment the GPflowOpt version (see below). 
 
 ## Version numbering
-The main purpose of versioning GPflowOpt is user convenience: to keep the number of releases down, we try to combine seversal PRs into one increment. As we work towards something that we might call 1.0, including changes to the GPflowOpt API. Minor version bumps (X.1) are used for updates to follow a new GPflow or TensorFlow API, or introduce incremental new features.
+The main purpose of versioning GPflowOpt is user convenience: to keep the number of releases down, we try to combine several PRs into one increment.
 When incrementing the version number, the following tasks are required:
  - Update the version in `GPflowOpt/_version.py`
  - Add a note to `RELEASE.md`
