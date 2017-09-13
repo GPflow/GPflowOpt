@@ -14,7 +14,7 @@
 
 import numpy as np
 from itertools import chain
-from GPflow.param import Parentable
+from gpflow.param import Parentable
 
 from .transforms import LinearTransform
 

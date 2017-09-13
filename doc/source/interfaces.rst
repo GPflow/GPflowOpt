@@ -36,3 +36,11 @@ Transform
    :special-members:
 .. autoclass:: GPflowOpt.transforms.DataTransform
    :special-members:
+
+ModelWrapper
+------------
+.. automodule:: GPflowOpt.models
+   :special-members:
+.. autoclass:: GPflowOpt.models.ModelWrapper
+   :members:
+   :special-members:

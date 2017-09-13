@@ -13,8 +13,8 @@
 # limitations under the License.
 
 
-from GPflow import settings
-from GPflow.param import Parameterized, DataHolder, AutoFlow
+from gpflow import settings
+from gpflow.param import Parameterized, DataHolder, AutoFlow
 import numpy as np
 import tensorflow as tf
 
@@ -55,13 +55,13 @@ class DataTransform(Parameterized):
         """
         return (~self).forward(Y)
 
+    def assign(self, other):
+        raise NotImplementedError
+
     def __invert__(self):
         """
         Return a :class:`.DataTransform` object implementing the reverse transform V -> U
         """
-        raise NotImplementedError
-
-    def __str__(self):
         raise NotImplementedError
 
 
@@ -141,8 +141,9 @@ class LinearTransform(DataTransform):
 
     def assign(self, other):
         """
-        Assign the parameters of another :class:`LinearTransform`. Can be useful to avoid graph
-        re-compilation.
+        Assign the parameters of another :class:`LinearTransform`.
+
+        Useful to avoid graph re-compilation.
 
         :param other: :class:`.LinearTransform` object
         """
@@ -155,5 +156,3 @@ class LinearTransform(DataTransform):
         A_inv = np.linalg.inv(self.A.value.T)
         return LinearTransform(A_inv, -np.dot(self.b.value, A_inv))
 
-    def __str__(self):
-        return 'XA + b'

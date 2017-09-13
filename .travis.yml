@@ -8,7 +8,7 @@ python:
 cache: pip
 install:
   - pip install -U pip wheel
-  - pip install tensorflow==1.3.0rc0
+  - pip install tensorflow==1.3.0
   - pip install --process-dependency-links .
   - pip install .[test]
   - pip install codecov

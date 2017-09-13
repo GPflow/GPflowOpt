@@ -15,10 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from setuptools import setup
 import re
 
-VERSIONFILE="GPflowOpt/_version.py"
+from setuptools import setup
+from pkg_resources import parse_version
+
+VERSIONFILE="gpflowopt/_version.py"
 verstrline = open(VERSIONFILE, "rt").read()
 VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
 mo = re.search(VSRE, verstrline, re.M)
@@ -27,7 +29,24 @@ if mo:
 else:
     raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
 
-setup(name='GPflowOpt',
+# Dependencies of GPflowOpt
+dependencies = ['numpy>=1.9', 'scipy>=0.16', 'GPflow>=0.3.5']
+min_tf_version = '1.0.0'
+
+# Detect if TF is installed or outdated.
+# If the right version is installed, do not list as requirement to avoid installing over e.g. tensorflow-gpu
+# To avoid this, rely on importing rather than the package name (like pip).
+try:
+    # If tf not installed, import raises ImportError
+    import tensorflow as tf
+    if parse_version(tf.__version__) < parse_version(min_tf_version):
+        # TF pre-installed, but below the minimum required version
+        raise DeprecationWarning("TensorFlow version below minimum requirement")
+except (ImportError, DeprecationWarning) as e:
+    # Add TensorFlow to dependencies to trigger installation/update
+    dependencies.append('tensorflow>={0}'.format(min_tf_version))
+
+setup(name='gpflowopt',
       version=verstr,
       author="Joachim van der Herten, Ivo Couckuyt",
       author_email="joachim.vanderherten@ugent.be",
@@ -38,16 +57,17 @@ setup(name='GPflowOpt',
       package_data={},
       include_package_data=True,
       ext_modules=[],
-      packages=["GPflowOpt", "GPflowOpt.acquisition"],
-      package_dir={'GPflowOpt': 'GPflowOpt'},
-      py_modules=['GPflowOpt.__init__'],
+      packages=["gpflowopt", "gpflowopt.acquisition"],
+      package_dir={'gpflowopt': 'gpflowopt'},
+      py_modules=['gpflowopt.__init__'],
       test_suite='testing',
-      install_requires=['numpy>=1.9', 'scipy>=0.16', 'GPflow>=0.3.5'],
-      extras_require={'tensorflow': ['tensorflow>=1.0.0'],
-                      'tensorflow with gpu': ['tensorflow-gpu>=1.0.0'],
+      install_requires=dependencies,
+      extras_require={'gpu': ['tensorflow-gpu>=1.0.0'],
                       'docs': ['sphinx', 'sphinx_rtd_theme', 'numpydoc', 'nbsphinx', 'jupyter'],
-                      'test': ['nose', 'coverage', 'six', 'parameterized']},
-      dependency_links=['https://github.com/GPflow/GPflow/tarball/master#egg=GPflow-0.3.5'],
+                      'test': ['nose', 'coverage', 'six', 'parameterized', 'nbconvert', 'nbformat','jupyter',
+                               'jupyter_client', 'matplotlib']
+                      },
+      dependency_links=['https://github.com/GPflow/GPflow/tarball/fe3abdc55da55cabe1c31f157f2434e17dd0defe#egg=GPflow-0.3.5'],
       classifiers=['License :: OSI Approved :: Apache Software License',
                    'Natural Language :: English',
                    'Operating System :: POSIX :: Linux',

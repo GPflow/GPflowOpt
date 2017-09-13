@@ -14,9 +14,9 @@
 
 from .acquisition import Acquisition
 
-from GPflow.model import Model
-from GPflow.param import DataHolder
-from GPflow import settings
+from gpflow.model import Model
+from gpflow.param import DataHolder
+from gpflow import settings
 
 import numpy as np
 import tensorflow as tf
@@ -57,12 +57,11 @@ class ExpectedImprovement(Acquisition):
         :param model: GPflow model (single output) representing our belief of the objective
         """
         super(ExpectedImprovement, self).__init__(model)
-        assert (isinstance(model, Model))
         self.fmin = DataHolder(np.zeros(1))
-        self.setup()
+        self._setup()
 
-    def setup(self):
-        super(ExpectedImprovement, self).setup()
+    def _setup(self):
+        super(ExpectedImprovement, self)._setup()
         # Obtain the lowest posterior mean for the previous - feasible - evaluations
         feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
         samples_mean, _ = self.models[0].predict_f(feasible_samples)

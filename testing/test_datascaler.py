@@ -1,8 +1,8 @@
-import GPflowOpt
-import GPflow
+import gpflowopt
+import gpflow
 import numpy as np
 import unittest
-from GPflowOpt.scaling import DataScaler
+from gpflowopt.scaling import DataScaler
 
 
 def parabola2d(X):
@@ -10,15 +10,18 @@ def parabola2d(X):
 
 
 class TestDataScaler(unittest.TestCase):
+
+    _multiprocess_can_split_ = True
+
     @property
     def domain(self):
-        return np.sum([GPflowOpt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+        return np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
 
     def create_parabola_model(self, design=None):
         if design is None:
-            design = GPflowOpt.design.LatinHyperCube(16, self.domain)
+            design = gpflowopt.design.LatinHyperCube(16, self.domain)
         X, Y = design.generate(), parabola2d(design.generate())
-        m = GPflow.gpr.GPR(X, Y, GPflow.kernels.RBF(2, ARD=True))
+        m = gpflow.gpr.GPR(X, Y, gpflow.kernels.RBF(2, ARD=True))
         return m
 
     def test_object_integrity(self):
@@ -26,8 +29,6 @@ class TestDataScaler(unittest.TestCase):
         Xs, Ys = m.X.value, m.Y.value
         n = DataScaler(m, self.domain)
 
-        self.assertEqual(n.wrapped, m)
-        self.assertEqual(m._parent, n)
         self.assertTrue(np.allclose(Xs, n.X.value))
         self.assertTrue(np.allclose(Ys, n.Y.value))
 
@@ -40,7 +41,7 @@ class TestDataScaler(unittest.TestCase):
         self.assertFalse(n1.normalize_output)
         self.assertTrue(np.allclose(m.X.value, n1.X.value))
         self.assertTrue(np.allclose(m.Y.value, n1.Y.value))
-        n1.input_transform = self.domain >> GPflowOpt.domain.UnitCube(self.domain.size)
+        n1.input_transform = self.domain >> gpflowopt.domain.UnitCube(self.domain.size)
         self.assertTrue(np.allclose(m.X.value, scaledX))
         self.assertTrue(np.allclose(m.Y.value, n1.Y.value))
         n1.normalize_output = True
@@ -53,7 +54,7 @@ class TestDataScaler(unittest.TestCase):
         self.assertTrue(np.allclose(m.Y.value, n2.Y.value))
         n2.normalize_output = True
         self.assertTrue(np.allclose(m.Y.value, normY))
-        n2.input_transform = GPflowOpt.domain.UnitCube(self.domain.size) >> GPflowOpt.domain.UnitCube(self.domain.size)
+        n2.input_transform = gpflowopt.domain.UnitCube(self.domain.size) >> gpflowopt.domain.UnitCube(self.domain.size)
         self.assertTrue(np.allclose(m.X.value, n1.X.value))
 
         m = self.create_parabola_model()
@@ -73,18 +74,18 @@ class TestDataScaler(unittest.TestCase):
         m = self.create_parabola_model()
         Y = m.Y.value
         n5 = DataScaler(m, self.domain, normalize_Y=False)
-        n5.output_transform = GPflowOpt.transforms.LinearTransform(2, 0)
+        n5.output_transform = gpflowopt.transforms.LinearTransform(2, 0)
         self.assertTrue(np.allclose(m.X.value, scaledX))
         self.assertTrue(np.allclose(n5.Y.value, Y))
         self.assertTrue(np.allclose(m.Y.value, Y*2))
 
     def test_predict_scaling(self):
         m = self.create_parabola_model()
-        n = DataScaler(self.create_parabola_model(), self.domain)
+        n = DataScaler(self.create_parabola_model(), self.domain, normalize_Y=True)
         m.optimize()
         n.optimize()
 
-        Xt = GPflowOpt.design.RandomDesign(20, self.domain).generate()
+        Xt = gpflowopt.design.RandomDesign(20, self.domain).generate()
         fr, vr = m.predict_f(Xt)
         fs, vs = n.predict_f(Xt)
         self.assertTrue(np.allclose(fr, fs, atol=1e-3))
@@ -100,9 +101,9 @@ class TestDataScaler(unittest.TestCase):
         self.assertTrue(np.allclose(fr, fs, atol=1e-3))
         self.assertTrue(np.allclose(vr, vs, atol=1e-3))
 
-        Yt = parabola2d(Xt) #+ np.random.rand(20, 1) * 0.05
+        Yt = parabola2d(Xt)
         fr = m.predict_density(Xt, Yt)
         fs = n.predict_density(Xt, Yt)
-        print(fr)
-        print(fs)
-        np.testing.assert_allclose(fr, fs, rtol=1e-3)
+        np.testing.assert_allclose(fr, fs, rtol=1e-2)
+
+
