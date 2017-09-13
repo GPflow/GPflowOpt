@@ -6,12 +6,11 @@ Introduction
 It makes use of TensorFlow for computation of acquisition functions, to offer scalability, and avoid implementation of gradients.
 The package was created, and is currently maintained by `Joachim van der Herten <http://sumo.intec.ugent.be/jvanderherten>`_ and `Ivo Couckuyt <http://sumo.intec.ugent.be/icouckuy>`_
 
-Currently the software is pre-release and under construction, hence it lacks a lot of functionality and testing. This documentation
-is also incomplete and under development. The project is open source: if you feel you have some relevant skills and are interested in
+The project is open source: if you feel you have some relevant skills and are interested in
 contributing then please contact us on `GitHub <https://github.com/GPflow/GPflowOpt>`_ by opening an issue or pull request.
 
 Install
---------
+-------
 1. Install package
 
 A straightforward way to install GPflowOpt is to clone its repository and run
@@ -32,9 +31,8 @@ GPflowOpt is a pure python library so you could just add it to your python path.
 The tests require some additional dependencies that need to be installed first with
 ``pip install -e .[test]``. Afterwards the tests can be run with ``python setup.py test``.
 
-Similarly, to build the documentation,
-first install the extra dependencies with ``pip install -e .[docs]``.
-Then proceed with ``python setup.py build_sphinx``.
+Similarly, to build the documentation, first install the extra dependencies with
+``pip install -e .[docs]``. Then proceed with ``python setup.py build_sphinx``.
 
 Getting started
 ---------------

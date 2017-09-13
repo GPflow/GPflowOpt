@@ -129,7 +129,8 @@ class Acquisition(Parameterized):
         Enables and configures the :class:`.DataScaler` objects wrapping the GP models.
         
         Sets the _needs_setup attribute to True so the contained models are optimized and :meth:`setup` is run again
-        right before evaluating the :class:`Acquisition` function.
+        right before evaluating the :class:`Acquisition` function. Note that the models are modified directly and
+        references to them outside of the object will also point to scaled instances.
 
         :param domain: :class:`.Domain` object, the input transform of the data scalers is configured as a transform
             from domain to the unit cube with the same dimensionality.
