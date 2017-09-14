@@ -17,6 +17,7 @@ from ..design import RandomDesign
 
 from gpflow import settings
 from gpflow.param import DataHolder
+from gpflow.model import Model
 
 import numpy as np
 from scipy.stats import norm
@@ -52,9 +53,9 @@ class MinValueEntropySearch(Acquisition):
         """
 
     def __init__(self, model, domain, gridsize=10000, num_samples=10):
+        assert isinstance(model, Model)
         super(MinValueEntropySearch, self).__init__(model)
-        assert len(model) == 1
-        assert model[0].data[1].shape[1] == 1
+        assert self.data[1].shape[1] == 1
         self.gridsize = gridsize
         self.num_samples = num_samples
         self.samples = DataHolder(np.zeros(num_samples, dtype=np_float_type))
@@ -81,7 +82,7 @@ class MinValueEntropySearch(Acquisition):
                           [0.25, 0.5, 0.75])
         beta = (q1 - q2) / (np.log(np.log(4. / 3.)) - np.log(np.log(4.)))
         alpha = med + beta * np.log(np.log(2.))
-        mins = -np.log(-np.log(np.random.rand(self.num_samples, dtype=np_float_type))) * beta + alpha
+        mins = -np.log(-np.log(np.random.rand(self.num_samples).astype(np_float_type))) * beta + alpha
         self.samples.set_data(mins)
 
     def build_acquisition(self, Xcand):
