@@ -1,12 +1,10 @@
 import gpflowopt
-import unittest
 import numpy as np
 import os
+from .utility import GPflowOptTestCase
 
 
 class _TestDesign(object):
-
-    _multiprocess_can_split_ = True
 
     @property
     def designs(self):
@@ -40,7 +38,7 @@ class _TestDesign(object):
                                        err_msg="Incorrect scaling from generative domain to domain")
 
 
-class TestRandomDesign(_TestDesign, unittest.TestCase):
+class TestRandomDesign(_TestDesign, GPflowOptTestCase):
 
     @_TestDesign.designs.getter
     def designs(self):
@@ -50,13 +48,13 @@ class TestRandomDesign(_TestDesign, unittest.TestCase):
         pass
 
 
-class TestEmptyDesign(_TestDesign, unittest.TestCase):
+class TestEmptyDesign(_TestDesign, GPflowOptTestCase):
     @_TestDesign.designs.getter
     def designs(self):
         return [gpflowopt.design.EmptyDesign(domain) for domain in self.domains]
 
 
-class TestFactorialDesign(_TestDesign, unittest.TestCase):
+class TestFactorialDesign(_TestDesign, GPflowOptTestCase):
     @_TestDesign.designs.getter
     def designs(self):
         return [gpflowopt.design.FactorialDesign(4, domain) for domain in self.domains]
@@ -69,7 +67,7 @@ class TestFactorialDesign(_TestDesign, unittest.TestCase):
                                 msg="Generated off-grid.")
 
 
-class TestLatinHyperCubeDesign(_TestDesign, unittest.TestCase):
+class TestLatinHyperCubeDesign(_TestDesign, GPflowOptTestCase):
 
     @_TestDesign.designs.getter
     def designs(self):

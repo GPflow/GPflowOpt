@@ -75,7 +75,9 @@ class BayesianOptimizer(Optimizer):
             the points as specified by the design.
         :param bool scaling: (boolean, default true) if set to true, the outputs are normalized, and the inputs are
             scaled to a unit cube. This only affects model training: calls to acquisition.data, as well as
-            returned optima are unscaled (see :class:`~.DataScaler` for more details.)
+            returned optima are unscaled (see :class:`~.DataScaler` for more details.). Note, the models contained by
+            acquisition are modified directly, and so the references to the model outside of BayesianOptimizer now point
+            to scaled models.
         :param int hyper_draws: (optional) Enable marginalization of model hyperparameters. By default, point estimates are
             used. If this parameter set to n, n hyperparameter draws from the likelihood distribution
             are obtained using Hamiltonian MC.

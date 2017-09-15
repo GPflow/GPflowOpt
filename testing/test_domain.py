@@ -1,11 +1,9 @@
 import gpflowopt
-import unittest
 import numpy as np
+from .utility import GPflowOptTestCase
 
 
-class TestContinuousParameter(unittest.TestCase):
-
-    _multiprocess_can_split_ = True
+class TestContinuousParameter(GPflowOptTestCase):
 
     def test_simple(self):
         p = gpflowopt.domain.ContinuousParameter("x1", 0, 1)
@@ -78,9 +76,7 @@ class TestContinuousParameter(unittest.TestCase):
         self.assertTrue(np.allclose(b.upper, 1))
 
 
-class TestHypercubeDomain(unittest.TestCase):
-
-    _multiprocess_can_split_ = True
+class TestHypercubeDomain(GPflowOptTestCase):
 
     def setUp(self):
         self.domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 4)])
