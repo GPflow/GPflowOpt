@@ -3,11 +3,11 @@ Data Transformations
 
 Transforms
 ----------
-.. automodule:: GPflowOpt.transforms
-.. autoclass:: GPflowOpt.transforms.LinearTransform
+.. automodule:: gpflowopt.transforms
+.. autoclass:: gpflowopt.transforms.LinearTransform
    :special-members:
 
 Normalizer
 ----------
-.. automodule:: GPflowOpt.scaling
-.. autoclass:: GPflowOpt.scaling.DataScaler
+.. automodule:: gpflowopt.scaling
+.. autoclass:: gpflowopt.scaling.DataScaler
