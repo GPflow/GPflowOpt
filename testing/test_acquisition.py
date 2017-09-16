@@ -333,37 +333,37 @@ class TestJointAcquisition(GPflowOptTestCase):
             acq1, acq2, acq3, acq4 = acq
             joint = acq1 + acq2 + acq3
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionSum)
-            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
+            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3])
 
             joint = acq1 * acq2 * acq3
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionProduct)
-            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
+            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3])
 
             first = acq2 + acq3
             self.assertIsInstance(first, gpflowopt.acquisition.AcquisitionSum)
-            self.assertListEqual(first.operands.sorted_params, [acq2, acq3])
+            self.assertListEqual(first.wrapped.sorted_params, [acq2, acq3])
             joint = acq1 + first
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionSum)
-            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
+            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3])
 
             first = acq2 * acq3
             self.assertIsInstance(first, gpflowopt.acquisition.AcquisitionProduct)
-            self.assertListEqual(first.operands.sorted_params, [acq2, acq3])
+            self.assertListEqual(first.wrapped.sorted_params, [acq2, acq3])
             joint = acq1 * first
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionProduct)
-            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
+            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3])
 
             first = acq1 + acq2
             second = acq3 + acq4
             joint = first + second
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionSum)
-            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3, acq4])
+            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3, acq4])
 
             first = acq1 * acq2
             second = acq3 * acq4
             joint = first * second
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionProduct)
-            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3, acq4])
+            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3, acq4])
 
 
 class TestRecompile(GPflowOptTestCase):
@@ -377,7 +377,7 @@ class TestRecompile(GPflowOptTestCase):
             Y = np.sin(X[:,[0]])
             m = gpflow.vgp.VGP(X, Y, gpflow.kernels.RBF(2), gpflow.likelihoods.Gaussian())
             acq = gpflowopt.acquisition.ExpectedImprovement(m)
-            m._compile()
+            m.compile()
             self.assertFalse(m._needs_recompile)
             acq.evaluate(gpflowopt.design.RandomDesign(10, domain).generate())
             self.assertTrue(hasattr(acq, '_evaluate_AF_storage'))

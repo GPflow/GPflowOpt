@@ -25,6 +25,7 @@ import tensorflow as tf
 
 import copy
 from functools import wraps
+from abc import ABCMeta, abstractmethod, abstractproperty
 
 float_type = settings.dtypes.float_type
 
@@ -54,7 +55,201 @@ def setup_required(method):
     return runnable
 
 
-class ParallelBatchAcquisition(Parameterized):
+class IAcquisition(Parameterized):  # pragma: no cover
+    """
+    Interface for Acquisition functions mapping the belief represented by a Bayesian model into a score indicating how
+    promising a point is for evaluation.
+
+    In Bayesian Optimization this function is typically optimized over the optimization domain
+    to determine the next point for evaluation. An objects satisfying this interface hold a list of GPflow models.
+    Implementing build_acquisition yields the score of the acquisition function (usually obtained by transforming the
+    predictive distribution) using TensorFlow. Optionally, a method _setup can be implemented which computes some
+    quantities which are used to compute the acquisition, do not vary with the candidate points. This method is not
+    automatically called, classes implementing this interface may implement their own mechanism on when _setup is
+    called.
+
+    Acquisition functions can be combined through addition or multiplication to construct joint criteria. For instance,
+    for constrained optimization. The objects then form a tree hierarchy.
+    """
+
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def _optimize_models(self):
+        """
+        Optimizes the hyperparameters of all models that the acquisition function is based on.
+
+        It is called automatically during initialization and each time :meth:`set_data` is called.
+        When using the high-level :class:`..BayesianOptimizer` class calling :meth:`set_data` is taken care of.
+
+        For each model the hyperparameters of the model at the time it was passed to __init__() are used as initial
+        point and optimized. If optimize_restarts is set to >1, additional randomization
+        steps are performed.
+
+        As a special case, if optimize_restarts is set to zero, the hyperparameters of the models are not optimized.
+        This is useful when the hyperparameters are sampled using MCMC.
+        """
+        pass
+
+    @abstractmethod
+    def _setup(self):
+        """
+        Pre-calculation of quantities used later in the evaluation of the acquisition function for candidate points.
+
+        Subclasses can implement this method to compute quantities (such as fmin). The decision when to run this function
+        is governed by :class:`Acquisition`, based on the setup_required decorator on methods which require
+        setup to be run (e.g. set_data).
+        """
+        pass
+
+    @abstractmethod
+    def _setup_constraints(self):
+        """
+        Run only if some outputs handled by this acquisition are constraints. Used in aggregation.
+        """
+        pass
+
+    @abstractmethod
+    def _setup_objectives(self):
+        """
+        Run only if all outputs handled by this acquisition are objectives. Used in aggregation.
+        """
+        pass
+
+    @abstractmethod
+    def get_suggestion(self, optimizer):
+        pass
+
+    @abstractmethod
+    def build_acquisition(self, *args):
+        pass
+
+    @abstractmethod
+    def enable_scaling(self, domain):
+        """
+        Enables and configures the :class:`.DataScaler` objects wrapping the GP models.
+
+        Sets the _needs_setup attribute to True so the contained models are optimized and :meth:`setup` is run again
+        right before evaluating the acquisition function. Note that the models are modified directly and
+        references to them outside of the object will also point to scaled instances.
+
+        :param domain: :class:`.Domain` object, the input transform of the data scalers is configured as a transform
+            from domain to the unit cube with the same dimensionality.
+        """
+        pass
+
+    @abstractproperty
+    def models(self):
+        """
+        The GPflow models representing our beliefs of the optimization problem.
+
+        :return: list of GPflow models
+        """
+        pass
+
+    @abstractproperty
+    def data(self):
+        """
+        The training data of the models.
+
+        Corresponds to the input data X which is the same for every model,
+        and column-wise concatenation of the Y data over all models
+
+        :return: tuple X, Y of tensors (if in tf_mode) or numpy arrays.
+        """
+        pass
+
+    @abstractmethod
+    def set_data(self, X, Y):
+        """
+        Update the training data of the contained models
+
+        Sets the _needs_setup attribute to True so the contained models are optimized and :meth:`_setup` is run again
+        right before evaluating the acquisition function.
+
+        Let Q be the the sum of the output dimensions of all contained models, Y should have a minimum of
+        Q columns. Only the first Q columns of Y are used while returning the scalar Q
+
+        :param X: input data N x D
+        :param Y: output data N x R (R >= Q)
+        :return: Q (sum of output dimensions of contained models)
+        """
+        pass
+
+    @abstractmethod
+    def constraint_indices(self):
+        """
+        Method returning the indices of the model outputs which correspond to the (expensive) constraint functions.
+        By default there are no constraint functions
+        """
+        pass
+
+    @abstractmethod
+    def objective_indices(self):
+        """
+        Method returning the indices of the model outputs which are objective functions.
+
+        By default all outputs are objectives.
+
+        :return: indices to the objectives, size R
+        """
+        pass
+
+    @abstractmethod
+    def feasible_data_index(self):
+        """
+        Returns a boolean array indicating which data points are considered feasible (according to the acquisition
+        function(s) ) and which not.
+
+        By default all data is considered feasible.
+
+        :return: logical indices to the feasible data points, size N
+        """
+        pass
+
+    @abstractmethod
+    def evaluate(self, candidates):
+        pass
+
+    @abstractmethod
+    def evaluate_with_gradients(self, candidates):
+        pass
+
+    @abstractmethod
+    def __add__(self, other):
+        """
+        Operator for adding acquisition functions. Example:
+
+        >>> a1 = gpflowopt.acquisition.ExpectedImprovement(m1)
+        >>> a2 = gpflowopt.acquisition.ProbabilityOfFeasibility(m2)
+        >>> type(a1 + a2)
+        <type 'gpflowopt.acquisition.AcquisitionSum'>
+        """
+        pass
+
+    @abstractmethod
+    def __mul__(self, other):
+        """
+        Operator for multiplying acquisition functions. Example:
+
+        >>> a1 = gpflowopt.acquisition.ExpectedImprovement(m1)
+        >>> a2 = gpflowopt.acquisition.ProbabilityOfFeasibility(m2)
+        >>> type(a1 * a2)
+        <type 'gpflowopt.acquisition.AcquisitionProduct'>
+        """
+        pass
+
+
+class ParallelBatchAcquisition(IAcquisition):
+    """
+    ParallelBatchAcquisition objects implement a lazy strategy to optimize models and run setup. This is implemented by
+    a _needs_setup attribute (similar to the _needs_recompile in GPflow). Calling :meth:`set_data` sets this flag to
+    True. Calling methods marked with the setup_require decorator (such as evaluate) optimize all models, then call
+    setup if this flag is set. In hierarchies, first acquisition objects handling constraint objectives are set up, then
+    the objects handling objectives.
+    """
+
+    __metaclass__ = ABCMeta
 
     def __init__(self, models=[], optimize_restarts=5, batch_size=1):
         """
@@ -72,19 +267,6 @@ class ParallelBatchAcquisition(Parameterized):
         self.batch_size = batch_size
 
     def _optimize_models(self):
-        """
-        Optimizes the hyperparameters of all models that the acquisition function is based on.
-
-        It is called automatically during initialization and each time :meth:`set_data` is called.
-        When using the high-level :class:`..BayesianOptimizer` class calling :meth:`set_data` is taken care of.
-
-        For each model the hyperparameters of the model at the time it was passed to __init__() are used as initial
-        point and optimized. If optimize_restarts is set to >1, additional randomization
-        steps are performed.
-
-        As a special case, if optimize_restarts is set to zero, the hyperparameters of the models are not optimized.
-        This is useful when the hyperparameters are sampled using MCMC.
-        """
         if self.optimize_restarts == 0:
             return
 
@@ -113,20 +295,7 @@ class ParallelBatchAcquisition(Parameterized):
         result = opt.optimize(self._inverse_acquisition)
         return np.vstack(np.split(result.x, self.batch_size, axis=1))
 
-    def build_acquisition(self, *args):
-        raise NotImplementedError
-
     def enable_scaling(self, domain):
-        """
-        Enables and configures the :class:`.DataScaler` objects wrapping the GP models.
-
-        Sets the _needs_setup attribute to True so the contained models are optimized and :meth:`setup` is run again
-        right before evaluating the :class:`Acquisition` function. Note that the models are modified directly and
-        references to them outside of the object will also point to scaled instances.
-
-        :param domain: :class:`.Domain` object, the input transform of the data scalers is configured as a transform
-            from domain to the unit cube with the same dimensionality.
-        """
         n_inputs = self.data[0].shape[1]
         assert (domain.size == n_inputs)
         for m in self.models:
@@ -135,19 +304,6 @@ class ParallelBatchAcquisition(Parameterized):
         self.highest_parent._needs_setup = True
 
     def set_data(self, X, Y):
-        """
-        Update the training data of the contained models
-
-        Sets the _needs_setup attribute to True so the contained models are optimized and :meth:`setup` is run again
-        right before evaluating the :class:`Acquisition` function.
-
-        Let Q be the the sum of the output dimensions of all contained models, Y should have a minimum of
-        Q columns. Only the first Q columns of Y are used while returning the scalar Q
-
-        :param X: input data N x D
-        :param Y: output data N x R (R >= Q)
-        :return: Q (sum of output dimensions of contained models)
-        """
         num_outputs_sum = 0
         for model in self.models:
             num_outputs = model.Y.shape[1]
@@ -162,77 +318,32 @@ class ParallelBatchAcquisition(Parameterized):
 
     @property
     def models(self):
-        """
-        The GPflow models representing our beliefs of the optimization problem.
-
-        :return: list of GPflow models
-        """
         return self._models.sorted_params
 
     @property
     def data(self):
-        """
-        The training data of the models.
-
-        Corresponds to the input data X which is the same for every model,
-        and column-wise concatenation of the Y data over all models
-
-        :return: tuple X, Y of tensors (if in tf_mode) or numpy arrays.
-        """
         if self._tf_mode:
             return self.models[0].X, tf.concat(list(map(lambda model: model.Y, self.models)), 1)
         else:
             return self.models[0].X.value, np.hstack(map(lambda model: model.Y.value, self.models))
 
     def constraint_indices(self):
-        """
-        Method returning the indices of the model outputs which correspond to the (expensive) constraint functions.
-        By default there are no constraint functions
-        """
         return np.empty((0,), dtype=int)
 
     def objective_indices(self):
-        """
-        Method returning the indices of the model outputs which are objective functions.
-
-        By default all outputs are objectives.
-
-        :return: indices to the objectives, size R
-        """
         return np.setdiff1d(np.arange(self.data[1].shape[1]), self.constraint_indices())
 
     def feasible_data_index(self):
-        """
-        Returns a boolean array indicating which data points are considered feasible (according to the acquisition
-        function(s) ) and which not.
-
-        By default all data is considered feasible.
-
-        :return: logical indices to the feasible data points, size N
-        """
         return np.ones(self.data[0].shape[0], dtype=bool)
 
     def _setup(self):
-        """
-        Pre-calculation of quantities used later in the evaluation of the acquisition function for candidate points.
-
-        Subclasses can implement this method to compute quantities (such as fmin). The decision when to run this function
-        is governed by :class:`Acquisition`, based on the setup_required decorator on methods which require
-        setup to be run (e.g. set_data).
-        """
         pass
 
     def _setup_constraints(self):
-        """
-        Run only if some outputs handled by this acquisition are constraints. Used in aggregation.
-        """
         if self.constraint_indices().size > 0:
             self._setup()
 
     def _setup_objectives(self):
-        """
-        Run only if all outputs handled by this acquisition are objectives. Used in aggregation.
-        """
         if self.constraint_indices().size == 0:
             self._setup()
 
@@ -247,34 +358,62 @@ class ParallelBatchAcquisition(Parameterized):
     def evaluate(self, Xcand):
         return self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size, axis=1))
 
+    @abstractmethod
+    def build_acquisition(self, *args):
+        pass
+
+    def __add__(self, other):
+        if not isinstance(other, IAcquisition):
+            return NotImplemented
+
+        if isinstance(other, Acquisition):
+            other = ParToSeqAcquisitionWrapper(other, self.batch_size)
+
+        return AcquisitionSum([self, other])
+
+    def __mul__(self, other):
+        if not isinstance(other, IAcquisition):
+            return NotImplemented
+
+        if isinstance(other, Acquisition):
+            other = ParToSeqAcquisitionWrapper(other, self.batch_size)
+
+        return AcquisitionProduct([self, other])
+
+    def __radd__(self, other):
+        if not isinstance(other, IAcquisition):
+            return NotImplemented
+
+        if isinstance(other, Acquisition):
+            other = ParToSeqAcquisitionWrapper(other, self.batch_size)
+
+        return AcquisitionSum([other, self])
+
+    def __rmul__(self, other):
+        if not isinstance(other, IAcquisition):
+            return NotImplemented
+
+        if isinstance(other, Acquisition):
+            other = ParToSeqAcquisitionWrapper(other, self.batch_size)
+
+        return AcquisitionProduct([other, self])
+
+
 
 class Acquisition(ParallelBatchAcquisition):
     """
-    An acquisition function maps the belief represented by a Bayesian model into a
-    score indicating how promising a point is for evaluation.
-
-    In Bayesian Optimization this function is typically optimized over the optimization domain
-    to determine the next point for evaluation. An object of this class holds a list of GPflow models. Subclasses
-    implement a build_acquisition function which computes the acquisition function (usually from the predictive
-    distribution) using TensorFlow. Optionally, a method setup can be implemented which computes some quantities which
-    are used to compute the acquisition, but do not depend on candidate points.
-
-    Acquisition functions can be combined through addition or multiplication to construct joint criteria. For instance,
-    for constrained optimization. The objects then form a tree hierarchy.
-
-    Acquisition models implement a lazy strategy to optimize models and run setup. This is implemented by a _needs_setup
-    attribute (similar to the _needs_recompile in GPflow). Calling :meth:`set_data` sets this flag to True. Calling methods
-    marked with the setup_require decorator (such as evaluate) optimize all models, then call setup if this flag is set.
-    In hierarchies, first acquisition objects handling constraint objectives are set up, then the objects handling
-    objectives.
+    Class to be implemented for standard single-point acquisition functions like standard EI.
     """
+
+    __metaclass__ = ABCMeta
 
     def get_suggestion(self, optimizer):
         result = optimizer.optimize(self._inverse_acquisition)
         return result.x
 
+    @abstractmethod
     def build_acquisition(self, candidates):
-        raise NotImplementedError
+        pass
 
     @setup_required
     @AutoFlow((float_type, [None, None]))
@@ -299,29 +438,15 @@ class Acquisition(ParallelBatchAcquisition):
         return self.build_acquisition(Xcand)
 
     def __add__(self, other):
-        """
-        Operator for adding acquisition functions. Example:
+        if not isinstance(other, Acquisition):
+            return NotImplemented
 
-        >>> a1 = gpflowopt.acquisition.ExpectedImprovement(m1)
-        >>> a2 = gpflowopt.acquisition.ProbabilityOfFeasibility(m2)
-        >>> type(a1 + a2)
-        <type 'gpflowopt.acquisition.AcquisitionSum'>
-        """
-        if isinstance(other, AcquisitionSum):
-            return AcquisitionSum([self] + other.operands.sorted_params)
         return AcquisitionSum([self, other])
 
     def __mul__(self, other):
-        """
-        Operator for multiplying acquisition functions. Example:
+        if not isinstance(other, Acquisition):
+            return NotImplemented
 
-        >>> a1 = gpflowopt.acquisition.ExpectedImprovement(m1)
-        >>> a2 = gpflowopt.acquisition.ProbabilityOfFeasibility(m2)
-        >>> type(a1 * a2)
-        <type 'gpflowopt.acquisition.AcquisitionProduct'>
-        """
-        if isinstance(other, AcquisitionProduct):
-            return AcquisitionProduct([self] + other.operands.sorted_params)
         return AcquisitionProduct([self, other])
 
     def __setattr__(self, key, value):
@@ -330,7 +455,74 @@ class Acquisition(ParallelBatchAcquisition):
             self.highest_parent._needs_setup = True
 
 
-class AcquisitionAggregation(Acquisition):
+class AcquisitionWrapper(IAcquisition):
+
+    __metaclass__ = ABCMeta
+
+    def __init__(self, wrap, *args, **kwargs):
+        """
+        :param wrap: list of acquisition objects
+        """
+        self.wrapped = []
+        super(AcquisitionWrapper, self).__init__()
+        assert all([isinstance(x, IAcquisition) for x in wrap])
+        assert all(wrap[0].batch_size == oper.batch_size for oper in wrap)
+        self.wrapped = ParamList(wrap)
+
+
+    def _optimize_models(self):
+        for oper in self.wrapped:
+            oper._optimize_models()
+
+    def _setup_constraints(self):
+        for oper in self.wrapped:
+            if oper.constraint_indices().size > 0:  # Small optimization, skip subtrees with objectives only
+                oper._setup_constraints()
+
+    def _setup_objectives(self):
+        for oper in self.wrapped:
+            oper._setup_objectives()
+
+    def _setup(self):
+        # Important: First setup acquisitions involving constraints
+        self._setup_constraints()
+        # Then objectives as these might depend on the constraint acquisition
+        self._setup_objectives()
+
+    @abstractmethod
+    def build_acquisition(self, *args):
+        pass
+
+    @Acquisition.models.getter
+    def models(self):
+        return [model for acq in self.wrapped for model in acq.models]
+
+    def enable_scaling(self, domain):
+        for oper in self.wrapped:
+            oper.enable_scaling(domain)
+
+    def set_data(self, X, Y):
+        offset = 0
+        for operand in self.wrapped:
+            offset += operand.set_data(X, Y[:, offset:])
+        return offset
+
+    def constraint_indices(self):
+        offset = [0]
+        idx = []
+        for operand in self.wrapped:
+            idx.append(operand.constraint_indices())
+            offset.append(operand.data[1].shape[1])
+        return np.hstack([i + o for i, o in zip(idx, offset[:-1])])
+
+    def feasible_data_index(self):
+        return np.all(np.vstack(map(lambda o: o.feasible_data_index(), self.wrapped)), axis=0)
+
+    def __getitem__(self, item):
+        return self.wrapped[item]
+
+
+class AcquisitionAggregation(AcquisitionWrapper, ParallelBatchAcquisition):
     """
     Aggregates multiple acquisition functions, using a TensorFlow reduce operation.
     """
@@ -340,61 +532,29 @@ class AcquisitionAggregation(Acquisition):
         :param operands: list of acquisition objects
         :param oper: a tf.reduce operation (e.g., tf.reduce_sum) for aggregating the returned scores of each operand.
         """
-        super(AcquisitionAggregation, self).__init__()
-        assert (all([isinstance(x, Acquisition) for x in operands]))
-        self.operands = ParamList(operands)
+        super(AcquisitionAggregation, self).__init__(operands)
         self._oper = oper
 
-    def _optimize_models(self):
+    @property
+    def batch_size(self):
+        return self[0].batch_size
+
+    @batch_size.setter
+    def batch_size(self, value):
         for oper in self.operands:
-            oper._optimize_models()
+            oper.batch_size = value
 
-    @Acquisition.models.getter
-    def models(self):
-        return [model for acq in self.operands for model in acq.models]
+    @property
+    def operands(self):
+        return self.wrapped
 
-    def enable_scaling(self, domain):
-        for oper in self.operands:
-            oper.enable_scaling(domain)
-
-    def set_data(self, X, Y):
-        offset = 0
-        for operand in self.operands:
-            offset += operand.set_data(X, Y[:, offset:])
-        return offset
-
-    def _setup_constraints(self):
-        for oper in self.operands:
-            if oper.constraint_indices().size > 0:  # Small optimization, skip subtrees with objectives only
-                oper._setup_constraints()
-
-    def _setup_objectives(self):
-        for oper in self.operands:
-            oper._setup_objectives()
-
-    def _setup(self):
-        # Important: First setup acquisitions involving constraints
-        self._setup_constraints()
-        # Then objectives as these might depend on the constraint acquisition
-        self._setup_objectives()
-
-    def constraint_indices(self):
-        offset = [0]
-        idx = []
-        for operand in self.operands:
-            idx.append(operand.constraint_indices())
-            offset.append(operand.data[1].shape[1])
-        return np.hstack([i + o for i, o in zip(idx, offset[:-1])])
-
-    def feasible_data_index(self):
-        return np.all(np.vstack(map(lambda o: o.feasible_data_index(), self.operands)), axis=0)
+    @operands.setter
+    def operands(self, value):
+        self.wrapped = value
 
     def build_acquisition(self, *args):
         return self._oper(tf.concat(list(map(lambda operand: operand.build_acquisition(*args), self.operands)), 1),
                           axis=1, keep_dims=True, name=self.__class__.__name__)
-
-    def __getitem__(self, item):
-        return self.operands[item]
 
 
 class AcquisitionSum(AcquisitionAggregation):
@@ -410,6 +570,9 @@ class AcquisitionSum(AcquisitionAggregation):
         else:
             return AcquisitionSum(self.operands.sorted_params + [other])
 
+    def __radd__(self, other):
+        return AcquisitionSum([other] + self.operands.sorted_params)
+
 
 class AcquisitionProduct(AcquisitionAggregation):
     """
@@ -423,6 +586,9 @@ class AcquisitionProduct(AcquisitionAggregation):
             return AcquisitionProduct(self.operands.sorted_params + other.operands.sorted_params)
         else:
             return AcquisitionProduct(self.operands.sorted_params + [other])
+
+    def __rmul__(self, other):
+        return AcquisitionProduct([other] + self.operands.sorted_params)
 
 
 class MCMCAcquistion(AcquisitionSum):
@@ -487,3 +653,17 @@ class MCMCAcquistion(AcquisitionSum):
         """
         super(MCMCAcquistion, self)._kill_autoflow()
         self._needs_new_copies = True
+
+
+class ParToSeqAcquisitionWrapper(AcquisitionWrapper, ParallelBatchAcquisition):
+
+    def __init__(self, acquisition, batch_size):
+        assert isinstance(acquisition, Acquisition)
+        super(ParToSeqAcquisitionWrapper, self).__init__([acquisition], batch_size=batch_size)
+
+    def build_acquisition(self, *args):
+        assert len(args) == self.batch_size
+        all_scores = self.wrapped.build_acquisition(tf.concat(args, 0))
+        return tf.reduce_prod(tf.concat(tf.split(all_scores, axis=0, num_or_size_splits=self.batch_size), 1), axis=1)
+
+

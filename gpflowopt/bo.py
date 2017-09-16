@@ -13,14 +13,13 @@
 # limitations under the License.
 
 from contextlib import contextmanager
-import copy
 
 import numpy as np
 from scipy.optimize import OptimizeResult
 import tensorflow as tf
 from gpflow.gpr import GPR
 
-from .acquisition import Acquisition, MCMCAcquistion
+from .acquisition import IAcquisition, MCMCAcquistion
 from .design import Design, EmptyDesign
 from .objective import ObjectiveWrapper
 from .optim import Optimizer, SciPyOptimizer
@@ -90,7 +89,7 @@ class BayesianOptimizer(Optimizer):
             :class:`~.Acquisition` this allows several scenarios: do the optimization manually from the callback
             (optimize_restarts equals 0), or choose the starting point + some random restarts (optimize_restarts > 0).
         """
-        assert isinstance(acquisition, Acquisition)
+        assert isinstance(acquisition, IAcquisition)
         assert hyper_draws is None or hyper_draws > 0
         assert optimizer is None or isinstance(optimizer, Optimizer)
         assert initial is None or isinstance(initial, Design)
