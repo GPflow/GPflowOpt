@@ -1,25 +1,25 @@
 Acquisition functions
 ========================
 
-The GPflowOpt package currently supports a limited number of popular acquisition functions. These are
+The gpflowopt package currently supports a limited number of popular acquisition functions. These are
 summarized in the table below. Detailed description for each can be found below.
 
-.. automodule:: GPflowOpt.acquisition
+.. automodule:: gpflowopt.acquisition
 
 +----------------------------------------------------------+-----------+-------------+-----------+
 |  Method                                                  | Objective |  Constraint | # Outputs |
 +==========================================================+===========+=============+===========+
-| :class:`GPflowOpt.acquisition.ExpectedImprovement`       |     ✔     |             |     1     |
+| :class:`gpflowopt.acquisition.ExpectedImprovement`       |     ✔     |             |     1     |
 +----------------------------------------------------------+-----------+-------------+-----------+
-| :class:`GPflowOpt.acquisition.ProbabilityOfFeasibility`  |           |      ✔      |     1     |
+| :class:`gpflowopt.acquisition.ProbabilityOfFeasibility`  |           |      ✔      |     1     |
 +----------------------------------------------------------+-----------+-------------+-----------+
-| :class:`GPflowOpt.acquisition.ProbabilityOfImprovement`  |     ✔     |             |     1     |
+| :class:`gpflowopt.acquisition.ProbabilityOfImprovement`  |     ✔     |             |     1     |
 +----------------------------------------------------------+-----------+-------------+-----------+
-| :class:`GPflowOpt.acquisition.LowerConfidenceBound`      |     ✔     |             |     1     |
+| :class:`gpflowopt.acquisition.LowerConfidenceBound`      |     ✔     |             |     1     |
 +----------------------------------------------------------+-----------+-------------+-----------+
-| :class:`GPflowOpt.acquisition.MinValueEntropySearch`     |     ✔     |             |     1     |
+| :class:`gpflowopt.acquisition.MinValueEntropySearch`     |     ✔     |             |     1     |
 +----------------------------------------------------------+-----------+-------------+-----------+
-| :class:`GPflowOpt.acquisition.HVProbabilityOfImprovement`|     ✔     |             |    > 1    |
+| :class:`gpflowopt.acquisition.HVProbabilityOfImprovement`|     ✔     |             |    > 1    |
 +----------------------------------------------------------+-----------+-------------+-----------+
 
 Single-objective
@@ -28,35 +28,35 @@ Single-objective
 Expected Improvement
 ^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: GPflowOpt.acquisition.ExpectedImprovement
+.. autoclass:: gpflowopt.acquisition.ExpectedImprovement
    :members:
    :special-members:
 
 Probability of Feasibility
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: GPflowOpt.acquisition.ProbabilityOfFeasibility
+.. autoclass:: gpflowopt.acquisition.ProbabilityOfFeasibility
    :members:
    :special-members:
 
 Probability of Improvement
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: GPflowOpt.acquisition.ProbabilityOfImprovement
+.. autoclass:: gpflowopt.acquisition.ProbabilityOfImprovement
    :members:
    :special-members:
 
 Lower Confidence Bound
 ^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: GPflowOpt.acquisition.LowerConfidenceBound
+.. autoclass:: gpflowopt.acquisition.LowerConfidenceBound
    :members:
    :special-members:
 
 Min-Value Entropy Search
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: GPflowOpt.acquisition.MinValueEntropySearch
+.. autoclass:: gpflowopt.acquisition.MinValueEntropySearch
    :members:
    :special-members:
 
@@ -67,13 +67,13 @@ Multi-objective
 Hypervolume-based Probability of Improvement
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: GPflowOpt.acquisition.HVProbabilityOfImprovement
+.. autoclass:: gpflowopt.acquisition.HVProbabilityOfImprovement
    :members:
    :special-members:
 
 Pareto module
 ^^^^^^^^^^^^^
 
-.. automodule:: GPflowOpt.pareto
+.. automodule:: gpflowopt.pareto
    :members:
-.. automethod:: GPflowOpt.pareto.Pareto.hypervolume
+.. automethod:: gpflowopt.pareto.Pareto.hypervolume

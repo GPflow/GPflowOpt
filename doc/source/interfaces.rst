@@ -3,44 +3,44 @@ Interfaces
 
 Domain
 -------
-.. automodule:: GPflowOpt.domain
+.. automodule:: gpflowopt.domain
    :special-members:
-.. autoclass:: GPflowOpt.domain.Domain
+.. autoclass:: gpflowopt.domain.Domain
    :special-members:
-.. autoclass:: GPflowOpt.domain.Parameter
+.. autoclass:: gpflowopt.domain.Parameter
    :special-members:
 
 Optimizer
 ----------
-.. automodule:: GPflowOpt.optim
-.. autoclass:: GPflowOpt.optim.Optimizer
+.. automodule:: gpflowopt.optim
+.. autoclass:: gpflowopt.optim.Optimizer
    :special-members:
 
 Acquisition
 ------------
-.. automodule:: GPflowOpt.acquisition
+.. automodule:: gpflowopt.acquisition
    :special-members:
-.. autoclass:: GPflowOpt.acquisition.Acquisition
+.. autoclass:: gpflowopt.acquisition.Acquisition
    :special-members:
 
 Design
 -------
-.. automodule:: GPflowOpt.design
+.. automodule:: gpflowopt.design
    :special-members:
-.. autoclass:: GPflowOpt.design.Design
+.. autoclass:: gpflowopt.design.Design
    :special-members:
 
 Transform
 ---------
-.. automodule:: GPflowOpt.transforms
+.. automodule:: gpflowopt.transforms
    :special-members:
-.. autoclass:: GPflowOpt.transforms.DataTransform
+.. autoclass:: gpflowopt.transforms.DataTransform
    :special-members:
 
 ModelWrapper
 ------------
-.. automodule:: GPflowOpt.models
+.. automodule:: gpflowopt.models
    :special-members:
-.. autoclass:: GPflowOpt.models.ModelWrapper
+.. autoclass:: gpflowopt.models.ModelWrapper
    :members:
    :special-members:

@@ -1,7 +1,7 @@
 Bayesian Optimizer
 ==================
 
-.. automodule:: GPflowOpt.bo
-.. autoclass:: GPflowOpt.BayesianOptimizer
+.. automodule:: gpflowopt.bo
+.. autoclass:: gpflowopt.BayesianOptimizer
    :members:
    :special-members:

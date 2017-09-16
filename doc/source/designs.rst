@@ -1,22 +1,22 @@
 Initial Designs
 ===============
 
-.. automodule:: GPflowOpt.design
+.. automodule:: gpflowopt.design
 
 Latin Hypercube design
 ----------------------
-.. autoclass:: GPflowOpt.design.LatinHyperCube
+.. autoclass:: gpflowopt.design.LatinHyperCube
    :members:
    :special-members:
 
 Factorial design
 ----------------
-.. autoclass:: GPflowOpt.design.FactorialDesign
+.. autoclass:: gpflowopt.design.FactorialDesign
    :members:
    :special-members:
 
 Random design
 -------------
-.. autoclass:: GPflowOpt.design.RandomDesign
+.. autoclass:: gpflowopt.design.RandomDesign
    :members:
    :special-members:
