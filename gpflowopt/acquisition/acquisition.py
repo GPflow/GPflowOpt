@@ -255,8 +255,93 @@ class IAcquisition(Parameterized):
         pass
 
 
+class AcquisitionWrapper(IAcquisition):
+    """
+    Partial implementation of the Acquisition interface, useful for implementing acquisition functions which wrap
+    another acquisition function (and forward method calls).
+
+    Typically used in combination with multiple inheritance:
+
+    >>> class WrappedAcquisition(AcquisitionWrapper, Acquisition)
+    >>>     def __init__(self, acquisition):
+    >>>         super(WrappedAcquisition, self).__init__(acquisition, optimize_restarts=2)
+    >>>
+    >>>     def build_acquisition(self, candidates):
+    >>>         return tf.constant(1.0)
+    """
+
+    __metaclass__ = ABCMeta
+
+    def __init__(self, wrap, *args, **kwargs):
+        """
+        :param wrap: list of acquisition objects
+        """
+        self.wrapped = []
+        super(AcquisitionWrapper, self).__init__(*args, **kwargs)
+        assert all([isinstance(x, IAcquisition) for x in wrap])
+        assert all(wrap[0].batch_size == oper.batch_size for oper in wrap)
+        self.wrapped = ParamList(np.atleast_1d(wrap).tolist())
+
+    def _optimize_models(self):
+        for oper in self.wrapped:
+            oper._optimize_models()
+
+    def _setup_constraints(self):
+        for oper in self.wrapped:
+            if oper.constraint_indices().size > 0:  # Small optimization, skip subtrees with objectives only
+                oper._setup_constraints()
+
+    def _setup_objectives(self):
+        for oper in self.wrapped:
+            oper._setup_objectives()
+
+    def _setup(self):
+        # Important: First setup acquisitions involving constraints
+        self._setup_constraints()
+        # Then objectives as these might depend on the constraint acquisition
+        self._setup_objectives()
+
+    @abstractmethod
+    def build_acquisition(self, *args):
+        pass
+
+    @Acquisition.models.getter
+    def models(self):
+        return [model for acq in self.wrapped for model in acq.models]
+
+    def enable_scaling(self, domain):
+        for oper in self.wrapped:
+            oper.enable_scaling(domain)
+
+    def set_data(self, X, Y):
+        offset = 0
+        for operand in self.wrapped:
+            offset += operand.set_data(X, Y[:, offset:])
+        return offset
+
+    def constraint_indices(self):
+        offset = [0]
+        idx = []
+        for operand in self.wrapped:
+            idx.append(operand.constraint_indices())
+            offset.append(operand.data[1].shape[1])
+        return np.hstack([i + o for i, o in zip(idx, offset[:-1])])
+
+    def feasible_data_index(self):
+        return np.all(np.vstack(map(lambda o: o.feasible_data_index(), self.wrapped)), axis=0)
+
+    def __getitem__(self, item):
+        return self.wrapped[item]
+
+
 class ParallelBatchAcquisition(IAcquisition):
     """
+    Abstract Acquisition class for batch acquisition functions, optimizing the batch in parallel (as opposed to
+    sequential or greedy approaches).
+
+    Subclasses deriving this class should accept multiple candidates tensors for build_acquisition. Each tensor
+    represents points x1, x2, ... xn in the batch.
+
     ParallelBatchAcquisition objects implement a lazy strategy to optimize models and run setup. This is implemented by
     a _needs_setup attribute (similar to the _needs_recompile in GPflow). Calling :meth:`set_data` sets this flag to
     True. Calling methods marked with the setup_require decorator (such as evaluate) optimize all models, then call
@@ -436,6 +521,8 @@ class ParallelBatchAcquisition(IAcquisition):
 class Acquisition(ParallelBatchAcquisition):
     """
     Class to be implemented for standard single-point acquisition functions like standard EI.
+
+    This abstract class inherits the lazy setup mechanism from its ancestor.
     """
 
     __metaclass__ = ABCMeta
@@ -475,72 +562,6 @@ class Acquisition(ParallelBatchAcquisition):
         super(Acquisition, self).__setattr__(key, value)
         if key is '_parent':
             self.highest_parent._needs_setup = True
-
-
-class AcquisitionWrapper(IAcquisition):
-
-    __metaclass__ = ABCMeta
-
-    def __init__(self, wrap, *args, **kwargs):
-        """
-        :param wrap: list of acquisition objects
-        """
-        self.wrapped = []
-        super(AcquisitionWrapper, self).__init__(*args, **kwargs)
-        assert all([isinstance(x, IAcquisition) for x in wrap])
-        assert all(wrap[0].batch_size == oper.batch_size for oper in wrap)
-        self.wrapped = ParamList(wrap)
-
-    def _optimize_models(self):
-        for oper in self.wrapped:
-            oper._optimize_models()
-
-    def _setup_constraints(self):
-        for oper in self.wrapped:
-            if oper.constraint_indices().size > 0:  # Small optimization, skip subtrees with objectives only
-                oper._setup_constraints()
-
-    def _setup_objectives(self):
-        for oper in self.wrapped:
-            oper._setup_objectives()
-
-    def _setup(self):
-        # Important: First setup acquisitions involving constraints
-        self._setup_constraints()
-        # Then objectives as these might depend on the constraint acquisition
-        self._setup_objectives()
-
-    @abstractmethod
-    def build_acquisition(self, *args):
-        pass
-
-    @Acquisition.models.getter
-    def models(self):
-        return [model for acq in self.wrapped for model in acq.models]
-
-    def enable_scaling(self, domain):
-        for oper in self.wrapped:
-            oper.enable_scaling(domain)
-
-    def set_data(self, X, Y):
-        offset = 0
-        for operand in self.wrapped:
-            offset += operand.set_data(X, Y[:, offset:])
-        return offset
-
-    def constraint_indices(self):
-        offset = [0]
-        idx = []
-        for operand in self.wrapped:
-            idx.append(operand.constraint_indices())
-            offset.append(operand.data[1].shape[1])
-        return np.hstack([i + o for i, o in zip(idx, offset[:-1])])
-
-    def feasible_data_index(self):
-        return np.all(np.vstack(map(lambda o: o.feasible_data_index(), self.wrapped)), axis=0)
-
-    def __getitem__(self, item):
-        return self.wrapped[item]
 
 
 class AcquisitionAggregation(AcquisitionWrapper, ParallelBatchAcquisition):
