@@ -305,7 +305,7 @@ class AcquisitionWrapper(IAcquisition):
     def build_acquisition(self, *args):
         pass
 
-    @Acquisition.models.getter
+    @property
     def models(self):
         return [model for acq in self.wrapped for model in acq.models]
 
@@ -676,7 +676,7 @@ class MCMCAcquistion(AcquisitionSum):
         for idx, draw in enumerate(self.operands):
             draw.set_state(hypers[idx, :])
 
-    @Acquisition.models.getter
+    @ParallelBatchAcquisition.models.getter
     def models(self):
         # Only return the models of the first operand, the copies remain hidden.
         return self.operands[0].models
