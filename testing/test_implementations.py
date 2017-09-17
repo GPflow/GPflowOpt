@@ -1,4 +1,5 @@
 import gpflowopt
+import gpflow
 import numpy as np
 from parameterized import parameterized
 from .utility import create_parabola_model, create_plane_model, create_vlmop2_model, parabola2d, load_data, GPflowOptTestCase
@@ -186,3 +187,29 @@ class TestHVProbabilityOfImprovement(GPflowOptTestCase):
         with self.test_session():
             scores = self.acquisition.evaluate(self.data['candidates'])
             np.testing.assert_almost_equal(scores, self.data['scores'], decimal=2)
+
+
+class TestConstrainedExpectedImprovement(GPflowOptTestCase):
+
+    def test_constrained_ei(self):
+        with self.test_session():
+            design = gpflowopt.design.LatinHyperCube(16, domain)
+            X = design.generate()
+            Yo = parabola2d(X)
+            Yc = -parabola2d(X) + 0.5
+            m1 = gpflow.gpr.GPR(X, Yo, gpflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
+            m2 = gpflow.gpr.GPR(X, Yc, gpflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
+            ei = gpflowopt.acquisition.ExpectedImprovement(m1)
+            pof = gpflowopt.acquisition.ProbabilityOfFeasibility(m2)
+            joint = ei * pof
+
+            # Test output indices
+            np.testing.assert_allclose(joint.objective_indices(), np.array([0], dtype=int))
+            np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
+
+            # Test proper setup
+            joint._optimize_models()
+            joint._setup()
+            self.assertGreater(ei.fmin.value, np.min(ei.data[1]), msg="The best objective value is in an infeasible area")
+            self.assertTrue(np.allclose(ei.fmin.value, np.min(ei.data[1][pof.feasible_data_index(), :]), atol=1e-3),
+                            msg="fmin computed incorrectly")

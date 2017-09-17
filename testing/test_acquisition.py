@@ -7,16 +7,25 @@ from .utility import create_parabola_model, parabola2d, plane, GPflowOptTestCase
 
 domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
 
-
+####### TESTING CLASSES #######
 class SimpleAcquisition(gpflowopt.acquisition.Acquisition):
 
     def build_acquisition(self, Xcand):
         return -self.models[0].build_predict(Xcand)[0]
 
 
+class SimpleAcquisitionConstrained(gpflowopt.acquisition.Acquisition):
+
+    def constraint_indices(self):
+        return np.arange(self.data[1].shape[1])
+
+    def build_acquisition(self, Xcand):
+        return -self.models[0].build_predict(Xcand)[0]
+
+
 class SimpleParallelBatch(gpflowopt.acquisition.ParallelBatchAcquisition):
-    def __init__(self, model):
-        super(SimpleParallelBatch, self).__init__(model, batch_size=2)
+    def __init__(self, model, batch_size=2):
+        super(SimpleParallelBatch, self).__init__(model, batch_size=batch_size)
         self.n_args = 0
         self.counter = 0
 
@@ -27,6 +36,7 @@ class SimpleParallelBatch(gpflowopt.acquisition.ParallelBatchAcquisition):
     def build_acquisition(self, *args):
         self.n_args = len(args)
         return -tf.add(self.models[0].build_predict(args[0])[0], self.models[0].build_predict(args[1]+1)[0])
+##############################
 
 
 class TestParallelBatchAcquisition(GPflowOptTestCase):
@@ -174,10 +184,11 @@ aggregations.append(gpflowopt.acquisition.MCMCAcquistion(
 )
 
 
-class TestAcquisitionAggregation(GPflowOptTestCase):
+class TestAcquisitionAggregationImplementations(GPflowOptTestCase):
 
     @parameterized.expand(list(zip(aggregations)))
     def test_object_integrity(self, acquisition):
+        self.assertTrue(isinstance(acquisition, gpflowopt.acquisition.IAcquisition))
         acquisition._kill_autoflow()
         with self.test_session():
             for oper in acquisition.operands:
@@ -236,15 +247,6 @@ class TestAcquisitionAggregation(GPflowOptTestCase):
         np.testing.assert_allclose(acquisition.objective_indices(), np.arange(2, dtype=int))
         np.testing.assert_allclose(acquisition.constraint_indices(), np.arange(0, dtype=int))
 
-    def test_generating_operators(self):
-        joint = gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)) + \
-                gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain))
-        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionSum))
-
-        joint = gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)) * \
-                gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain))
-        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionProduct))
-
     @parameterized.expand(list(zip([aggregations[2]])))
     def test_hyper_updates(self, acquisition):
         acquisition._kill_autoflow()
@@ -287,32 +289,124 @@ class TestAcquisitionAggregation(GPflowOptTestCase):
         np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
 
 
+class TestParallelToSequentialAdapter(GPflowOptTestCase):
+
+    def test_wrapper(self):
+        acq = SimpleAcquisition(create_parabola_model(domain))
+        adapter = gpflowopt.acquisition.ParToSeqAcquisitionWrapper(acq, 3)
+        self.assertEqual(acq.batch_size, 1)
+        self.assertEqual(adapter.batch_size, 3)
+
+        a = np.array([[0.25, -0.25]])
+        b = np.array([[0.67, 0]])
+        c = np.array([[-0.1, 0.1]])
+
+        r1 = acq.evaluate(np.vstack((a, b, c)))
+        r2 = adapter.evaluate(np.hstack((a, b, c)))
+        self.assertTrue(np.allclose(np.prod(r1), r2))
+
+
 class TestJointAcquisition(GPflowOptTestCase):
 
-    def test_constrained_ei(self):
-        with self.test_session():
-            design = gpflowopt.design.LatinHyperCube(16, domain)
-            X = design.generate()
-            Yo = parabola2d(X)
-            Yc = -parabola2d(X) + 0.5
-            m1 = gpflow.gpr.GPR(X, Yo, gpflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
-            m2 = gpflow.gpr.GPR(X, Yc, gpflow.kernels.RBF(2, ARD=True, lengthscales=X.std(axis=0)))
-            ei = gpflowopt.acquisition.ExpectedImprovement(m1)
-            pof = gpflowopt.acquisition.ProbabilityOfFeasibility(m2)
-            joint = ei * pof
+    def test_simple_generating_operators(self):
+        joint = SimpleAcquisition(create_parabola_model(domain)) + SimpleAcquisition(create_parabola_model(domain))
+        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionSum))
 
-            # Test output indices
-            np.testing.assert_allclose(joint.objective_indices(), np.array([0], dtype=int))
-            np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
+        joint = SimpleAcquisition(create_parabola_model(domain)) * SimpleAcquisition(create_parabola_model(domain))
+        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionProduct))
 
-            # Test proper setup
-            joint._optimize_models()
-            joint._setup()
-            self.assertGreater(ei.fmin.value, np.min(ei.data[1]), msg="The best objective value is in an infeasible area")
-            self.assertTrue(np.allclose(ei.fmin.value, np.min(ei.data[1][pof.feasible_data_index(), :]), atol=1e-3),
-                            msg="fmin computed incorrectly")
+    def test_batch_generating_operators(self):
+        joint = SimpleParallelBatch(create_parabola_model(domain), 2) + \
+                SimpleParallelBatch(create_parabola_model(domain), 2)
+        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionSum))
+        self.assertTrue(isinstance(joint.operands[0], SimpleParallelBatch))
+        self.assertTrue(isinstance(joint.operands[1], SimpleParallelBatch))
 
-    def test_hierarchy(self):
+        joint = SimpleParallelBatch(create_parabola_model(domain), 2) * \
+                SimpleParallelBatch(create_parabola_model(domain), 2)
+        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionProduct))
+        self.assertTrue(isinstance(joint.operands[0], SimpleParallelBatch))
+        self.assertTrue(isinstance(joint.operands[1], SimpleParallelBatch))
+
+        joint = SimpleParallelBatch(create_parabola_model(domain), 6) + \
+                SimpleParallelBatch(create_parabola_model(domain), 2)
+        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionSum))
+        self.assertTrue(isinstance(joint.operands[0], SimpleParallelBatch))
+        self.assertTrue(isinstance(joint.operands[1], gpflowopt.acquisition.ParToSeqAcquisitionWrapper))
+        self.assertEqual(joint.batch_size, 6)
+        self.assertEqual(joint.operands[0].batch_size, 6)
+        self.assertEqual(joint.operands[1].batch_size, 6)
+
+        joint = SimpleParallelBatch(create_parabola_model(domain), 2) + \
+                SimpleParallelBatch(create_parabola_model(domain), 6)
+        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionSum))
+        self.assertTrue(isinstance(joint.operands[1], SimpleParallelBatch))
+        self.assertTrue(isinstance(joint.operands[0], gpflowopt.acquisition.ParToSeqAcquisitionWrapper))
+        self.assertEqual(joint.batch_size, 6)
+        self.assertEqual(joint.operands[0].batch_size, 6)
+        self.assertEqual(joint.operands[1].batch_size, 6)
+
+        joint = SimpleParallelBatch(create_parabola_model(domain), 6) * \
+                SimpleParallelBatch(create_parabola_model(domain), 2)
+        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionProduct))
+        self.assertTrue(isinstance(joint.operands[0], SimpleParallelBatch))
+        self.assertTrue(isinstance(joint.operands[1], gpflowopt.acquisition.ParToSeqAcquisitionWrapper))
+        self.assertEqual(joint.batch_size, 6)
+        self.assertEqual(joint.operands[0].batch_size, 6)
+        self.assertEqual(joint.operands[1].batch_size, 6)
+
+        joint = SimpleParallelBatch(create_parabola_model(domain), 2) * \
+                SimpleParallelBatch(create_parabola_model(domain), 6)
+        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionProduct))
+        self.assertTrue(isinstance(joint.operands[1], SimpleParallelBatch))
+        self.assertTrue(isinstance(joint.operands[0], gpflowopt.acquisition.ParToSeqAcquisitionWrapper))
+        self.assertEqual(joint.batch_size, 6)
+        self.assertEqual(joint.operands[0].batch_size, 6)
+        self.assertEqual(joint.operands[1].batch_size, 6)
+
+    def test_mixed_generating_operators(self):
+        joint = SimpleAcquisition(create_parabola_model(domain)) + SimpleParallelBatch(create_parabola_model(domain), 3)
+        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionSum))
+        self.assertTrue(isinstance(joint.operands[1], SimpleParallelBatch))
+        self.assertTrue(isinstance(joint.operands[0], gpflowopt.acquisition.ParToSeqAcquisitionWrapper))
+        self.assertEqual(joint.batch_size, 3)
+        self.assertEqual(joint.operands[0].batch_size, 3)
+        self.assertEqual(joint.operands[1].batch_size, 3)
+
+        joint = SimpleAcquisition(create_parabola_model(domain)) * SimpleParallelBatch(create_parabola_model(domain), 3)
+        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionProduct))
+        self.assertTrue(isinstance(joint.operands[1], SimpleParallelBatch))
+        self.assertTrue(isinstance(joint.operands[0], gpflowopt.acquisition.ParToSeqAcquisitionWrapper))
+        self.assertEqual(joint.batch_size, 3)
+        self.assertEqual(joint.operands[0].batch_size, 3)
+        self.assertEqual(joint.operands[1].batch_size, 3)
+
+    def test_incorrect_generating_operators(self):
+        with self.assertRaises(TypeError):
+            SimpleAcquisition(create_parabola_model(domain)) + 1
+
+        with self.assertRaises(TypeError):
+            1 + SimpleAcquisition(create_parabola_model(domain))
+
+        with self.assertRaises(TypeError):
+            SimpleAcquisition(create_parabola_model(domain)) * 1
+
+        with self.assertRaises(TypeError):
+            1 * SimpleAcquisition(create_parabola_model(domain))
+
+        with self.assertRaises(TypeError):
+            SimpleParallelBatch(create_parabola_model(domain), 2) + 1
+
+        with self.assertRaises(TypeError):
+            1 + SimpleParallelBatch(create_parabola_model(domain), 2)
+
+        with self.assertRaises(TypeError):
+            SimpleParallelBatch(create_parabola_model(domain), 2) * 1
+
+        with self.assertRaises(TypeError):
+            1 * SimpleParallelBatch(create_parabola_model(domain), 2)
+
+    def test_simple_hierarchy(self):
         with self.test_session():
             design = gpflowopt.design.LatinHyperCube(16, domain)
             X = design.generate()
@@ -320,16 +414,15 @@ class TestJointAcquisition(GPflowOptTestCase):
             m1 = create_parabola_model(domain, design)
             m2 = create_parabola_model(domain, design)
             m3 = gpflow.gpr.GPR(X, Yc, gpflow.kernels.RBF(2, ARD=True))
-            joint = gpflowopt.acquisition.ExpectedImprovement(m1) * \
-                    (gpflowopt.acquisition.ProbabilityOfFeasibility(m3)
-                     + gpflowopt.acquisition.ExpectedImprovement(m2))
+            joint = SimpleAcquisition(m1) * (SimpleAcquisitionConstrained(m3) + SimpleAcquisition(m2))
 
             np.testing.assert_allclose(joint.objective_indices(), np.array([0, 2], dtype=int))
             np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
 
-    def test_multi_aggr(self):
+    @parameterized.expand([([SimpleAcquisition(create_parabola_model(domain)) for i in range(4)],),
+                           ([SimpleParallelBatch(create_parabola_model(domain)) for i in range(4)],)])
+    def test_multi_aggr_simple(self, acq):
         with self.test_session():
-            acq = [gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)) for i in range(4)]
             acq1, acq2, acq3, acq4 = acq
             joint = acq1 + acq2 + acq3
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionSum)

@@ -55,7 +55,7 @@ def setup_required(method):
     return runnable
 
 
-class IAcquisition(Parameterized):  # pragma: no cover
+class IAcquisition(Parameterized):
     """
     Interface for Acquisition functions mapping the belief represented by a Bayesian model into a score indicating how
     promising a point is for evaluation.
@@ -159,6 +159,10 @@ class IAcquisition(Parameterized):  # pragma: no cover
         """
         pass
 
+    @abstractproperty
+    def batch_size(self):
+        pass
+
     @abstractmethod
     def set_data(self, X, Y):
         """
@@ -209,10 +213,21 @@ class IAcquisition(Parameterized):  # pragma: no cover
 
     @abstractmethod
     def evaluate(self, candidates):
+        """
+        AutoFlow method to compute the acquisition scores for candidates, without returning the gradients.
+
+        :return: acquisition scores, size N x 1
+        """
         pass
 
     @abstractmethod
     def evaluate_with_gradients(self, candidates):
+        """
+        AutoFlow method to compute the acquisition scores for candidates, also returns the gradients.
+
+        :return: acquisition scores, size N x 1
+            the gradients of the acquisition scores, size N x D
+        """
         pass
 
     @abstractmethod
@@ -264,7 +279,7 @@ class ParallelBatchAcquisition(IAcquisition):
         assert (optimize_restarts >= 0)
         self.optimize_restarts = optimize_restarts
         self._needs_setup = True
-        self.batch_size = batch_size
+        self._batch_size = batch_size
 
     def _optimize_models(self):
         if self.optimize_restarts == 0:
@@ -327,6 +342,14 @@ class ParallelBatchAcquisition(IAcquisition):
         else:
             return self.models[0].X.value, np.hstack(map(lambda model: model.Y.value, self.models))
 
+    @property
+    def batch_size(self):
+        return self._batch_size
+
+    @batch_size.setter
+    def batch_size(self, value):
+        self._batch_size = value
+
     def constraint_indices(self):
         return np.empty((0,), dtype=int)
 
@@ -366,16 +389,27 @@ class ParallelBatchAcquisition(IAcquisition):
         if not isinstance(other, IAcquisition):
             return NotImplemented
 
-        if isinstance(other, Acquisition):
-            other = ParToSeqAcquisitionWrapper(other, self.batch_size)
+        if isinstance(other, AcquisitionSum):
+            return NotImplemented
 
+        if self.batch_size < other.batch_size:
+            return ParToSeqAcquisitionWrapper(self, other.batch_size) + other
+
+        if self.batch_size > other.batch_size:
+            other = ParToSeqAcquisitionWrapper(other, self.batch_size)
         return AcquisitionSum([self, other])
 
     def __mul__(self, other):
         if not isinstance(other, IAcquisition):
             return NotImplemented
 
-        if isinstance(other, Acquisition):
+        if isinstance(other, AcquisitionProduct):
+            return NotImplemented
+
+        if self.batch_size < other.batch_size:
+            return ParToSeqAcquisitionWrapper(self, other.batch_size) * other
+
+        if self.batch_size > other.batch_size:
             other = ParToSeqAcquisitionWrapper(other, self.batch_size)
 
         return AcquisitionProduct([self, other])
@@ -384,7 +418,7 @@ class ParallelBatchAcquisition(IAcquisition):
         if not isinstance(other, IAcquisition):
             return NotImplemented
 
-        if isinstance(other, Acquisition):
+        if self.batch_size > other.batch_size:
             other = ParToSeqAcquisitionWrapper(other, self.batch_size)
 
         return AcquisitionSum([other, self])
@@ -393,11 +427,10 @@ class ParallelBatchAcquisition(IAcquisition):
         if not isinstance(other, IAcquisition):
             return NotImplemented
 
-        if isinstance(other, Acquisition):
+        if self.batch_size > other.batch_size:
             other = ParToSeqAcquisitionWrapper(other, self.batch_size)
 
         return AcquisitionProduct([other, self])
-
 
 
 class Acquisition(ParallelBatchAcquisition):
@@ -418,23 +451,12 @@ class Acquisition(ParallelBatchAcquisition):
     @setup_required
     @AutoFlow((float_type, [None, None]))
     def evaluate_with_gradients(self, Xcand):
-        """
-        AutoFlow method to compute the acquisition scores for candidates, also returns the gradients.
-        
-        :return: acquisition scores, size N x 1
-            the gradients of the acquisition scores, size N x D 
-        """
         acq = self.build_acquisition(Xcand)
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
     @setup_required
     @AutoFlow((float_type, [None, None]))
     def evaluate(self, Xcand):
-        """
-        AutoFlow method to compute the acquisition scores for candidates, without returning the gradients.
-        
-        :return: acquisition scores, size N x 1
-        """
         return self.build_acquisition(Xcand)
 
     def __add__(self, other):
@@ -464,11 +486,10 @@ class AcquisitionWrapper(IAcquisition):
         :param wrap: list of acquisition objects
         """
         self.wrapped = []
-        super(AcquisitionWrapper, self).__init__()
+        super(AcquisitionWrapper, self).__init__(*args, **kwargs)
         assert all([isinstance(x, IAcquisition) for x in wrap])
         assert all(wrap[0].batch_size == oper.batch_size for oper in wrap)
         self.wrapped = ParamList(wrap)
-
 
     def _optimize_models(self):
         for oper in self.wrapped:
@@ -535,7 +556,7 @@ class AcquisitionAggregation(AcquisitionWrapper, ParallelBatchAcquisition):
         super(AcquisitionAggregation, self).__init__(operands)
         self._oper = oper
 
-    @property
+    @ParallelBatchAcquisition.batch_size.getter
     def batch_size(self):
         return self[0].batch_size
 
@@ -565,10 +586,13 @@ class AcquisitionSum(AcquisitionAggregation):
         super(AcquisitionSum, self).__init__(operands, tf.reduce_sum)
 
     def __add__(self, other):
-        if isinstance(other, AcquisitionSum):
-            return AcquisitionSum(self.operands.sorted_params + other.operands.sorted_params)
+        if self.batch_size == other.batch_size:
+            if isinstance(other, AcquisitionSum):
+                return AcquisitionSum(self.operands.sorted_params + other.operands.sorted_params)
+            else:
+                return AcquisitionSum(self.operands.sorted_params + [other])
         else:
-            return AcquisitionSum(self.operands.sorted_params + [other])
+            super(AcquisitionSum, self).__add__(other)
 
     def __radd__(self, other):
         return AcquisitionSum([other] + self.operands.sorted_params)
@@ -582,10 +606,13 @@ class AcquisitionProduct(AcquisitionAggregation):
         super(AcquisitionProduct, self).__init__(operands, tf.reduce_prod)
 
     def __mul__(self, other):
-        if isinstance(other, AcquisitionProduct):
-            return AcquisitionProduct(self.operands.sorted_params + other.operands.sorted_params)
+        if self.batch_size == other.batch_size:
+            if isinstance(other, AcquisitionProduct):
+                return AcquisitionProduct(self.operands.sorted_params + other.operands.sorted_params)
+            else:
+                return AcquisitionProduct(self.operands.sorted_params + [other])
         else:
-            return AcquisitionProduct(self.operands.sorted_params + [other])
+            super(AcquisitionSum, self).__add__(other)
 
     def __rmul__(self, other):
         return AcquisitionProduct([other] + self.operands.sorted_params)
@@ -658,12 +685,13 @@ class MCMCAcquistion(AcquisitionSum):
 class ParToSeqAcquisitionWrapper(AcquisitionWrapper, ParallelBatchAcquisition):
 
     def __init__(self, acquisition, batch_size):
-        assert isinstance(acquisition, Acquisition)
+        assert isinstance(acquisition, IAcquisition)
         super(ParToSeqAcquisitionWrapper, self).__init__([acquisition], batch_size=batch_size)
 
     def build_acquisition(self, *args):
-        assert len(args) == self.batch_size
-        all_scores = self.wrapped.build_acquisition(tf.concat(args, 0))
-        return tf.reduce_prod(tf.concat(tf.split(all_scores, axis=0, num_or_size_splits=self.batch_size), 1), axis=1)
+        splits = self.batch_size // self.wrapped[0].batch_size
+        assert len(args) == splits
+        all_scores = self.wrapped[0].build_acquisition(tf.concat(args, 0))
+        return tf.reduce_prod(tf.concat(tf.split(all_scores, axis=0, num_or_size_splits=splits), 1), axis=1)
 
 
