@@ -55,7 +55,7 @@ def setup_required(method):
     return runnable
 
 
-class IAcquisition(Parameterized):
+class IAcquisition(Parameterized):  # pragma: no cover
     """
     Interface for Acquisition functions mapping the belief represented by a Bayesian model into a score indicating how
     promising a point is for evaluation.
@@ -302,7 +302,7 @@ class AcquisitionWrapper(IAcquisition):
         self._setup_objectives()
 
     @abstractmethod
-    def build_acquisition(self, *args):
+    def build_acquisition(self, *args):  # pragma: no cover
         pass
 
     @property
@@ -431,10 +431,6 @@ class ParallelBatchAcquisition(IAcquisition):
     def batch_size(self):
         return self._batch_size
 
-    @batch_size.setter
-    def batch_size(self, value):
-        self._batch_size = value
-
     def constraint_indices(self):
         return np.empty((0,), dtype=int)
 
@@ -532,7 +528,7 @@ class Acquisition(ParallelBatchAcquisition):
         return result.x
 
     @abstractmethod
-    def build_acquisition(self, candidates):
+    def build_acquisition(self, candidates):  # pragma: no cover
         pass
 
     @setup_required
@@ -580,11 +576,6 @@ class AcquisitionAggregation(AcquisitionWrapper, ParallelBatchAcquisition):
     @ParallelBatchAcquisition.batch_size.getter
     def batch_size(self):
         return self[0].batch_size
-
-    @batch_size.setter
-    def batch_size(self, value):
-        for oper in self.operands:
-            oper.batch_size = value
 
     @property
     def operands(self):
