@@ -422,41 +422,81 @@ class TestJointAcquisition(GPflowOptTestCase):
     @parameterized.expand([([SimpleAcquisition(create_parabola_model(domain)) for i in range(4)],),
                            ([SimpleParallelBatch(create_parabola_model(domain)) for i in range(4)],)])
     def test_multi_aggr_simple(self, acq):
+        # In these tests, the batch sizes align
         with self.test_session():
             acq1, acq2, acq3, acq4 = acq
             joint = acq1 + acq2 + acq3
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionSum)
-            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3])
+            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
 
             joint = acq1 * acq2 * acq3
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionProduct)
-            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3])
+            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
 
             first = acq2 + acq3
             self.assertIsInstance(first, gpflowopt.acquisition.AcquisitionSum)
-            self.assertListEqual(first.wrapped.sorted_params, [acq2, acq3])
+            self.assertListEqual(first.operands.sorted_params, [acq2, acq3])
             joint = acq1 + first
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionSum)
-            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3])
+            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
 
             first = acq2 * acq3
             self.assertIsInstance(first, gpflowopt.acquisition.AcquisitionProduct)
-            self.assertListEqual(first.wrapped.sorted_params, [acq2, acq3])
+            self.assertListEqual(first.operands.sorted_params, [acq2, acq3])
             joint = acq1 * first
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionProduct)
-            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3])
+            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3])
 
             first = acq1 + acq2
             second = acq3 + acq4
             joint = first + second
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionSum)
-            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3, acq4])
+            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3, acq4])
 
             first = acq1 * acq2
             second = acq3 * acq4
             joint = first * second
             self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionProduct)
-            self.assertListEqual(joint.wrapped.sorted_params, [acq1, acq2, acq3, acq4])
+            self.assertListEqual(joint.operands.sorted_params, [acq1, acq2, acq3, acq4])
+
+    def test_multi_aggr_mixed(self):
+        # In these tests, batch sizes do not align
+        with self.test_session():
+            acq1 = SimpleAcquisition(create_parabola_model(domain))
+            acq2 = SimpleAcquisition(create_parabola_model(domain))
+            acq3 = SimpleParallelBatch(create_parabola_model(domain))
+
+            first = acq1 + acq2
+            joint = first + acq3
+            self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionSum)
+            self.assertTrue(len(joint.operands), 2)
+            self.assertEqual(joint.operands[1], acq3)
+            self.assertTrue(isinstance(joint.operands[0], gpflowopt.acquisition.ParToSeqAcquisitionWrapper))
+            self.assertEqual(joint.operands[0].wrapped[0], first)
+
+            joint = acq3 + first
+            self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionSum)
+            self.assertTrue(len(joint.operands), 2)
+            self.assertEqual(joint.operands[0], acq3)
+            self.assertTrue(isinstance(joint.operands[1], gpflowopt.acquisition.ParToSeqAcquisitionWrapper))
+            self.assertEqual(joint.operands[1].wrapped[0], first)
+
+            first = acq1 * acq2
+            joint = first * acq3
+            self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionProduct)
+            self.assertTrue(len(joint.operands), 2)
+            self.assertEqual(joint.operands[1], acq3)
+            self.assertTrue(isinstance(joint.operands[0], gpflowopt.acquisition.ParToSeqAcquisitionWrapper))
+            self.assertEqual(joint.operands[0].wrapped[0], first)
+
+            joint = acq3 * first
+            self.assertIsInstance(joint, gpflowopt.acquisition.AcquisitionProduct)
+            self.assertTrue(len(joint.operands), 2)
+            self.assertEqual(joint.operands[0], acq3)
+            self.assertTrue(isinstance(joint.operands[1], gpflowopt.acquisition.ParToSeqAcquisitionWrapper))
+            self.assertEqual(joint.operands[1].wrapped[0], first)
+
+
 
 
 class TestRecompile(GPflowOptTestCase):

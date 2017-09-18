@@ -463,7 +463,7 @@ class ParallelBatchAcquisition(IAcquisition):
         return self.build_acquisition(*tf.split(Xcand, num_or_size_splits=self.batch_size, axis=1))
 
     @abstractmethod
-    def build_acquisition(self, *args):
+    def build_acquisition(self, *args):  # pragma: no cover
         pass
 
     def __add__(self, other):
@@ -499,6 +499,9 @@ class ParallelBatchAcquisition(IAcquisition):
         if not isinstance(other, IAcquisition):
             return NotImplemented
 
+        if self.batch_size < other.batch_size:
+            return other + ParToSeqAcquisitionWrapper(self, other.batch_size)
+
         if self.batch_size > other.batch_size:
             other = ParToSeqAcquisitionWrapper(other, self.batch_size)
 
@@ -507,6 +510,9 @@ class ParallelBatchAcquisition(IAcquisition):
     def __rmul__(self, other):
         if not isinstance(other, IAcquisition):
             return NotImplemented
+
+        if self.batch_size < other.batch_size:
+            return other * ParToSeqAcquisitionWrapper(self, other.batch_size)
 
         if self.batch_size > other.batch_size:
             other = ParToSeqAcquisitionWrapper(other, self.batch_size)
@@ -604,10 +610,13 @@ class AcquisitionSum(AcquisitionAggregation):
             else:
                 return AcquisitionSum(self.operands.sorted_params + [other])
         else:
-            super(AcquisitionSum, self).__add__(other)
+            return super(AcquisitionSum, self).__add__(other)
 
     def __radd__(self, other):
-        return AcquisitionSum([other] + self.operands.sorted_params)
+        if self.batch_size == other.batch_size:
+            return AcquisitionSum([other] + self.operands.sorted_params)
+        else:
+            return super(AcquisitionSum, self).__radd__(other)
 
 
 class AcquisitionProduct(AcquisitionAggregation):
@@ -624,10 +633,13 @@ class AcquisitionProduct(AcquisitionAggregation):
             else:
                 return AcquisitionProduct(self.operands.sorted_params + [other])
         else:
-            super(AcquisitionSum, self).__add__(other)
+            return super(AcquisitionProduct, self).__mul__(other)
 
     def __rmul__(self, other):
-        return AcquisitionProduct([other] + self.operands.sorted_params)
+        if self.batch_size == other.batch_size:
+            return AcquisitionProduct([other] + self.operands.sorted_params)
+        else:
+            return super(AcquisitionProduct, self).__rmul__(other)
 
 
 class MCMCAcquistion(AcquisitionSum):
