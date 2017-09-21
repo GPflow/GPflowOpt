@@ -63,25 +63,32 @@ class MinValueEntropySearch(Acquisition):
 
     def _setup(self):
         super(MinValueEntropySearch, self)._setup()
+
+        # Apply Gumbel sampling
         m = self.models[0]
-        X = m.X.value
+        valid = self.feasible_data_index()
+
+        # Work with feasible data
+        X = self.data[0][valid, :]
+        Y = self.data[1][valid, :]
         Xrand = RandomDesign(self.gridsize, self._domain).generate()
         fmean, fvar = m.predict_f(np.vstack((Xrand, X)))
-
-        probf = lambda x: np.exp(np.sum(norm.logcdf(-(x - fmean) / np.sqrt(fvar)), axis=0))
-
-        right = np.max(m.Y.value)
+        right = np.min(Y)
         left = right
+        probf = lambda x: np.exp(np.sum(norm.logcdf(-(x - fmean) / np.sqrt(fvar)), axis=0))
 
         i = 0
         while probf(left) < 0.75:
             left = 2. ** i * np.min(fmean - 5. * np.sqrt(fvar)) + (1. - 2. ** i) * right
             i += 1
 
+        # Binary search for 3 percentiles
         q1, med, q2 = map(lambda val: bisect(lambda x: probf(x) - val, left, right, maxiter=10000, xtol=0.01),
                           [0.25, 0.5, 0.75])
         beta = (q1 - q2) / (np.log(np.log(4. / 3.)) - np.log(np.log(4.)))
         alpha = med + beta * np.log(np.log(2.))
+
+        # obtain samples from y*
         mins = -np.log(-np.log(np.random.rand(self.num_samples).astype(np_float_type))) * beta + alpha
         self.samples.set_data(mins)
 
