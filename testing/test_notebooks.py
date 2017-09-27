@@ -13,8 +13,8 @@ from .utility import GPflowOptTestCase
 
 this_dir = os.path.dirname(__file__)
 nbpath = os.path.join(this_dir, '../doc/source/notebooks/')
-blacklist = [nbpath+'hyperopt.ipynb']
-lfiles = [(f,) for f in glob.glob(nbpath+"*.ipynb") if f not in blacklist]
+blacklist = ['hyperopt.ipynb', 'mes_benchmark.ipynb', 'constrained_bo_mes.ipynb']
+lfiles = [(f,) for f in glob.glob(nbpath+"*.ipynb") if f not in map(lambda b: nbpath+b, blacklist)]
 
 
 @attr('notebooks')

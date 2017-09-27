@@ -9,7 +9,8 @@ acquisitions = [gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(
                 gpflowopt.acquisition.ProbabilityOfFeasibility(create_parabola_model(domain)),
                 gpflowopt.acquisition.LowerConfidenceBound(create_parabola_model(domain)),
                 gpflowopt.acquisition.HVProbabilityOfImprovement([create_parabola_model(domain),
-                                                                  create_parabola_model(domain)])
+                                                                  create_parabola_model(domain)]),
+                gpflowopt.acquisition.MinValueEntropySearch(create_parabola_model(domain), domain)
                 ]
 
 
@@ -182,7 +183,37 @@ class TestHVProbabilityOfImprovement(GPflowOptTestCase):
             for m1, m2 in zip(self.acquisition.models, self.model):
                 self.assertEqual(m1, m2, msg="Incorrect model stored in ExpectedImprovement")
 
-    def test_hvpoi_validity(self):
+    def test_HvPoI_validity(self):
         with self.test_session():
             scores = self.acquisition.evaluate(self.data['candidates'])
             np.testing.assert_almost_equal(scores, self.data['scores'], decimal=2)
+
+
+class TestMinValueEntropySearch(GPflowOptTestCase):
+    def setUp(self):
+        super(TestMinValueEntropySearch, self).setUp()
+        self.domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+        self.model = create_parabola_model(self.domain)
+        self.acquisition = gpflowopt.acquisition.MinValueEntropySearch(self.model, self.domain)
+
+    def test_objective_indices(self):
+        self.assertEqual(self.acquisition.objective_indices(), np.arange(1, dtype=int),
+                         msg="MinValueEntropySearch returns all objectives")
+
+    def test_setup(self):
+        fmin = np.min(self.acquisition.data[1])
+        self.assertGreater(fmin, 0, msg="The minimum (0) is not amongst the design.")
+        self.assertTrue(self.acquisition.samples.shape == (self.acquisition.num_samples,),
+                        msg="fmin computed incorrectly")
+
+    def test_MES_validity(self):
+        with self.test_session():
+            Xcenter = np.random.rand(20, 2) * 0.25 - 0.125
+            X = np.random.rand(100, 2) * 2 - 1
+            hor_idx = np.abs(X[:, 0]) > 0.8
+            ver_idx = np.abs(X[:, 1]) > 0.8
+            Xborder = np.vstack((X[hor_idx, :], X[ver_idx, :]))
+            ei1 = self.acquisition.evaluate(Xborder)
+            ei2 = self.acquisition.evaluate(Xcenter)
+            self.assertGreater(np.min(ei2) + 1E-6, np.max(ei1))
+            self.assertTrue(np.all(self.acquisition.feasible_data_index()), msg="MES does never invalidate points")
