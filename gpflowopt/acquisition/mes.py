@@ -70,10 +70,11 @@ class MinValueEntropySearch(Acquisition):
 
         # Work with feasible data
         X = self.data[0][valid, :]
-        Y = self.data[1][valid, :]
+        N = np.shape(X)[0]
         Xrand = RandomDesign(self.gridsize, self._domain).generate()
-        fmean, fvar = m.predict_f(np.vstack((Xrand, X)))
-        right = np.min(Y)
+        fmean, fvar = m.predict_f(np.vstack((X, Xrand)))
+        idx = np.argmin(fmean[:N])
+        right = fmean[idx].flatten() + 2*np.sqrt(fvar[idx]).flatten()
         left = right
         probf = lambda x: np.exp(np.sum(norm.logcdf(-(x - fmean) / np.sqrt(fvar)), axis=0))
 
