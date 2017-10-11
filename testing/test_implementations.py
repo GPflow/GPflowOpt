@@ -152,7 +152,7 @@ class TestLowerConfidenceBound(GPflowOptTestCase):
 
     def test_object_integrity(self):
         with self.test_session():
-            self.assertEqual(self.acquisition.sigma, 3.2)
+            self.assertEqual(self.acquisition.sigma.value, 3.2)
 
     def test_lcb_validity(self):
         with self.test_session():
