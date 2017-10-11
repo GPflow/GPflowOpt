@@ -14,6 +14,9 @@
 
 from .acquisition import Acquisition
 
+from gpflow.param import DataHolder
+import numpy as np
+
 import tensorflow as tf
 
 
@@ -32,7 +35,7 @@ class LowerConfidenceBound(Acquisition):
         :param sigma: See formula, the higher the more exploration
         """
         super(LowerConfidenceBound, self).__init__(model)
-        self.sigma = sigma
+        self.sigma = DataHolder(np.array(sigma))
 
     def build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
