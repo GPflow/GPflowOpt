@@ -651,6 +651,7 @@ class MCMCAcquistion(AcquisitionSum):
 
     For evaluating the underlying acquisition function, the predictions of the acquisition copies are averaged.
     """
+
     def __init__(self, acquisition, n_slices, **kwargs):
         assert isinstance(acquisition, Acquisition)
         assert n_slices > 0

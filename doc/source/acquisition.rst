@@ -17,6 +17,8 @@ summarized in the table below. Detailed description for each can be found below.
 +----------------------------------------------------------+-----------+-------------+-----------+
 | :class:`gpflowopt.acquisition.LowerConfidenceBound`      |     ✔     |             |     1     |
 +----------------------------------------------------------+-----------+-------------+-----------+
+| :class:`gpflowopt.acquisition.MinValueEntropySearch`     |     ✔     |             |     1     |
++----------------------------------------------------------+-----------+-------------+-----------+
 | :class:`gpflowopt.acquisition.HVProbabilityOfImprovement`|     ✔     |             |    > 1    |
 +----------------------------------------------------------+-----------+-------------+-----------+
 
@@ -50,6 +52,14 @@ Lower Confidence Bound
 .. autoclass:: gpflowopt.acquisition.LowerConfidenceBound
    :members:
    :special-members:
+
+Min-Value Entropy Search
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: gpflowopt.acquisition.MinValueEntropySearch
+   :members:
+   :special-members:
+
 
 Multi-objective
 ----------------
