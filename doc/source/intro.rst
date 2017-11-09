@@ -26,12 +26,22 @@ GPflowOpt is a pure python library so you could just add it to your python path.
 
 ``pip  install -e . --process-dependency-links``
 
-3. Testing and documentation
+3. Testing
 
-The tests require some additional dependencies that need to be installed first with
-``pip install -e .[test]``. Afterwards the tests can be run with ``python setup.py test``.
+For testing, GPflowOpt uses `nox <https://nox.readthedocs.io/en/latest/>`_ to automatically create a virtualenv and
+install the additional test dependencies. To install nox:
 
-Similarly, to build the documentation, first install the extra dependencies with
+``pip install nox-automation``
+
+followed by
+
+``nox``
+
+to run all test sessions.
+
+4. Documentation
+
+To build the documentation, first install the extra dependencies with
 ``pip install -e .[docs]``. Then proceed with ``python setup.py build_sphinx``.
 
 Getting started
