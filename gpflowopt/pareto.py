@@ -176,7 +176,6 @@ class Pareto(Parameterized):
         Generic version: works for an arbitrary number of objectives.
         """
         outdim = self.Y.shape[1]
-        assert(outdim == 2)
 
         # The divide and conquer algorithm operates on a pseudo Pareto set
         # that is a mapping of the real Pareto set to discrete values
@@ -238,6 +237,7 @@ class Pareto(Parameterized):
         This implies the second objective is sorted in descending order.
         """
         outdim = self.Y.shape[1]
+        assert outdim == 2
 
         pf_idx = np.argsort(self.front.value, axis=0)
         pf_ext_idx = np.vstack((np.zeros(outdim, dtype=np_int_type),
