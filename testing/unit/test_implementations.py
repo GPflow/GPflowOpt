@@ -1,7 +1,7 @@
 import gpflowopt
 import numpy as np
 from parameterized import parameterized
-from .utility import create_parabola_model, create_plane_model, create_vlmop2_model, parabola2d, load_data, GPflowOptTestCase
+from ..utility import create_parabola_model, create_plane_model, create_vlmop2_model, parabola2d, load_data, GPflowOptTestCase
 
 domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
 acquisitions = [gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)),

@@ -1,6 +1,6 @@
 import gpflowopt
 import numpy as np
-from .utility import GPflowOptTestCase
+from ..utility import GPflowOptTestCase
 
 
 class TestContinuousParameter(GPflowOptTestCase):

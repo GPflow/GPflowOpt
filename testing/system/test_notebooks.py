@@ -7,9 +7,8 @@ import traceback
 import sys
 import time
 import os
-from nose.plugins.attrib import attr
 from parameterized import parameterized
-from .utility import GPflowOptTestCase
+from ..utility import GPflowOptTestCase
 
 this_dir = os.path.dirname(__file__)
 nbpath = os.path.join(this_dir, '../doc/source/notebooks/')
@@ -17,7 +16,6 @@ blacklist = ['hyperopt.ipynb', 'mes_benchmark.ipynb', 'constrained_bo_mes.ipynb'
 lfiles = [(f,) for f in glob.glob(nbpath+"*.ipynb") if f not in map(lambda b: nbpath+b, blacklist)]
 
 
-@attr('notebooks')
 class TestNotebooks(GPflowOptTestCase):
 
     def _execNotebook(self, notebook_filename, nbpath):

@@ -3,7 +3,7 @@ import tensorflow as tf
 from gpflow import settings
 import numpy as np
 from parameterized import parameterized
-from .utility import GPflowOptTestCase
+from ..utility import GPflowOptTestCase
 
 float_type = settings.dtypes.float_type
 np_float_type = np.float32 if float_type is tf.float32 else np.float64

@@ -1,7 +1,7 @@
 import gpflowopt
 import numpy as np
 from parameterized import parameterized
-from .utility import GPflowOptTestCase
+from ..utility import GPflowOptTestCase
 
 
 # This is what we expect the versions applying the decorators to produce (simple additions)

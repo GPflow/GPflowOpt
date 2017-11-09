@@ -1,6 +1,6 @@
 import numpy as np
 import gpflowopt
-from .utility import GPflowOptTestCase
+from ..utility import GPflowOptTestCase
 
 
 class TestUtilities(GPflowOptTestCase):
