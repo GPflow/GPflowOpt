@@ -26,6 +26,7 @@ import tensorflow as tf
 import copy
 from functools import wraps
 from abc import ABCMeta, abstractmethod, abstractproperty
+import six
 
 float_type = settings.dtypes.float_type
 
@@ -55,6 +56,7 @@ def setup_required(method):
     return runnable
 
 
+@six.add_metaclass(ABCMeta)
 class IAcquisition(Parameterized):  # pragma: no cover
     """
     Interface for Acquisition functions mapping the belief represented by a Bayesian model into a score indicating how
@@ -71,8 +73,6 @@ class IAcquisition(Parameterized):  # pragma: no cover
     Acquisition functions can be combined through addition or multiplication to construct joint criteria. For instance,
     for constrained optimization. The objects then form a tree hierarchy.
     """
-
-    __metaclass__ = ABCMeta
 
     @abstractmethod
     def _optimize_models(self):
@@ -255,6 +255,7 @@ class IAcquisition(Parameterized):  # pragma: no cover
         pass
 
 
+@six.add_metaclass(ABCMeta)
 class AcquisitionWrapper(IAcquisition):
     """
     Partial implementation of the Acquisition interface, useful for implementing acquisition functions which wrap
@@ -269,8 +270,6 @@ class AcquisitionWrapper(IAcquisition):
     >>>     def build_acquisition(self, candidates):
     >>>         return tf.constant(1.0)
     """
-
-    __metaclass__ = ABCMeta
 
     def __init__(self, wrap, *args, **kwargs):
         """
@@ -334,6 +333,7 @@ class AcquisitionWrapper(IAcquisition):
         return self.wrapped[item]
 
 
+@six.add_metaclass(ABCMeta)
 class ParallelBatchAcquisition(IAcquisition):
     """
     Abstract Acquisition class for batch acquisition functions, optimizing the batch in parallel (as opposed to
@@ -348,8 +348,6 @@ class ParallelBatchAcquisition(IAcquisition):
     setup if this flag is set. In hierarchies, first acquisition objects handling constraint objectives are set up, then
     the objects handling objectives.
     """
-
-    __metaclass__ = ABCMeta
 
     def __init__(self, models=[], optimize_restarts=5, batch_size=1):
         """
@@ -520,14 +518,13 @@ class ParallelBatchAcquisition(IAcquisition):
         return AcquisitionProduct([other, self])
 
 
+@six.add_metaclass(ABCMeta)
 class Acquisition(ParallelBatchAcquisition):
     """
     Class to be implemented for standard single-point acquisition functions like standard EI.
 
     This abstract class inherits the lazy setup mechanism from its ancestor.
     """
-
-    __metaclass__ = ABCMeta
 
     def get_suggestion(self, optimizer):
         result = optimizer.optimize(self._inverse_acquisition)
