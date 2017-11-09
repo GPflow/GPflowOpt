@@ -25,6 +25,7 @@ from .lcb import LowerConfidenceBound
 from .hvpoi import HVProbabilityOfImprovement
 
 # Batch
+from .qei import qExpectedImprovement
 
 # Black-box constraint
 from .pof import ProbabilityOfFeasibility
