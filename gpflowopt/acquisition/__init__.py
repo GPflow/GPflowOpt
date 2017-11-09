@@ -20,6 +20,7 @@ from .acquisition import (Acquisition, ParallelBatchAcquisition, AcquisitionAggr
 from .ei import ExpectedImprovement
 from .poi import ProbabilityOfImprovement
 from .lcb import LowerConfidenceBound
+from .mes import MinValueEntropySearch
 
 # Multiobjective
 from .hvpoi import HVProbabilityOfImprovement
