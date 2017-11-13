@@ -17,6 +17,7 @@ in the source directory. This also installs all required dependencies (including
 
 To cite GPflowOpt, please reference the preliminary arXiv paper. Sample Bibtex is given below:
 
+```
 @ARTICLE{GPflowOpt2017,
    author = {Knudde, Nicolas and {van der Herten}, Joachim and Dhaene, Tom and Couckuyt, Ivo},
     title = "{{GP}flow: A {G}aussian process library using {T}ensor{F}low}",
@@ -24,3 +25,4 @@ To cite GPflowOpt, please reference the preliminary arXiv paper. Sample Bibtex i
   year    = {2017},
   url     = {https://arxiv.org/abs/1711.03845}
 }
+```
