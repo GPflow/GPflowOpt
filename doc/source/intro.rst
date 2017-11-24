@@ -42,6 +42,19 @@ A simple example of Bayesian optimization to get up and running is provided by t
 
 For more advanced use cases have a look at the other :ref:`tutorial <tutorials>` notebooks and the :ref:`api`.
 
+Citing GPflowOpt
+-----------------
+
+To cite GPflowOpt, please reference the preliminary arXiv paper. Sample Bibtex is given below:
+
+| @ARTICLE{GPflowOpt2017,
+|    author = {Knudde, Nicolas and {van der Herten}, Joachim and Dhaene, Tom and Couckuyt, Ivo},
+|     title = "{{GP}flow: A {G}aussian process library using {T}ensor{F}low}",
+|   journal = {arXiv preprint -- arXiv:1711.03845},
+|   year    = {2017},
+|   url     = {https://arxiv.org/abs/1711.03845}
+| }
+
 Acknowledgements
 -----------------
 Joachim van der Herten and Ivo Couckuyt are Ghent University - imec postdoctoral fellows. Ivo Couckuyt is supported
