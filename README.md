@@ -13,6 +13,9 @@ pip install . --process-dependency-links
 ```
 in the source directory. This also installs all required dependencies (including TensorFlow, if needed). For more detailed installation instructions, see the [documentation](https://gpflowopt.readthedocs.io/en/latest/intro.html#install).
 
+# Contributing
+If you are interested in contributing to this open source project, contact us through an issue on this repository. For more information, see the [notes for contributors](contributing.md).
+
 # Citing GPflow
 
 To cite GPflowOpt, please reference the preliminary arXiv paper. Sample Bibtex is given below:
