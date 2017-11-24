@@ -15,3 +15,17 @@ in the source directory. This also installs all required dependencies (including
 
 # Contributing
 If you are interested in contributing to this open source project, contact us through an issue on this repository. For more information, see the [notes for contributors](contributing.md).
+
+# Citing GPflow
+
+To cite GPflowOpt, please reference the preliminary arXiv paper. Sample Bibtex is given below:
+
+```
+@ARTICLE{GPflowOpt2017,
+   author = {Knudde, Nicolas and {van der Herten}, Joachim and Dhaene, Tom and Couckuyt, Ivo},
+    title = "{{GP}flow: A {G}aussian process library using {T}ensor{F}low}",
+  journal = {arXiv preprint -- arXiv:1711.03845},
+  year    = {2017},
+  url     = {https://arxiv.org/abs/1711.03845}
+}
+```
