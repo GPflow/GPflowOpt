@@ -16,7 +16,7 @@ in the source directory. This also installs all required dependencies (including
 # Contributing
 If you are interested in contributing to this open source project, contact us through an issue on this repository. For more information, see the [notes for contributors](contributing.md).
 
-# Citing GPflow
+# Citing GPflowOpt
 
 To cite GPflowOpt, please reference the preliminary arXiv paper. Sample Bibtex is given below:
 
