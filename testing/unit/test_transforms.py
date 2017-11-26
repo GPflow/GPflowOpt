@@ -69,6 +69,7 @@ def test_backward_variance_full_cov():
         B = np.dstack((B1, B2))
         scaled = t.build_backward_variance(x)
         Bs = session.run(scaled, feed_dict={x: B})
+
         np.testing.assert_allclose(Bs[:, :, 0] / 4.0, B1)
         np.testing.assert_allclose(Bs[:, :, 1], B2)
 
@@ -77,7 +78,7 @@ def test_backward_variance():
     with tf.Session(graph=tf.Graph()) as session:
         t = ~gpflowopt.transforms.LinearTransform([2.0, 1.0], [1.2, 0.7])
         x = tf.placeholder(float_type, [10, 2])
-
+        
         B = np.random.rand(10, 2)
         scaled = t.build_backward_variance(x)
         Bs = session.run(scaled, feed_dict={x: B})
@@ -91,3 +92,4 @@ def test_assign():
         t1.assign(t2)
         np.testing.assert_allclose(t1.A.read_value(), t2.A.read_value())
         np.testing.assert_allclose(t1.b.read_value(), t2.b.read_value())
+
