@@ -13,7 +13,6 @@
 # limitations under the License.
 import numpy as np
 from functools import wraps
-from gpflow import model
 
 
 def batch_apply(fun):
@@ -93,7 +92,7 @@ class to_kwargs(object):
         return kwargs_wrapper
 
 
-class ObjectiveWrapper(model.ObjectiveWrapper):
+class ObjectiveWrapper(object):
     """
     A wrapper for objective functions.
     
@@ -103,10 +102,19 @@ class ObjectiveWrapper(model.ObjectiveWrapper):
         super(ObjectiveWrapper, self).__init__(objective)
         self._no_gradient = exclude_gradient
         self.counter = 0
+        self._objective = objective
+        self._previous_x = None
 
     def __call__(self, x):
         x = np.atleast_2d(x)
-        f, g = super(ObjectiveWrapper, self).__call__(x)
+        f, g = self._objective(x)
+        g_is_fin = np.isfinite(g)
+
+        if np.all(g_is_fin):
+            self._previous_x = x  # store the last known good value
+        else:
+            print("Warning: inf or nan in gradient: replacing with zeros")
+
         self.counter += x.shape[0]
         if self._no_gradient:
             return f

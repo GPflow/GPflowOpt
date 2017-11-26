@@ -15,18 +15,15 @@
 from .acquisition import Acquisition
 from ..design import RandomDesign
 
-from gpflow import settings
-from gpflow.param import DataHolder
-from gpflow.model import Model
+from gpflow import settings, DataHolder
+from gpflow.models import Model
 
 import numpy as np
 from scipy.stats import norm
 from scipy.optimize import bisect
 import tensorflow as tf
 
-float_type = settings.dtypes.float_type
-stability = settings.numerics.jitter_level
-np_float_type = np.float32 if float_type is tf.float32 else np.float64
+np_float_type = np.float32 if settings.tf_float is tf.float32 else np.float64
 
 
 class MinValueEntropySearch(Acquisition):
@@ -95,7 +92,8 @@ class MinValueEntropySearch(Acquisition):
 
     def build_acquisition(self, Xcand):
         fmean, fvar = self.models[0].build_predict(Xcand)
-        norm = tf.contrib.distributions.Normal(tf.constant(0.0, dtype=float_type), tf.constant(1.0, dtype=float_type))
+        norm = tf.contrib.distributions.Normal(tf.constant(0.0, dtype=settings.tf_float),
+                                               tf.constant(1.0, dtype=settings.tf_float))
         gamma = (fmean - tf.expand_dims(self.samples, axis=0)) / tf.sqrt(fvar)
 
         return tf.reduce_sum(gamma * norm.prob(gamma) / (2. * norm.cdf(gamma)) - norm.log_cdf(gamma),

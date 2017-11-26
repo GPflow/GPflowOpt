@@ -19,9 +19,6 @@ from gpflow import settings
 import numpy as np
 import tensorflow as tf
 
-float_type = settings.dtypes.float_type
-stability = settings.numerics.jitter_level
-
 
 class ProbabilityOfFeasibility(Acquisition):
     """
@@ -80,6 +77,6 @@ class ProbabilityOfFeasibility(Acquisition):
 
     def build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
+        candidate_var = tf.maximum(candidate_var, settings.jitter)
         normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        return normal.cdf(tf.constant(self.threshold, dtype=float_type), name=self.__class__.__name__)
+        return normal.cdf(tf.constant(self.threshold, dtype=settings.tf_float), name=self.__class__.__name__)

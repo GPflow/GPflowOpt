@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from gpflow import settings
-from gpflow.param import Parameterized, DataHolder, AutoFlow
+from gpflow import Parameterized, DataHolder, autoflow, settings, params_as_tensors
 import numpy as np
 import tensorflow as tf
-
-float_type = settings.dtypes.float_type
 
 
 class DataTransform(Parameterized):
@@ -28,7 +24,7 @@ class DataTransform(Parameterized):
     Useful for scaling of data between domains.
     """
 
-    @AutoFlow((float_type, [None, None]))
+    @autoflow((settings.tf_float, [None, None]))
     def forward(self, X):
         """
         Performs the transformation of U -> V
@@ -99,16 +95,18 @@ class LinearTransform(DataTransform):
         self.A = DataHolder(A)
         self.b = DataHolder(b)
 
+    @params_as_tensors
     def build_forward(self, X):
         return tf.matmul(X, tf.transpose(self.A)) + self.b
 
-    @AutoFlow((float_type, [None, None]))
+    @autoflow((settings.tf_float, [None, None]))
     def backward(self, Y):
         """
         Overwrites the default backward approach, to avoid an explicit matrix inversion.
         """
         return self.build_backward(Y)
 
+    @params_as_tensors
     def build_backward(self, Y):
         """
         TensorFlow implementation of the inverse mapping
@@ -117,6 +115,7 @@ class LinearTransform(DataTransform):
         XT = tf.cholesky_solve(L, tf.transpose(Y-self.b))
         return tf.transpose(XT)
 
+    @params_as_tensors
     def build_backward_variance(self, Yvar):
         """
         Additional method for scaling variance backward (used in :class:`.Normalizer`). Can process both the diagonal
@@ -149,10 +148,10 @@ class LinearTransform(DataTransform):
         """
         assert other is not None
         assert isinstance(other, LinearTransform)
-        self.A.set_data(other.A.value)
-        self.b.set_data(other.b.value)
+        self.A = other.A.read_value()
+        self.b = other.b.read_value()
 
     def __invert__(self):
-        A_inv = np.linalg.inv(self.A.value.T)
-        return LinearTransform(A_inv, -np.dot(self.b.value, A_inv))
+        A_inv = np.linalg.inv(self.A.read_value().T)
+        return LinearTransform(A_inv, -np.dot(self.b.read_value(), A_inv))
 

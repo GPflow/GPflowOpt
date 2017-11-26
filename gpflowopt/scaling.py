@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gpflow.param import DataHolder, AutoFlow
-from gpflow import settings
+from gpflow import DataHolder, autoflow, settings
 import numpy as np
 from .transforms import LinearTransform, DataTransform
 from .domain import UnitCube
 from .models import ModelWrapper
-
-float_type = settings.dtypes.float_type
 
 
 class DataScaler(ModelWrapper):
@@ -189,21 +186,21 @@ class DataScaler(ModelWrapper):
         f, var = self.wrapped.build_predict(self.input_transform.build_forward(Xnew), full_cov=full_cov)
         return self.output_transform.build_backward(f), self.output_transform.build_backward_variance(var)
 
-    @AutoFlow((float_type, [None, None]))
+    @autoflow((settings.tf_float, [None, None]))
     def predict_f(self, Xnew):
         """
         Compute the mean and variance of held-out data at the points Xnew
         """
         return self.build_predict(Xnew)
 
-    @AutoFlow((float_type, [None, None]))
+    @autoflow((settings.tf_float, [None, None]))
     def predict_f_full_cov(self, Xnew):
         """
         Compute the mean and variance of held-out data at the points Xnew
         """
         return self.build_predict(Xnew, full_cov=True)
 
-    @AutoFlow((float_type, [None, None]))
+    @autoflow((settings.tf_float, [None, None]))
     def predict_y(self, Xnew):
         """
         Compute the mean and variance of held-out data at the points Xnew
@@ -212,7 +209,7 @@ class DataScaler(ModelWrapper):
         f, var = self.likelihood.predict_mean_and_var(f, var)
         return self.output_transform.build_backward(f), self.output_transform.build_backward_variance(var)
 
-    @AutoFlow((float_type, [None, None]), (float_type, [None, None]))
+    @autoflow((settings.tf_float, [None, None]), (settings.tf_float, [None, None]))
     def predict_density(self, Xnew, Ynew):
         """
         Compute the (log) density of the data Ynew at the points Xnew

@@ -14,7 +14,7 @@
 
 from .acquisition import Acquisition
 
-from gpflow.param import DataHolder
+from gpflow import DataHolder
 import numpy as np
 
 import tensorflow as tf

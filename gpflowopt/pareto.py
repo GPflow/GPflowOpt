@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gpflow.param import Parameterized, DataHolder, AutoFlow
+from gpflow import Parameterized, DataHolder, autoflow
 from gpflow import settings
-from scipy.spatial.distance import pdist, squareform
 import numpy as np
 import tensorflow as tf
 
-np_int_type = np_float_type = np.int32 if settings.dtypes.int_type is tf.int32 else np.int64
-float_type = settings.dtypes.float_type
+np_int_type = np_float_type = np.int32 if settings.tf_int is tf.int32 else np.int64
 
 
 class BoundedVolumes(Parameterized):
@@ -248,7 +246,7 @@ class Pareto(Parameterized):
             self.bounds.append((i, 0),
                                (i+1, pf_ext_idx[-i-1, 1]))
 
-    @AutoFlow((float_type, [None]))
+    @autoflow((settings.tf_float, [None]))
     def hypervolume(self, reference):
         """
         Autoflow method to calculate the hypervolume indicator

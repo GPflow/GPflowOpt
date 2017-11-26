@@ -11,37 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from gpflow.param import Parameterized
-from gpflow.model import Model
-
-
-class ParentHook(object):
-    """
-    Temporary solution for fixing the recompilation issues (#37, GPflow issue #442).
-
-    An object of this class is returned when highest_parent is called on a model, which holds references to the highest
-    parentable, as well as the highest model class. When setting the needs recompile flag, this is intercepted and
-    performed on the model. At the same time, kill autoflow is called on the highest parent.
-    """
-    def __init__(self, highest_parent, highest_model):
-        self._hp = highest_parent
-        self._hm = highest_model
-
-    def __getattr__(self, item):
-        if item is '_needs_recompile':
-            return getattr(self._hm, item)
-        return getattr(self._hp, item)
-
-    def __setattr__(self, key, value):
-        if key in ['_hp', '_hm']:
-            object.__setattr__(self, key, value)
-            return
-        if key is '_needs_recompile':
-            setattr(self._hm, key, value)
-            if value:
-                self._hp._kill_autoflow()
-        else:
-            setattr(self._hp, key, value)
+from gpflow import Parameterized
+from gpflow.models import Model
+from gpflow.core import AutoFlow
 
 
 class ModelWrapper(Parameterized):
@@ -73,6 +45,8 @@ class ModelWrapper(Parameterized):
         # in the wrapped model.
         if item.endswith('_AF_storage'):
             method = item[1:].rstrip('_AF_storage')
+        if item.startswith(AutoFlow.__autoflow_prefix__):
+            method = item.lstrip(AutoFlow.__autoflow_prefix__)
             if method in dir(self):
                 raise AttributeError("{0} has no attribute {1}".format(self.__class__.__name__, item))
 
@@ -87,6 +61,9 @@ class ModelWrapper(Parameterized):
            (c) If attribute is found in the wrapped object, set it there. This rule is ignored for AF storages.
            (d) Set attribute in wrapper.
         """
+        if key is '_parent':
+            return super(ModelWrapper, self).__setattr__(key, value)
+
         if key is 'wrapped':
             object.__setattr__(self, key, value)
             value.__setattr__('_parent', self)
@@ -121,11 +98,3 @@ class ModelWrapper(Parameterized):
     def name(self):
         name = super(ModelWrapper, self).name
         return ".".join([name, str.lower(self.__class__.__name__)])
-
-    @Parameterized.highest_parent.getter
-    def highest_parent(self):
-        """
-        Returns an instance of the ParentHook instead of the usual reference to a Parentable.
-        """
-        original_hp = super(ModelWrapper, self).highest_parent
-        return original_hp if isinstance(original_hp, ParentHook) else ParentHook(original_hp, self)

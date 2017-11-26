@@ -1,82 +1,67 @@
 import gpflowopt
 import numpy as np
 import os
-from ..utility import GPflowOptTestCase
+import tensorflow as tf
+import pytest
+from functools import partial
+
+designs_to_test = [(gpflowopt.design.RandomDesign, (200,)),
+                   (gpflowopt.design.EmptyDesign, tuple()),
+                   (gpflowopt.design.FactorialDesign, (4,)),
+                   (gpflowopt.design.LatinHyperCube, (20,))]
+
+@pytest.fixture(scope='module',
+                params=range(1, 6))
+def domain(request):
+    j = request.param
+    return np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -i, 2 * i) for i in range(1, j + 1)])
 
 
-class _TestDesign(object):
-
-    @property
-    def designs(self):
-        raise NotImplementedError()
-
-    @property
-    def domains(self):
-        createfx = lambda j: np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -i, 2 * i) for i in range(1, j + 1)])
-        return list(map(createfx, np.arange(1, 6)))
-
-    def test_design_compliance(self):
-        points = [design.generate() for design in self.designs]
-        for p, d in zip(points, self.designs):
-            self.assertTupleEqual(p.shape, (d.size, d.domain.size), msg="Generated design does match specifications")
-            self.assertIn(p, d.domain, "Not all generated points are generated within the domain")
-
-    def test_create_to_generate(self):
-        X = [design.create_design() for design in self.designs]
-        Xt = [design.generate() for design in self.designs]
-        transforms = [design.generative_domain >> design.domain for design in self.designs]
-
-        Xs = [t.forward(p) for p, t in zip(X, transforms)]
-        Xr = [t.backward(p) for p, t in zip(Xt, transforms)]
-
-        for generated, scaled in zip(Xs, Xt):
-            np.testing.assert_allclose(generated, scaled, atol=1e-4,
-                                       err_msg="Incorrect scaling from generative domain to domain")
-
-        for generated, scaled in zip(Xr, X):
-            np.testing.assert_allclose(generated, scaled, atol=1e-4,
-                                       err_msg="Incorrect scaling from generative domain to domain")
+@pytest.fixture(scope='module',
+                params=designs_to_test)
+def design_part(request):
+    cls, args = request.param
+    return partial(cls, *args)
 
 
-class TestRandomDesign(_TestDesign, GPflowOptTestCase):
-
-    @_TestDesign.designs.getter
-    def designs(self):
-        return [gpflowopt.design.RandomDesign(200, domain) for domain in self.domains]
-
-    def test_create_to_generate(self):
-        pass
+def test_design_compliance(domain, design_part):
+    with tf.Session(graph=tf.Graph()):
+        design = design_part(domain)
+        points = design.generate()
+        assert points.shape == (design.size, domain.size)
+        assert points in domain
 
 
-class TestEmptyDesign(_TestDesign, GPflowOptTestCase):
-    @_TestDesign.designs.getter
-    def designs(self):
-        return [gpflowopt.design.EmptyDesign(domain) for domain in self.domains]
+def test_create_to_generate(domain, design_part):
+    if design_part.func == gpflowopt.design.RandomDesign:
+        pytest.skip("create vs generate does not work for RandomDesign")
+        return
+
+    with tf.Session(graph=tf.Graph()):
+        design = design_part(domain)
+        X = design.create_design()
+        Xt = design.generate()
+        transform = design.generative_domain >> design.domain
+        Xs = transform.forward(X)
+        Xr = transform.backward(Xt)
+
+        np.testing.assert_allclose(Xs, Xt, atol=1e-4, err_msg="Incorrect scaling from generative domain to domain")
+        np.testing.assert_allclose(Xr, X, atol=1e-4, err_msg="Incorrect scaling from generative domain to domain")
 
 
-class TestFactorialDesign(_TestDesign, GPflowOptTestCase):
-    @_TestDesign.designs.getter
-    def designs(self):
-        return [gpflowopt.design.FactorialDesign(4, domain) for domain in self.domains]
-
-    def test_validity(self):
-        for design in self.designs:
-            A = design.generate()
-            for i, l, u in zip(range(1, design.domain.size + 1), design.domain.lower, design.domain.upper):
-                self.assertTrue(np.all(np.any(np.abs(A[:,i - 1] - np.linspace(l, u, 4)[:, None]) < 1e-4, axis=0)),
-                                msg="Generated off-grid.")
+def test_factorial_validity(domain):
+    design = gpflowopt.design.FactorialDesign(4, domain)
+    with tf.Session(graph=tf.Graph()):
+        A = design.generate()
+        for i, l, u in zip(range(1, design.domain.size + 1), design.domain.lower, design.domain.upper):
+            assert np.all(np.any(np.abs(A[:,i - 1] - np.linspace(l, u, 4)[:, None]) < 1e-4, axis=0))
 
 
-class TestLatinHyperCubeDesign(_TestDesign, GPflowOptTestCase):
-
-    @_TestDesign.designs.getter
-    def designs(self):
-        return [gpflowopt.design.LatinHyperCube(20, domain) for domain in self.domains]
-
-    def test_validity(self):
-        groundtruth = np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'lhd.npz'))
-        points = [lhd.generate() for lhd in self.designs]
-        lhds = map(lambda file: groundtruth[file], groundtruth.files)
+def test_lhd_validity(domain):
+    groundtruths = np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'lhd.npz'))
+    lhd = gpflowopt.design.LatinHyperCube(20, domain)
+    with tf.Session(graph=tf.Graph()):
+        points = lhd.generate()
+        lhds = list(map(lambda file: groundtruths[file], groundtruths.files))
         idx = np.argsort([lhd.shape[-1] for lhd in lhds])
-        for generated, real in zip(points, map(lambda file: groundtruth[file], np.array(groundtruth.files)[idx])):
-            self.assertTrue(np.allclose(generated, real), msg="Generated LHD does not correspond to the groundtruth")
+        np.testing.assert_allclose(points, lhds[idx[domain.size-1]])

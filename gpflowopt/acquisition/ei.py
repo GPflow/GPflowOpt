@@ -14,14 +14,10 @@
 
 from .acquisition import Acquisition
 
-from gpflow.model import Model
-from gpflow.param import DataHolder
-from gpflow import settings
+from gpflow import DataHolder, settings
 
 import numpy as np
 import tensorflow as tf
-
-stability = settings.numerics.jitter_level
 
 
 class ExpectedImprovement(Acquisition):
@@ -70,7 +66,7 @@ class ExpectedImprovement(Acquisition):
     def build_acquisition(self, Xcand):
         # Obtain predictive distributions for candidates
         candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
+        candidate_var = tf.maximum(candidate_var, settings.jitter)
 
         # Compute EI
         normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))

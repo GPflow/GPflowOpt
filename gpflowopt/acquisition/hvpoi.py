@@ -15,14 +15,10 @@
 from .acquisition import Acquisition
 from ..pareto import Pareto
 
-from gpflow.param import DataHolder
-from gpflow import settings
+from gpflow import DataHolder, settings
 
 import numpy as np
 import tensorflow as tf
-
-stability = settings.numerics.jitter_level
-float_type = settings.dtypes.float_type
 
 
 class HVProbabilityOfImprovement(Acquisition):
@@ -101,12 +97,12 @@ class HVProbabilityOfImprovement(Acquisition):
         N = tf.shape(Xcand)[0]
 
         # Extended Pareto front
-        pf_ext = tf.concat([-np.inf * tf.ones([1, outdim], dtype=float_type), self.pareto.front, self.reference], 0)
+        pf_ext = tf.concat([-np.inf * tf.ones([1, outdim], dtype=settings.tf_float), self.pareto.front, self.reference], 0)
 
         # Predictions for candidates, concatenate columns
         preds = [m.build_predict(Xcand) for m in self.models]
         candidate_mean, candidate_var = (tf.concat(moment, 1) for moment in zip(*preds))
-        candidate_var = tf.maximum(candidate_var, stability)  # avoid zeros
+        candidate_var = tf.maximum(candidate_var, settings.jitter)  # avoid zeros
 
         # Calculate the cdf's for all candidates for every predictive distribution in the data points
         normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
@@ -129,7 +125,7 @@ class HVProbabilityOfImprovement(Acquisition):
 
         splus_valid = tf.reduce_all(tf.tile(tf.expand_dims(ub_points, 1), [1, N, 1]) > candidate_mean,
                                     axis=2)  # num_cells x N
-        splus_idx = tf.expand_dims(tf.cast(splus_valid, dtype=float_type), -1)  # num_cells x N x 1
+        splus_idx = tf.expand_dims(tf.cast(splus_valid, dtype=settings.tf_float), -1)  # num_cells x N x 1
         splus_lb = tf.tile(tf.expand_dims(lb_points, 1), [1, N, 1])  # num_cells x N x outdim
         splus_lb = tf.maximum(splus_lb, candidate_mean)  # num_cells x N x outdim
         splus_ub = tf.tile(tf.expand_dims(ub_points, 1), [1, N, 1])  # num_cells x N x outdim
