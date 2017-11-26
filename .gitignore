@@ -78,6 +78,9 @@ celerybeat-schedule
 # dotenv
 .env
 
+# nox
+.nox
+
 # virtualenv
 venv/
 ENV/
