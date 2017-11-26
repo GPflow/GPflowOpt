@@ -43,8 +43,6 @@ class ModelWrapper(Parameterized):
         """
         # Exception for AF storages, if a method with the same name exists in this class, do not find the cache
         # in the wrapped model.
-        if item.endswith('_AF_storage'):
-            method = item[1:].rstrip('_AF_storage')
         if item.startswith(AutoFlow.__autoflow_prefix__):
             method = item.lstrip(AutoFlow.__autoflow_prefix__)
             if method in dir(self):
