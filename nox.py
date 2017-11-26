@@ -14,7 +14,9 @@
 
 import nox
 
-TEST_DEPS = ('six', 'parameterized', 'nbconvert', 'nbformat', 'jupyter', 'jupyter_client', 'matplotlib', 'nose')
+TEST_DEPS = ('six',)
+SYSTEM_TEST_DEPS = ('nbconvert', 'nbformat', 'jupyter', 'jupyter_client', 'matplotlib')
+
 
 @nox.session
 def unit(session):
@@ -32,9 +34,10 @@ def unit(session):
         'testing/unit'
     )
 
+
 @nox.session
 def system(session):
-    session.install('pytest', 'pytest-cov', *TEST_DEPS)
+    session.install('pytest', 'pytest-cov', *(TEST_DEPS + SYSTEM_TEST_DEPS))
     session.install('-e', '.', '--process-dependency-links')
 
     # Run py.test against the unit tests.
@@ -46,6 +49,7 @@ def system(session):
         '--cov-config=.coveragerc',
         'testing/system'
     )
+
 
 @nox.session
 def cover(session):

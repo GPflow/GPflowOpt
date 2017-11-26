@@ -2,7 +2,7 @@ import gpflowopt
 import numpy as np
 import gpflow
 import tensorflow as tf
-from parameterized import parameterized
+import pytest
 from ..utility import create_parabola_model, parabola2d, plane, GPflowOptTestCase
 
 domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
@@ -134,117 +134,124 @@ aggregations.append(gpflowopt.acquisition.MCMCAcquistion(
 )
 
 
-class TestAcquisitionAggregation(GPflowOptTestCase):
-
-    @parameterized.expand(list(zip(aggregations)))
-    def test_object_integrity(self, acquisition):
-        acquisition._kill_autoflow()
-        with self.test_session():
-            for oper in acquisition.operands:
-                self.assertTrue(isinstance(oper, gpflowopt.acquisition.Acquisition),
-                                msg="All operands should be an acquisition object")
-
-            self.assertTrue(all(isinstance(m, gpflowopt.models.ModelWrapper) for m in acquisition.models))
-
-    @parameterized.expand(list(zip(aggregations)))
-    def test_data(self, acquisition):
-        acquisition._kill_autoflow()
-        with self.test_session():
-            np.testing.assert_allclose(acquisition.data[0], acquisition[0].data[0],
-                                       err_msg="Samples should be equal for all operands")
-            np.testing.assert_allclose(acquisition.data[0], acquisition[1].data[0],
-                                       err_msg="Samples should be equal for all operands")
-
-            Y = np.hstack(map(lambda model: model.Y.value, acquisition.models))
-            np.testing.assert_allclose(acquisition.data[1], Y, err_msg="Value should be horizontally concatenated")
-
-    @parameterized.expand(list(zip(aggregations)))
-    def test_enable_scaling(self, acquisition):
-        acquisition._kill_autoflow()
-        with self.test_session():
-            for oper in acquisition.operands:
-                self.assertFalse(any(m.wrapped.X.value in gpflowopt.domain.UnitCube(2) for m in oper.models))
-            acquisition.enable_scaling(domain)
-            for oper in acquisition.operands:
-                self.assertTrue(all(m.wrapped.X.value in gpflowopt.domain.UnitCube(2) for m in oper.models))
-
-    @parameterized.expand(list(zip([aggregations[0]])))
-    def test_sum_validity(self, acquisition):
-        acquisition._kill_autoflow()
-        with self.test_session():
-            design = gpflowopt.design.FactorialDesign(4, domain)
-            m = create_parabola_model(domain)
-            single_ei = gpflowopt.acquisition.ExpectedImprovement(m)
-            p1 = acquisition.evaluate(design.generate())
-            p2 = single_ei.evaluate(design.generate())
-            np.testing.assert_allclose(p2, p1 / 2, rtol=1e-3)
-
-    @parameterized.expand(list(zip([aggregations[1]])))
-    def test_product_validity(self, acquisition):
-        acquisition._kill_autoflow()
-        with self.test_session():
-            design = gpflowopt.design.FactorialDesign(4, domain)
-            m = create_parabola_model(domain)
-            single_ei = gpflowopt.acquisition.ExpectedImprovement(m)
-            p1 = acquisition.evaluate(design.generate())
-            p2 = single_ei.evaluate(design.generate())
-            np.testing.assert_allclose(p2, np.sqrt(p1), rtol=1e-3)
-
-    @parameterized.expand(list(zip(aggregations[0:2])))
-    def test_indices(self, acquisition):
-        acquisition._kill_autoflow()
-        np.testing.assert_allclose(acquisition.objective_indices(), np.arange(2, dtype=int))
-        np.testing.assert_allclose(acquisition.constraint_indices(), np.arange(0, dtype=int))
-
-    def test_generating_operators(self):
-        joint = gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)) + \
-                gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain))
-        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionSum))
-
-        joint = gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)) * \
-                gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain))
-        self.assertTrue(isinstance(joint, gpflowopt.acquisition.AcquisitionProduct))
-
-    @parameterized.expand(list(zip([aggregations[2]])))
-    def test_hyper_updates(self, acquisition):
-        acquisition._kill_autoflow()
-        with self.test_session():
-            orig_hypers = [c.get_free_state() for c in acquisition.operands[1:]]
-            lik_start = acquisition.operands[0].models[0].compute_log_likelihood()
-            acquisition._optimize_models()
-            self.assertGreater(acquisition.operands[0].models[0].compute_log_likelihood(), lik_start)
-
-            for co, cn in zip(orig_hypers, [c.get_free_state() for c in acquisition.operands[1:]]):
-                self.assertFalse(np.allclose(co, cn))
-
-    @parameterized.expand(list(zip([aggregations[2]])))
-    def test_marginalized_score(self, acquisition):
-        for m in acquisition.models:
-            m._needs_recompile = True
-
-        with self.test_session():
-            Xt = np.random.rand(20, 2) * 2 - 1
-            ei_mle = acquisition.operands[0].evaluate(Xt)
-            ei_mcmc = acquisition.evaluate(Xt)
-            np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
-
-    def test_mcmc_acq(self):
-        acquisition = gpflowopt.acquisition.MCMCAcquistion(
-            gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)), 10)
+@pytest.mark.parametrize('acquisition', aggregations)
+def test_object_integrity(acquisition):
+    acquisition._kill_autoflow()
+    with tf.Session(graph=tf.Graph()):
         for oper in acquisition.operands:
-            self.assertListEqual(acquisition.models, oper.models)
-            self.assertEqual(acquisition.operands[0], oper)
-        self.assertTrue(acquisition._needs_new_copies)
+            assert isinstance(oper, gpflowopt.acquisition.Acquisition)
+        assert all(isinstance(m, gpflowopt.models.ModelWrapper) for m in acquisition.models)
+
+
+@pytest.mark.parametrize('acquisition', aggregations)
+def test_data(acquisition):
+    acquisition._kill_autoflow()
+    with tf.Session(graph=tf.Graph()):
+        np.testing.assert_allclose(acquisition.data[0], acquisition[0].data[0],
+                                   err_msg="Samples should be equal for all operands")
+        np.testing.assert_allclose(acquisition.data[0], acquisition[1].data[0],
+                                   err_msg="Samples should be equal for all operands")
+        Y = np.hstack(map(lambda model: model.Y.value, acquisition.models))
+        np.testing.assert_allclose(acquisition.data[1], Y, err_msg="Value should be horizontally concatenated")
+
+
+@pytest.mark.parametrize('acquisition', aggregations)
+def test_enable_scaling(acquisition):
+    acquisition._kill_autoflow()
+    with tf.Session(graph=tf.Graph()):
+        for oper in acquisition.operands:
+            assert not any(m.wrapped.X.value in gpflowopt.domain.UnitCube(2) for m in oper.models)
+
+        acquisition.enable_scaling(domain)
+        for oper in acquisition.operands:
+            assert all(m.wrapped.X.value in gpflowopt.domain.UnitCube(2) for m in oper.models)
+
+
+@pytest.mark.parametrize('acquisition', aggregations[0:1])
+def test_sum_validity(acquisition):
+    acquisition._kill_autoflow()
+    with tf.Session(graph=tf.Graph()):
+        design = gpflowopt.design.FactorialDesign(4, domain)
+        m = create_parabola_model(domain)
+        single_ei = gpflowopt.acquisition.ExpectedImprovement(m)
+        p1 = acquisition.evaluate(design.generate())
+        p2 = single_ei.evaluate(design.generate())
+        np.testing.assert_allclose(p2, p1 / 2, rtol=1e-3)
+
+
+@pytest.mark.parametrize('acquisition', aggregations[1:2])
+def test_product_validity(acquisition):
+    acquisition._kill_autoflow()
+    with tf.Session(graph=tf.Graph()):
+        design = gpflowopt.design.FactorialDesign(4, domain)
+        m = create_parabola_model(domain)
+        single_ei = gpflowopt.acquisition.ExpectedImprovement(m)
+        p1 = acquisition.evaluate(design.generate())
+        p2 = single_ei.evaluate(design.generate())
+        np.testing.assert_allclose(p2, np.sqrt(p1), rtol=1e-3)
+
+
+@pytest.mark.parametrize('acquisition', aggregations[0:2])
+def test_indices(acquisition):
+    acquisition._kill_autoflow()
+    np.testing.assert_allclose(acquisition.objective_indices(), np.arange(2, dtype=int))
+    np.testing.assert_allclose(acquisition.constraint_indices(), np.arange(0, dtype=int))
+
+
+def test_generating_operators():
+    joint = gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)) + \
+            gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain))
+    assert isinstance(joint, gpflowopt.acquisition.AcquisitionSum)
+
+    joint = gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)) * \
+            gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain))
+    assert isinstance(joint, gpflowopt.acquisition.AcquisitionProduct)
+
+
+@pytest.mark.parametrize('acquisition', aggregations[2:3])
+def test_hyper_updates(acquisition):
+    acquisition._kill_autoflow()
+    with tf.Session(graph=tf.Graph()):
+        orig_hypers = [c.get_free_state() for c in acquisition.operands[1:]]
+        lik_start = acquisition.operands[0].models[0].compute_log_likelihood()
         acquisition._optimize_models()
-        self.assertListEqual(acquisition.models, acquisition.operands[0].models)
-        for oper in acquisition.operands[1:]:
-            self.assertNotEqual(acquisition.operands[0], oper)
-        self.assertFalse(acquisition._needs_new_copies)
-        acquisition._setup()
+        assert acquisition.operands[0].models[0].compute_log_likelihood() > lik_start
+
+        for co, cn in zip(orig_hypers, [c.get_free_state() for c in acquisition.operands[1:]]):
+            assert not np.allclose(co, cn)
+
+
+@pytest.mark.parametrize('acquisition', aggregations[2:3])
+def test_marginalized_score(acquisition):
+    for m in acquisition.models:
+        m._needs_recompile = True
+
+    with tf.Session(graph=tf.Graph()):
         Xt = np.random.rand(20, 2) * 2 - 1
         ei_mle = acquisition.operands[0].evaluate(Xt)
         ei_mcmc = acquisition.evaluate(Xt)
         np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
+
+
+def test_mcmc_acq():
+    acquisition = gpflowopt.acquisition.MCMCAcquistion(
+        gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)), 10)
+    for oper in acquisition.operands:
+        assert acquisition.models == oper.models
+        assert acquisition.operands[0] == oper
+    assert acquisition._needs_new_copies
+
+    acquisition._optimize_models()
+    assert acquisition.models == acquisition.operands[0].models
+    for oper in acquisition.operands[1:]:
+        assert acquisition.operands[0] != oper
+    assert not acquisition._needs_new_copies
+
+    acquisition._setup()
+    Xt = np.random.rand(20, 2) * 2 - 1
+    ei_mle = acquisition.operands[0].evaluate(Xt)
+    ei_mcmc = acquisition.evaluate(Xt)
+    np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
 
 
 class TestJointAcquisition(GPflowOptTestCase):

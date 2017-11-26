@@ -1,9 +1,11 @@
 import gpflowopt
 import numpy as np
-from parameterized import parameterized
+import pytest
+import tensorflow as tf
 from ..utility import create_parabola_model, create_plane_model, create_vlmop2_model, parabola2d, load_data, GPflowOptTestCase
 
 domain = np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
+
 acquisitions = [gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)),
                 gpflowopt.acquisition.ProbabilityOfImprovement(create_parabola_model(domain)),
                 gpflowopt.acquisition.ProbabilityOfFeasibility(create_parabola_model(domain)),
@@ -14,25 +16,21 @@ acquisitions = [gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(
                 ]
 
 
-class TestAcquisitionEvaluate(GPflowOptTestCase):
+@pytest.mark.parametrize('acquisition', acquisitions)
+def test_acquisition_evaluate(acquisition):
+    with tf.Session(graph=tf.Graph()):
+        X = gpflowopt.design.RandomDesign(10, domain).generate()
+        p = acquisition.evaluate(X)
+        assert isinstance(p, np.ndarray)
+        assert p.shape == (10, 1)
 
-    @parameterized.expand(list(zip(acquisitions)))
-    def test_evaluate(self, acquisition):
-        with self.test_session():
-            X = gpflowopt.design.RandomDesign(10, domain).generate()
-            p = acquisition.evaluate(X)
-            self.assertTrue(isinstance(p, np.ndarray))
-            self.assertTupleEqual(p.shape, (10, 1))
-
-            q = acquisition.evaluate_with_gradients(X)
-            self.assertTrue(isinstance(q, tuple))
-            self.assertTrue(len(q), 2)
-            for i in q:
-                self.assertTrue(isinstance(i, np.ndarray))
-
-            self.assertTupleEqual(q[0].shape, (10, 1))
-            self.assertTrue(np.allclose(p, q[0]))
-            self.assertTupleEqual(q[1].shape, (10, 2))
+        q = acquisition.evaluate_with_gradients(X)
+        assert isinstance(q, tuple)
+        assert len(q) == 2
+        assert all(isinstance(q[i], np.ndarray) for i in range(2))
+        assert q[0].shape == (10, 1)
+        assert q[1].shape == (10, 2)
+        np.testing.assert_allclose(p, q[0])
 
 
 class TestExpectedImprovement(GPflowOptTestCase):
