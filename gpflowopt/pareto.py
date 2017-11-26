@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gpflow import Parameterized, DataHolder, autoflow
-from gpflow import settings
+from gpflow import Parameterized, DataHolder, autoflow, params_as_tensors, settings
 import numpy as np
 import tensorflow as tf
 
-np_int_type = np_float_type = np.int32 if settings.tf_int is tf.int32 else np.int64
+np_int_type = np.int32 if settings.tf_int is tf.int32 else np.int64
 
 
 class BoundedVolumes(Parameterized):
@@ -43,8 +42,8 @@ class BoundedVolumes(Parameterized):
         """
         super(BoundedVolumes, self).__init__()
         assert np.all(lb.shape == lb.shape)
-        self.lb = DataHolder(np.atleast_2d(lb), 'pass')
-        self.ub = DataHolder(np.atleast_2d(ub), 'pass')
+        self.lb = DataHolder(np.atleast_2d(lb))
+        self.ub = DataHolder(np.atleast_2d(ub))
 
     def append(self, lb, ub):
         """
@@ -53,23 +52,22 @@ class BoundedVolumes(Parameterized):
         :param lb: the lowerbounds of the volumes
         :param ub: the upperbounds of the volumes
         """
-        self.lb = np.vstack((self.lb.value, lb))
-        self.ub = np.vstack((self.ub.value, ub))
+        self.lb = np.vstack((self.lb.read_value(), np.atleast_1d(lb).astype(np_int_type)))
+        self.ub = np.vstack((self.ub.read_value(), np.atleast_1d(ub).astype(np_int_type)))
 
     def clear(self):
         """
         Clears all stored bounded volumes
         """
-        dtype = self.lb.value.dtype
-        outdim = self.lb.shape[1]
-        self.lb = np.zeros((0, outdim), dtype=dtype)
-        self.ub = np.zeros((0, outdim), dtype=dtype)
+        outdim = self.lb.read_value().shape[1]
+        self.lb = np.zeros((0, outdim), dtype=np_int_type)
+        self.ub = np.zeros((0, outdim), dtype=np_int_type)
 
     def size(self):
         """
         :return: volume of each bounded volume
         """
-        return np.prod(self.ub.value - self.lb.value, axis=1)
+        return np.prod(self.ub.read_value() - self.lb.read_value(), axis=1)
 
 
 def non_dominated_sort(objectives):
@@ -105,8 +103,8 @@ class Pareto(Parameterized):
         self.Y = Y
 
         # Setup data structures
+        self.front = DataHolder(np.zeros((0, Y.shape[1])))
         self.bounds = BoundedVolumes.empty(Y.shape[1], np_int_type)
-        self.front = DataHolder(np.zeros((0, Y.shape[1])), 'pass')
 
         # Initialize
         self.update()
@@ -247,6 +245,7 @@ class Pareto(Parameterized):
                                (i+1, pf_ext_idx[-i-1, 1]))
 
     @autoflow((settings.tf_float, [None]))
+    @params_as_tensors
     def hypervolume(self, reference):
         """
         Autoflow method to calculate the hypervolume indicator
