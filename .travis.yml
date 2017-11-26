@@ -7,12 +7,8 @@ python:
   - 3.6
 cache: pip
 install:
-  - pip install -U pip wheel
-  - pip install tensorflow==1.0.1
-  - pip install -U --process-dependency-links .
-  - pip install -U .[test]
-  - pip install -U codecov
+  - pip install -U pip wheel codecov nox-automation
 script:
-  - nosetests testing
+  - nox
 after_success:
   - codecov

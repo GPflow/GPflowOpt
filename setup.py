@@ -64,8 +64,6 @@ setup(name='gpflowopt',
       install_requires=dependencies,
       extras_require={'gpu': ['tensorflow-gpu>=1.0.0'],
                       'docs': ['sphinx', 'sphinx_rtd_theme', 'numpydoc', 'nbsphinx', 'jupyter'],
-                      'test': ['nose', 'coverage', 'six', 'parameterized', 'nbconvert', 'nbformat','jupyter',
-                               'jupyter_client', 'matplotlib']
                       },
       dependency_links=['https://github.com/GPflow/GPflow/archive/0.4.0.tar.gz#egg=GPflow-0.4.0'],
       classifiers=['License :: OSI Approved :: Apache Software License',

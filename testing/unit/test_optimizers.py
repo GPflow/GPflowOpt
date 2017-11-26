@@ -7,7 +7,7 @@ import os
 import warnings
 from contextlib import contextmanager
 from scipy.optimize import OptimizeResult
-from .utility import vlmop2, create_parabola_model, create_vlmop2_model, GPflowOptTestCase
+from ..utility import vlmop2, create_parabola_model, create_vlmop2_model, GPflowOptTestCase
 
 
 def parabola2d(X):

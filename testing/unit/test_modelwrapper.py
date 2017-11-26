@@ -1,7 +1,7 @@
 import gpflowopt
 import gpflow
 import numpy as np
-from .utility import create_parabola_model, GPflowOptTestCase
+from ..utility import create_parabola_model, GPflowOptTestCase
 
 float_type = gpflow.settings.dtypes.float_type
 

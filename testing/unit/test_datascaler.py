@@ -1,8 +1,7 @@
 import gpflowopt
-import gpflow
 import numpy as np
 from gpflowopt.scaling import DataScaler
-from .utility import GPflowOptTestCase, create_parabola_model, parabola2d
+from ..utility import GPflowOptTestCase, create_parabola_model, parabola2d
 
 
 class TestDataScaler(GPflowOptTestCase):
