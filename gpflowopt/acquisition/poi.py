@@ -26,6 +26,21 @@ stability = settings.numerics.jitter_level
 class ProbabilityOfImprovement(Acquisition):
     """
     Probability of Improvement acquisition function for single-objective global optimization.
+    
+    Key reference:
+    
+    ::
+    
+        @article{Kushner:1964,
+            author = "Kushner, Harold J",
+            journal = "Journal of Basic Engineering",
+            number = "1",
+            pages = "97--106",
+            publisher = "American Society of Mechanical Engineers",
+            title = "{A new method of locating the maximum point of an arbitrary multipeak curve in the presence of noise}",
+            volume = "86",
+            year = "1964"
+        }
 
     .. math::
        \\alpha(\\mathbf x_{\\star}) = \\int_{-\\infty}^{f_{\\min}} \\, p( f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} ) \\, d f_{\\star}
