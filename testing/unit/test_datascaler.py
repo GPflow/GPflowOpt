@@ -1,98 +1,135 @@
 import gpflowopt
 import numpy as np
+from gpflow.training import ScipyOptimizer
 from gpflowopt.scaling import DataScaler
-from ..utility import GPflowOptTestCase, create_parabola_model, parabola2d
+import pytest
+import tensorflow as tf
+from ..utility import create_parabola_model, parabola2d
 
 
-class TestDataScaler(GPflowOptTestCase):
-
-    @property
-    def domain(self):
-        return np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
-
-    def test_object_integrity(self):
-        with self.test_session():
-            m = create_parabola_model(self.domain)
-            Xs, Ys = m.X.value, m.Y.value
-            n = DataScaler(m, self.domain)
-
-            self.assertTrue(np.allclose(Xs, n.X.value))
-            self.assertTrue(np.allclose(Ys, n.Y.value))
-
-    def test_enabling_transforms(self):
-        with self.test_session():
-            m = create_parabola_model(self.domain)
-            normY = (m.Y.value - np.mean(m.Y.value, axis=0)) / np.std(m.Y.value, axis=0)
-            scaledX = (m.X.value + 1) / 2
-
-            n1 = DataScaler(m, normalize_Y=False)
-            self.assertFalse(n1.normalize_output)
-            self.assertTrue(np.allclose(m.X.value, n1.X.value))
-            self.assertTrue(np.allclose(m.Y.value, n1.Y.value))
-            n1.input_transform = self.domain >> gpflowopt.domain.UnitCube(self.domain.size)
-            self.assertTrue(np.allclose(m.X.value, scaledX))
-            self.assertTrue(np.allclose(m.Y.value, n1.Y.value))
-            n1.normalize_output = True
-            self.assertTrue(n1.normalize_output)
-            self.assertTrue(np.allclose(m.Y.value, normY))
-
-            m = create_parabola_model(self.domain)
-            n2 = DataScaler(m, self.domain, normalize_Y=False)
-            self.assertTrue(np.allclose(m.X.value, scaledX))
-            self.assertTrue(np.allclose(m.Y.value, n2.Y.value))
-            n2.normalize_output = True
-            self.assertTrue(np.allclose(m.Y.value, normY))
-            n2.input_transform = gpflowopt.domain.UnitCube(self.domain.size) >> gpflowopt.domain.UnitCube(self.domain.size)
-            self.assertTrue(np.allclose(m.X.value, n1.X.value))
-
-            m = create_parabola_model(self.domain)
-            n3 = DataScaler(m, normalize_Y=True)
-            self.assertTrue(np.allclose(m.X.value, n3.X.value))
-            self.assertTrue(np.allclose(m.Y.value, normY))
-            n3.normalize_output = False
-            self.assertTrue(np.allclose(m.Y.value, n3.Y.value))
-
-            m = create_parabola_model(self.domain)
-            n4 = DataScaler(m, self.domain, normalize_Y=True)
-            self.assertTrue(np.allclose(m.X.value, scaledX))
-            self.assertTrue(np.allclose(m.Y.value, normY))
-            n4.normalize_output = False
-            self.assertTrue(np.allclose(m.Y.value, n3.Y.value))
-
-            m = create_parabola_model(self.domain)
-            Y = m.Y.value
-            n5 = DataScaler(m, self.domain, normalize_Y=False)
-            n5.output_transform = gpflowopt.transforms.LinearTransform(2, 0)
-            self.assertTrue(np.allclose(m.X.value, scaledX))
-            self.assertTrue(np.allclose(n5.Y.value, Y))
-            self.assertTrue(np.allclose(m.Y.value, Y*2))
-
-    def test_predict_scaling(self):
-        with self.test_session():
-            m = create_parabola_model(self.domain)
-            n = DataScaler(create_parabola_model(self.domain), self.domain, normalize_Y=True)
-            m.optimize()
-            n.optimize()
-
-            Xt = gpflowopt.design.RandomDesign(20, self.domain).generate()
-            fr, vr = m.predict_f(Xt)
-            fs, vs = n.predict_f(Xt)
-            self.assertTrue(np.allclose(fr, fs, atol=1e-3))
-            self.assertTrue(np.allclose(vr, vs, atol=1e-3))
-
-            fr, vr = m.predict_y(Xt)
-            fs, vs = n.predict_y(Xt)
-            self.assertTrue(np.allclose(fr, fs, atol=1e-3))
-            self.assertTrue(np.allclose(vr, vs, atol=1e-3))
-
-            fr, vr = m.predict_f_full_cov(Xt)
-            fs, vs = n.predict_f_full_cov(Xt)
-            self.assertTrue(np.allclose(fr, fs, atol=1e-3))
-            self.assertTrue(np.allclose(vr, vs, atol=1e-3))
-
-            Yt = parabola2d(Xt)
-            fr = m.predict_density(Xt, Yt)
-            fs = n.predict_density(Xt, Yt)
-            np.testing.assert_allclose(fr, fs, rtol=1e-2)
+@pytest.fixture(scope='module')
+def domain():
+    return np.sum([gpflowopt.domain.ContinuousParameter("x{0}".format(i), -1, 1) for i in range(1, 3)])
 
 
+@pytest.fixture()
+def model(domain):
+    with tf.Session(graph=tf.Graph()):
+        yield create_parabola_model(domain)
+
+
+def test_object_integrity(model):
+    Xs, Ys = model.X.read_value(), model.Y.read_value()
+    n = DataScaler(model)
+    np.testing.assert_allclose(Xs, n.X.read_value())
+    np.testing.assert_allclose(Ys, n.Y.read_value())
+
+
+### SCALING TESTS ###
+@pytest.fixture()
+def normY(model):
+    return (model.Y.read_value() - np.mean(model.Y.read_value(), axis=0)) / np.std(model.Y.read_value(), axis=0)
+
+
+@pytest.fixture()
+def scaledX(model):
+    return (model.X.read_value() + 1) / 2
+
+
+def test_scaler_no_scaling(domain, model, scaledX, normY):
+    n = DataScaler(model, normalize_Y=False)
+    assert not n.normalize_output
+    np.testing.assert_allclose(model.X.read_value(), n.X.read_value())
+    np.testing.assert_allclose(model.Y.read_value(), n.Y.read_value())
+    n.set_input_transform(domain >> gpflowopt.domain.UnitCube(domain.size))
+    np.testing.assert_allclose(model.X.read_value(), scaledX)
+    np.testing.assert_allclose(model.Y.read_value(), n.Y.read_value())
+    n.normalize_output = True
+    assert n.normalize_output
+    np.testing.assert_allclose(model.Y.read_value(), normY)
+
+
+def test_scaler_input_scaling(domain, model, scaledX, normY):
+    origX = model.X.read_value()
+    n = DataScaler(model, domain, normalize_Y=False)
+    np.testing.assert_allclose(model.X.read_value(), scaledX)
+    np.testing.assert_allclose(model.Y.read_value(), n.Y.read_value())
+    n.normalize_output = True
+    np.testing.assert_allclose(model.Y.read_value(), normY)
+    n.set_input_transform(gpflowopt.domain.UnitCube(domain.size) >> gpflowopt.domain.UnitCube(domain.size))
+    np.testing.assert_allclose(model.X.read_value(), origX)
+
+
+def test_scaler_output_scaling(model, normY):
+    n = DataScaler(model, normalize_Y=True)
+    np.testing.assert_allclose(model.X.read_value(), n.X.read_value())
+    np.testing.assert_allclose(model.Y.read_value(), normY)
+    n.normalize_output = False
+    np.testing.assert_allclose(model.Y.read_value(), n.Y.read_value())
+
+
+def test_scaler_all_scaling(domain, model, scaledX, normY):
+    origY = model.Y.read_value()
+    n = DataScaler(model, domain, normalize_Y=True)
+    np.testing.assert_allclose(model.X.read_value(), scaledX)
+    np.testing.assert_allclose(model.Y.read_value(), normY)
+    n.normalize_output = False
+    np.testing.assert_allclose(model.Y.read_value(), origY)
+
+
+def test_scaler_misc(model, domain, scaledX):
+    Y = model.Y.read_value()
+    n = DataScaler(model, domain, normalize_Y=False)
+    n.set_output_transform(gpflowopt.transforms.LinearTransform(2., 0.))
+    np.testing.assert_allclose(model.X.read_value(), scaledX)
+    np.testing.assert_allclose(n.Y.read_value(), Y)
+    np.testing.assert_allclose(model.Y.read_value(), 2*Y)
+
+
+### PREDICTION TESTS ###
+@pytest.fixture(scope='module')
+def predict_setup(domain):
+    with tf.Session(graph=tf.Graph()):
+        m = create_parabola_model(domain)
+        n = DataScaler(create_parabola_model(domain), domain, normalize_Y=True)
+        opt = ScipyOptimizer()
+        opt.minimize(m)
+        opt.minimize(n.wrapped)
+        yield (m, n)
+
+
+@pytest.fixture(scope='module')
+def Xt(domain):
+    return gpflowopt.design.RandomDesign(20, domain).generate()
+
+
+def test_predict_f(predict_setup, Xt):
+    m, n = predict_setup
+    fr, vr = m.predict_f(Xt)
+    fs, vs = n.predict_f(Xt)
+    np.testing.assert_allclose(fr, fs, atol=1e-3)
+    np.testing.assert_allclose(vr, vs, atol=1e-3)
+
+
+def test_predict_y(predict_setup, Xt):
+    m, n = predict_setup
+    fr, vr = m.predict_y(Xt)
+    fs, vs = n.predict_y(Xt)
+    np.testing.assert_allclose(fr, fs, atol=1e-3)
+    np.testing.assert_allclose(vr, vs, atol=1e-3)
+
+
+def test_predict_f_full_cov(predict_setup, Xt):
+    m, n = predict_setup
+    fr, vr = m.predict_f_full_cov(Xt)
+    fs, vs = n.predict_f_full_cov(Xt)
+    np.testing.assert_allclose(fr, fs, atol=1e-3)
+    np.testing.assert_allclose(vr, vs, atol=1e-3)
+
+
+def test_predict_density(predict_setup, Xt):
+    m, n = predict_setup
+    Yt = parabola2d(Xt)
+    fr = m.predict_density(Xt, Yt)
+    fs = n.predict_density(Xt, Yt)
+    np.testing.assert_allclose(fr, fs, rtol=1e-2)

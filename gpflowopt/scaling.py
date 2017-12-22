@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gpflow import DataHolder, autoflow, settings
+from gpflow import DataHolder, autoflow, settings, params_as_tensors
 import numpy as np
 from .transforms import LinearTransform, DataTransform
 from .domain import UnitCube
@@ -59,29 +59,42 @@ class DataScaler(ModelWrapper):
          variance.
         """
         # model sanity checks, slightly stronger conditions than the wrapper
-        super(DataScaler, self).__init__(model)
 
-        # Initial configuration of the datascaler
+        # Initial configuration of the datascaler & scale
         n_inputs = model.X.shape[1]
-        n_outputs = model.Y.shape[1]
-        self._input_transform = (domain or UnitCube(n_inputs)) >> UnitCube(n_inputs)
+        t1 = (domain or UnitCube(n_inputs)) >> UnitCube(n_inputs)
+        t1.compile()
+        print(model.X.read_value())
+        print(t1.forward(model.X.read_value()))
+        model.X.assign(t1.forward(model.X.read_value()))
+        print(model.X.read_value())
+        t2 = DataScaler._compute_output_transform(model.Y, normalize_Y)
+        t2.compile()
+        model.Y.assign(t2.forward(model.Y.read_value()))
+
+        # Final setup
+        super(DataScaler, self).__init__(model)
+        print(model.X.read_value())
+        self.itf = t1
+        self.otf = t2
         self._normalize_Y = normalize_Y
-        self._output_transform = LinearTransform(np.ones(n_outputs), np.zeros(n_outputs))
 
-        self.X = model.X.value
-        self.Y = model.Y.value
+    @staticmethod
+    def _compute_output_transform(value, scale):
+        if isinstance(value, DataHolder):
+            value = value.read_value()
+        outdim = value.shape[1]
+        if not scale:
+            # Output normalization turned off. Reset transform to identity
+            return LinearTransform(np.ones(outdim), np.zeros(outdim))
+        else:
+            return ~LinearTransform(value.std(axis=0), value.mean(axis=0))
 
-    @property
-    def input_transform(self):
-        """
-        Get the current input transform
-        
-        :return: :class:`.DataTransform` input transform object
-        """
-        return self._input_transform
+    def _update_output_transform(self, value):
+        t = DataScaler._compute_output_transform(value, self._normalize_Y)
+        self.otf.assign(t)
 
-    @input_transform.setter
-    def input_transform(self, t):
+    def set_input_transform(self, t):
         """
         Configure a new input transform.
 
@@ -90,29 +103,19 @@ class DataScaler(ModelWrapper):
         :param t: :class:`.DataTransform` object: the new input transform.
         """
         assert isinstance(t, DataTransform)
-        X = self.X.value  # unscales the data
-        self._input_transform.assign(t)
-        self.X = X  # scales the back using the new input transform
+        X = self.X.read_value()  # unscales the data
+        self.itf.assign(t)
+        self.X = X
 
-    @property
-    def output_transform(self):
-        """
-        Get the current output transform
-        
-        :return: :class:`.DataTransform` output transform object
-        """
-        return self._output_transform
-
-    @output_transform.setter
-    def output_transform(self, t):
+    def set_output_transform(self, t):
         """
         Configure a new output transform. Data in the model is automatically updated with the new transform.
         
         :param t: :class:`.DataTransform` object: the new output transform.
         """
         assert isinstance(t, DataTransform)
-        Y = self.Y.value
-        self._output_transform.assign(t)
+        Y = self.Y.read_value()
+        self.otf.assign(t)
         self.Y = Y
 
     @property
@@ -131,14 +134,10 @@ class DataScaler(ModelWrapper):
         
         :param flag: boolean, turn output scaling on or off
         """
-
+        Y = self.Y.read_value()
         self._normalize_Y = flag
-        if not flag:
-            # Output normalization turned off. Reset transform to identity
-            self.output_transform = LinearTransform(np.ones(self.Y.value.shape[1]), np.zeros(self.Y.value.shape[1]))
-        else:
-            # Output normalization enabled. Trigger scaling.
-            self.Y = self.Y.value
+        self._update_output_transform(Y)
+        self.Y = Y
 
     # Methods overwriting methods of the wrapped model.
     @property
@@ -148,7 +147,7 @@ class DataScaler(ModelWrapper):
 
         :return: :class:`.DataHolder`: unscaled input data
         """
-        return DataHolder(self.input_transform.backward(self.wrapped.X.value))
+        return DataHolder(self.itf.backward(self.wrapped.X.read_value()))
 
     @property
     def Y(self):
@@ -157,14 +156,14 @@ class DataScaler(ModelWrapper):
 
         :return: :class:`.DataHolder`: unscaled output data
         """
-        return DataHolder(self.output_transform.backward(self.wrapped.Y.value))
+        return DataHolder(self.otf.backward(self.wrapped.Y.read_value()))
 
     @X.setter
     def X(self, x):
         """
         Set the input data. Applies the input transform before setting the data of the wrapped model.
         """
-        self.wrapped.X = self.input_transform.forward(x.value if isinstance(x, DataHolder) else x)
+        self.wrapped.X = self.itf.forward(x.read_value if isinstance(x, DataHolder) else x)
 
     @Y.setter
     def Y(self, y):
@@ -172,48 +171,49 @@ class DataScaler(ModelWrapper):
         Set the output data. In case normalize_Y=True, the appropriate output transform is updated. It is then
         applied on the data before setting the data of the wrapped model.
         """
-        value = y.value if isinstance(y, DataHolder) else y
-        if self.normalize_output:
-            self.output_transform.assign(~LinearTransform(value.std(axis=0), value.mean(axis=0)))
-        self.wrapped.Y = self.output_transform.forward(value)
+        value = y.read_value() if isinstance(y, DataHolder) else y
+        if self._normalize_Y:
+            self._update_output_transform(value)
+        self.wrapped.Y = self.otf.forward(value)
 
-    def build_predict(self, Xnew, full_cov=False):
+    @params_as_tensors
+    def _build_predict(self, Xnew, full_cov=False):
         """
         build_predict builds the TensorFlow graph for prediction. Similar to the method in the wrapped model, however
         the input points are transformed using the input transform. The returned mean and variance are transformed
         backward using the output transform.
         """
-        f, var = self.wrapped.build_predict(self.input_transform.build_forward(Xnew), full_cov=full_cov)
-        return self.output_transform.build_backward(f), self.output_transform.build_backward_variance(var)
+        f, var = self.wrapped._build_predict(self.itf.build_forward(Xnew), full_cov=full_cov)
+        return self.otf.build_backward(f), self.otf.build_backward_variance(var)
 
     @autoflow((settings.tf_float, [None, None]))
     def predict_f(self, Xnew):
         """
         Compute the mean and variance of held-out data at the points Xnew
         """
-        return self.build_predict(Xnew)
+        return self._build_predict(Xnew)
 
     @autoflow((settings.tf_float, [None, None]))
     def predict_f_full_cov(self, Xnew):
         """
         Compute the mean and variance of held-out data at the points Xnew
         """
-        return self.build_predict(Xnew, full_cov=True)
+        return self._build_predict(Xnew, full_cov=True)
 
     @autoflow((settings.tf_float, [None, None]))
     def predict_y(self, Xnew):
         """
         Compute the mean and variance of held-out data at the points Xnew
         """
-        f, var = self.wrapped.build_predict(self.input_transform.build_forward(Xnew))
+        f, var = self.wrapped._build_predict(self.itf.build_forward(Xnew))
         f, var = self.likelihood.predict_mean_and_var(f, var)
-        return self.output_transform.build_backward(f), self.output_transform.build_backward_variance(var)
+        return self.otf.build_backward(f), self.otf.build_backward_variance(var)
 
     @autoflow((settings.tf_float, [None, None]), (settings.tf_float, [None, None]))
     def predict_density(self, Xnew, Ynew):
         """
         Compute the (log) density of the data Ynew at the points Xnew
         """
-        mu, var = self.wrapped.build_predict(self.input_transform.build_forward(Xnew))
-        Ys = self.output_transform.build_forward(Ynew)
+        mu, var = self.wrapped._build_predict(self.itf.build_forward(Xnew))
+        Ys = self.otf.build_forward(Ynew)
         return self.likelihood.predict_density(mu, var, Ys)
