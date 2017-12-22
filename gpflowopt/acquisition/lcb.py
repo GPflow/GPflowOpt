@@ -23,6 +23,20 @@ import tensorflow as tf
 class LowerConfidenceBound(Acquisition):
     """
     Lower confidence bound acquisition function for single-objective global optimization.
+    
+    Key reference:
+    
+    ::
+    
+        @inproceedings{Srinivas:2010,
+            author = "Srinivas, Niranjan and Krause, Andreas and Seeger, Matthias and Kakade, Sham M.",
+            booktitle = "{Proceedings of the 27th International Conference on Machine Learning (ICML-10)}",
+            editor = "F{\"u}rnkranz, Johannes and Joachims, Thorsten",
+            pages = "1015--1022",
+            publisher = "Omnipress",
+            title = "{Gaussian Process Optimization in the Bandit Setting: No Regret and Experimental Design}",
+            year = "2010"
+        }
 
     .. math::
        \\alpha(\\mathbf x_{\\star}) =\\mathbb{E} \\left[ f_{\\star}\\,|\\, \\mathbf x, \\mathbf y, \\mathbf x_{\\star} \\right]
