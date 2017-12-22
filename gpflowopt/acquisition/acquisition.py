@@ -17,7 +17,9 @@ from ..domain import UnitCube
 from ..models import ModelWrapper
 
 from gpflow import Parameterized, autoflow, ParamList, settings, params_as_tensors
+from gpflow.core import TensorConverter
 from gpflow.models import Model
+from gpflow.training import ScipyOptimizer
 
 import numpy as np
 import tensorflow as tf
@@ -35,7 +37,7 @@ def setup_required(method):
     @wraps(method)
     def runnable(instance, *args, **kwargs):
         assert isinstance(instance, Acquisition)
-        hp = instance.highest_parent
+        hp = instance.root
         if hp._needs_setup:
             # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
             # e.g. through feasible_data_index.
@@ -73,18 +75,20 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
     objectives.
     """
 
-    def __init__(self, models=[], optimize_restarts=5):
+    def __init__(self, models=[], model_optimizer=None, optimize_restarts=5):
         """
         :param models: list of GPflow models representing our beliefs about the problem
         :param optimize_restarts: number of optimization restarts to use when training the models
         """
         super(Acquisition, self).__init__()
         models = np.atleast_1d(models)
-        assert all(isinstance(model, (Model, ModelWrapper)) for model in models)
-        self._models = ParamList([DataScaler(m) for m in models])
-
         assert (optimize_restarts >= 0)
+        assert all(isinstance(model, (Model, ModelWrapper)) for model in models)
+
         self.optimize_restarts = optimize_restarts
+        #self.models = ParamList(models.tolist())
+        self.models = ParamList([DataScaler(m) for m in models])
+        self._model_optimizer = model_optimizer or ScipyOptimizer()
         self._needs_setup = True
 
     def _optimize_models(self):
@@ -104,20 +108,13 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
         if self.optimize_restarts == 0:
             return
 
+        # TODO: javdrher what with randomize() & restarts ?
+        # Got rid of restart > 1 for now...
         for model in self.models:
-            runs = []
-            for i in range(self.optimize_restarts):
-                if i > 0:
-                    model.randomize()
-                try:
-                    result = model.optimize()
-                    runs.append(result)
-                except tf.errors.InvalidArgumentError:  # pragma: no cover
-                    print("Warning: optimization restart {0}/{1} failed".format(i + 1, self.optimize_restarts))
-            if not runs:
-                raise RuntimeError("All model hyperparameter optimization restarts failed, exiting.")
-            best_idx = np.argmin([r.fun for r in runs])
-            model.set_state(runs[best_idx].x)
+            try:
+                self._model_optimizer.minimize(model.wrapped)
+            except tf.errors.InvalidArgumentError:  # pragma: no cover
+                print("Warning: optimization restart {0}/{1} failed".format(1, self.optimize_restarts))
 
     @abstractmethod
     @params_as_tensors
@@ -138,9 +135,9 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
         n_inputs = self.data[0].shape[1]
         assert (domain.size == n_inputs)
         for m in self.models:
-            m.input_transform = domain >> UnitCube(n_inputs)
+            m.set_input_transform(domain >> UnitCube(n_inputs))
             m.normalize_output = True
-        self.highest_parent._needs_setup = True
+        self.root._needs_setup = True
 
     def set_data(self, X, Y):
         """
@@ -165,17 +162,17 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
             model.X = X
             model.Y = Ypart
 
-        self.highest_parent._needs_setup = True
+        self.root._needs_setup = True
         return num_outputs_sum
 
-    @property
-    def models(self):
-        """
-        The GPflow models representing our beliefs of the optimization problem.
-        
-        :return: list of GPflow models 
-        """
-        return self._models.sorted_params
+    #@property
+    #def models(self):
+    #    """
+    #    The GPflow models representing our beliefs of the optimization problem.
+    #
+    #    :return: list of GPflow models
+    #    """
+    #    return list(self.orig_models.params)
 
     @property
     def data(self):
@@ -187,10 +184,16 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
 
         :return: tuple X, Y of tensors (if in tf_mode) or numpy arrays.
         """
-        if self._tf_mode:
+
+        # @TODO javdrher: can we maintain the data property in "tf_mode": e.g., for when @params_as_tensors is applied?
+        if TensorConverter.tensor_mode(self):
+            print(self.models[0].wrapped.Y)
+            print(TensorConverter.tensor_mode(self.models))
             return self.models[0].X, tf.concat(list(map(lambda model: model.Y, self.models)), 1)
         else:
-            return self.models[0].X.value, np.hstack(map(lambda model: model.Y.value, self.models))
+            X = self.models[0].X.read_value()
+            Y = np.hstack(map(lambda model: model.Y.read_value(), self.models))
+            return X, Y
 
     def constraint_indices(self):
         """
@@ -295,7 +298,7 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
     def __setattr__(self, key, value):
         super(Acquisition, self).__setattr__(key, value)
         if key is '_parent':
-            self.highest_parent._needs_setup = True
+            self.root._needs_setup = True
 
 
 class AcquisitionAggregation(Acquisition):
@@ -317,7 +320,7 @@ class AcquisitionAggregation(Acquisition):
         for oper in self.operands:
             oper._optimize_models()
 
-    @Acquisition.models.getter
+    @property
     def models(self):
         return [model for acq in self.operands for model in acq.models]
 
@@ -432,7 +435,7 @@ class MCMCAcquistion(AcquisitionSum):
         for idx, draw in enumerate(self.operands):
             draw.set_state(hypers[idx, :])
 
-    @Acquisition.models.getter
+    @property
     def models(self):
         # Only return the models of the first operand, the copies remain hidden.
         return self.operands[0].models

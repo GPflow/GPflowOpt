@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from gpflow import DataHolder, autoflow, settings, params_as_tensors
+from gpflow.core import TensorConverter
 import numpy as np
 from .transforms import LinearTransform, DataTransform
 from .domain import UnitCube
@@ -147,7 +148,10 @@ class DataScaler(ModelWrapper):
 
         :return: :class:`.DataHolder`: unscaled input data
         """
-        return DataHolder(self.itf.backward(self.wrapped.X.read_value()))
+        if TensorConverter.tensor_mode(self):
+            return self.itf.build_backward(self.wrapped.X)
+        else:
+            return DataHolder(self.itf.backward(self.wrapped.X.read_value()))
 
     @property
     def Y(self):
@@ -156,7 +160,10 @@ class DataScaler(ModelWrapper):
 
         :return: :class:`.DataHolder`: unscaled output data
         """
-        return DataHolder(self.otf.backward(self.wrapped.Y.read_value()))
+        if TensorConverter.tensor_mode(self):
+            return self.otf.build_backward(self.wrapped.Y)
+        else:
+            return DataHolder(self.otf.backward(self.wrapped.Y.read_value()))
 
     @X.setter
     def X(self, x):
