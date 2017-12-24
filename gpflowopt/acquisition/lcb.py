@@ -14,7 +14,7 @@
 
 from .acquisition import Acquisition
 
-from gpflow import DataHolder
+from gpflow import DataHolder, params_as_tensors
 import numpy as np
 
 import tensorflow as tf
@@ -37,7 +37,8 @@ class LowerConfidenceBound(Acquisition):
         super(LowerConfidenceBound, self).__init__(model)
         self.sigma = DataHolder(np.array(sigma))
 
+    @params_as_tensors
     def build_acquisition(self, Xcand):
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
+        candidate_mean, candidate_var = self.models[0]._build_predict(Xcand)
         candidate_var = tf.maximum(candidate_var, 0)
         return tf.subtract(candidate_mean, self.sigma * tf.sqrt(candidate_var), name=self.__class__.__name__)

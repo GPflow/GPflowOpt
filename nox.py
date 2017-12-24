@@ -52,6 +52,22 @@ def system(session):
 
 
 @nox.session
+def implementations(session):
+    session.install('pytest', 'pytest-cov', *TEST_DEPS)
+    session.install('-e', '.', '--process-dependency-links')
+
+    # Run py.test against the unit tests.
+    session.run(
+        'py.test',
+        '--cov-report=',
+        '--cov-append',
+        '--cov=gpflowopt',
+        '--cov-config=.coveragerc',
+        'testing/implementations'
+    )
+
+
+@nox.session
 def cover(session):
     session.install('coverage', 'pytest-cov')
     session.run('coverage', 'report')

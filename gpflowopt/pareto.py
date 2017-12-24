@@ -16,8 +16,6 @@ from gpflow import Parameterized, DataHolder, autoflow, params_as_tensors, setti
 import numpy as np
 import tensorflow as tf
 
-np_int_type = np.int32 if settings.tf_int is tf.int32 else np.int64
-
 
 class BoundedVolumes(Parameterized):
 
@@ -52,16 +50,16 @@ class BoundedVolumes(Parameterized):
         :param lb: the lowerbounds of the volumes
         :param ub: the upperbounds of the volumes
         """
-        self.lb = np.vstack((self.lb.read_value(), np.atleast_1d(lb).astype(np_int_type)))
-        self.ub = np.vstack((self.ub.read_value(), np.atleast_1d(ub).astype(np_int_type)))
+        self.lb = np.vstack((self.lb.read_value(), np.atleast_1d(lb).astype(settings.tf_int)))
+        self.ub = np.vstack((self.ub.read_value(), np.atleast_1d(ub).astype(settings.tf_int)))
 
     def clear(self):
         """
         Clears all stored bounded volumes
         """
         outdim = self.lb.read_value().shape[1]
-        self.lb = np.zeros((0, outdim), dtype=np_int_type)
-        self.ub = np.zeros((0, outdim), dtype=np_int_type)
+        self.lb = np.zeros((0, outdim), dtype=settings.tf_int)
+        self.ub = np.zeros((0, outdim), dtype=settings.tf_int)
 
     def size(self):
         """
@@ -104,7 +102,7 @@ class Pareto(Parameterized):
 
         # Setup data structures
         self.front = DataHolder(np.zeros((0, Y.shape[1])))
-        self.bounds = BoundedVolumes.empty(Y.shape[1], np_int_type)
+        self.bounds = BoundedVolumes.empty(Y.shape[1], settings.tf_int)
 
         # Initialize
         self.update()
@@ -182,13 +180,13 @@ class Pareto(Parameterized):
         max_pf = np.max(self.front.value, axis=0) + 1
 
         pf_ext = np.vstack((min_pf, self.front.value, max_pf))  # Needed for early stopping check (threshold)
-        pf_ext_idx = np.vstack((np.zeros(outdim, dtype=np_int_type),
+        pf_ext_idx = np.vstack((np.zeros(outdim, dtype=settings.tf_int),
                                 pseudo_pf,
-                                np.ones(outdim, dtype=np_int_type) * self.front.shape[0] + 1))
+                                np.ones(outdim, dtype=settings.tf_int) * self.front.shape[0] + 1))
 
         # Start with one cell covering the whole front
-        dc = [(np.zeros(outdim, dtype=np_int_type),
-               (int(pf_ext_idx.shape[0]) - 1) * np.ones(outdim, dtype=np_int_type))]
+        dc = [(np.zeros(outdim, dtype=settings.tf_int),
+               (int(pf_ext_idx.shape[0]) - 1) * np.ones(outdim, dtype=settings.tf_int))]
         total_size = np.prod(max_pf - min_pf)
 
         # Start divide and conquer until we processed all cells
@@ -236,9 +234,9 @@ class Pareto(Parameterized):
         assert outdim == 2
 
         pf_idx = np.argsort(self.front.value, axis=0)
-        pf_ext_idx = np.vstack((np.zeros(outdim, dtype=np_int_type),
+        pf_ext_idx = np.vstack((np.zeros(outdim, dtype=settings.tf_int),
                                 pf_idx + 1,
-                                np.ones(outdim, dtype=np_int_type) * self.front.shape[0] + 1))
+                                np.ones(outdim, dtype=settings.tf_int) * self.front.shape[0] + 1))
 
         for i in range(pf_ext_idx[-1, 0]):
             self.bounds.append((i, 0),

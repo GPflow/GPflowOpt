@@ -15,7 +15,7 @@
 from .acquisition import Acquisition
 from ..design import RandomDesign
 
-from gpflow import settings, DataHolder
+from gpflow import settings, DataHolder, params_as_tensors
 from gpflow.models import Model
 
 import numpy as np
@@ -88,10 +88,11 @@ class MinValueEntropySearch(Acquisition):
 
         # obtain samples from y*
         mins = -np.log(-np.log(np.random.rand(self.num_samples).astype(np_float_type))) * beta + alpha
-        self.samples.set_data(mins)
+        self.samples.assign(mins)
 
+    @params_as_tensors
     def build_acquisition(self, Xcand):
-        fmean, fvar = self.models[0].build_predict(Xcand)
+        fmean, fvar = self.models[0]._build_predict(Xcand)
         norm = tf.contrib.distributions.Normal(tf.constant(0.0, dtype=settings.tf_float),
                                                tf.constant(1.0, dtype=settings.tf_float))
         gamma = (fmean - tf.expand_dims(self.samples, axis=0)) / tf.sqrt(fvar)

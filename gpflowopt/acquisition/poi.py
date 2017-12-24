@@ -14,7 +14,7 @@
 
 from .acquisition import Acquisition
 
-from gpflow import DataHolder, settings
+from gpflow import DataHolder, settings, params_as_tensors
 
 import numpy as np
 import tensorflow as tf
@@ -34,16 +34,16 @@ class ProbabilityOfImprovement(Acquisition):
         """
         super(ProbabilityOfImprovement, self).__init__(model)
         self.fmin = DataHolder(np.zeros(1))
-        self._setup()
 
     def _setup(self):
         super(ProbabilityOfImprovement, self)._setup()
-        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
+        feasible_samples = self.data[0][self.root.feasible_data_index(), :]
         samples_mean, _ = self.models[0].predict_f(feasible_samples)
-        self.fmin.set_data(np.min(samples_mean, axis=0))
+        self.fmin.assign(np.min(samples_mean, axis=0))
 
+    @params_as_tensors
     def build_acquisition(self, Xcand):
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
+        candidate_mean, candidate_var = self.models[0]._build_predict(Xcand)
         candidate_var = tf.maximum(candidate_var, settings.jitter)
         normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
         return normal.cdf(self.fmin, name=self.__class__.__name__)

@@ -15,7 +15,7 @@
 from .acquisition import Acquisition
 from ..pareto import Pareto
 
-from gpflow import DataHolder, settings
+from gpflow import DataHolder, settings, params_as_tensors
 
 import numpy as np
 import tensorflow as tf
@@ -84,13 +84,14 @@ class HVProbabilityOfImprovement(Acquisition):
         super(HVProbabilityOfImprovement, self)._setup()
 
         # Obtain hypervolume cell bounds, use prediction mean
-        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
+        feasible_samples = self.data[0][self.root.feasible_data_index(), :]
         F = np.hstack((m.predict_f(feasible_samples)[0] for m in self.models))
         self.pareto.update(F)
 
         # Calculate reference point.
         self.reference = self._estimate_reference()
 
+    @params_as_tensors
     def build_acquisition(self, Xcand):
         outdim = tf.shape(self.data[1])[1]
         num_cells = tf.shape(self.pareto.bounds.lb)[0]
@@ -100,7 +101,7 @@ class HVProbabilityOfImprovement(Acquisition):
         pf_ext = tf.concat([-np.inf * tf.ones([1, outdim], dtype=settings.tf_float), self.pareto.front, self.reference], 0)
 
         # Predictions for candidates, concatenate columns
-        preds = [m.build_predict(Xcand) for m in self.models]
+        preds = [m._build_predict(Xcand) for m in self.models]
         candidate_mean, candidate_var = (tf.concat(moment, 1) for moment in zip(*preds))
         candidate_var = tf.maximum(candidate_var, settings.jitter)  # avoid zeros
 
@@ -109,7 +110,10 @@ class HVProbabilityOfImprovement(Acquisition):
         Phi = tf.transpose(normal.cdf(tf.expand_dims(pf_ext, 1)), [1, 0, 2])  # N x pf_ext_size x outdim
 
         # tf.gather_nd indices for bound points
-        col_idx = tf.tile(tf.range(outdim), (num_cells,))
+        col_idx = tf.tile(tf.range(outdim, dtype=settings.tf_int), (num_cells,))
+        print(settings.tf_int)
+        print(tf.reshape(self.pareto.bounds.ub, [-1]))
+        print(col_idx)
         ub_idx = tf.stack((tf.reshape(self.pareto.bounds.ub, [-1]), col_idx), axis=1)  # (num_cells*outdim x 2)
         lb_idx = tf.stack((tf.reshape(self.pareto.bounds.lb, [-1]), col_idx), axis=1)  # (num_cells*outdim x 2)
 

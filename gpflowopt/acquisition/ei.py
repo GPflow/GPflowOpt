@@ -14,7 +14,7 @@
 
 from .acquisition import Acquisition
 
-from gpflow import DataHolder, settings
+from gpflow import DataHolder, settings, params_as_tensors
 
 import numpy as np
 import tensorflow as tf
@@ -54,18 +54,18 @@ class ExpectedImprovement(Acquisition):
         """
         super(ExpectedImprovement, self).__init__(model)
         self.fmin = DataHolder(np.zeros(1))
-        self._setup()
 
     def _setup(self):
         super(ExpectedImprovement, self)._setup()
         # Obtain the lowest posterior mean for the previous - feasible - evaluations
-        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
+        feasible_samples = self.data[0][self.root.feasible_data_index(), :]
         samples_mean, _ = self.models[0].predict_f(feasible_samples)
-        self.fmin.set_data(np.min(samples_mean, axis=0))
+        self.fmin.assign(np.min(samples_mean, axis=0))
 
+    @params_as_tensors
     def build_acquisition(self, Xcand):
         # Obtain predictive distributions for candidates
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
+        candidate_mean, candidate_var = self.models[0]._build_predict(Xcand)
         candidate_var = tf.maximum(candidate_var, settings.jitter)
 
         # Compute EI
