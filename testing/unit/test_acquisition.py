@@ -129,39 +129,39 @@ class TestAcquisition(GPflowTestCase):
             self.assertFalse(self.compare_model_state(state, self.get_acq_state()))
 
 
-# aggregations = list()
-# aggregations.append(gpflowopt.acquisition.AcquisitionSum([
-#             gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)),
-#             gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain))
-#         ]))
-# aggregations.append(gpflowopt.acquisition.AcquisitionProduct([
-#             gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)),
-#             gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain))
-#         ]))
+with tf.Session(graph=tf.Graph()):
+    aggregations = list()
+    aggregations.append(gpflowopt.acquisition.AcquisitionSum([
+                SimpleAcquisition(create_parabola_model(domain)),
+                SimpleAcquisition(create_parabola_model(domain))
+            ]))
+    aggregations.append(gpflowopt.acquisition.AcquisitionProduct([
+        SimpleAcquisition(create_parabola_model(domain)),
+        SimpleAcquisition(create_parabola_model(domain))
+        ]))
 # aggregations.append(gpflowopt.acquisition.MCMCAcquistion(
 #     gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)), 5)
 # )
 #
 #
-# @pytest.mark.parametrize('acquisition', aggregations)
-# def test_object_integrity(acquisition):
-#     acquisition._kill_autoflow()
-#     with tf.Session(graph=tf.Graph()):
-#         for oper in acquisition.operands:
-#             assert isinstance(oper, gpflowopt.acquisition.Acquisition)
-#         assert all(isinstance(m, gpflowopt.models.ModelWrapper) for m in acquisition.models)
-#
-#
-# @pytest.mark.parametrize('acquisition', aggregations)
-# def test_data(acquisition):
-#     acquisition._kill_autoflow()
-#     with tf.Session(graph=tf.Graph()):
-#         np.testing.assert_allclose(acquisition.data[0], acquisition[0].data[0],
-#                                    err_msg="Samples should be equal for all operands")
-#         np.testing.assert_allclose(acquisition.data[0], acquisition[1].data[0],
-#                                    err_msg="Samples should be equal for all operands")
-#         Y = np.hstack(map(lambda model: model.Y.value, acquisition.models))
-#         np.testing.assert_allclose(acquisition.data[1], Y, err_msg="Value should be horizontally concatenated")
+
+
+@pytest.mark.parametrize('acquisition', aggregations)
+def test_object_integrity(acquisition):
+    with tf.Session(graph=acquisition.graph):
+        for oper in acquisition.operands:
+            assert isinstance(oper, gpflowopt.acquisition.Acquisition)
+        assert all(isinstance(m, gpflowopt.models.ModelWrapper) for m in acquisition.models)
+        assert all(isinstance(m, gpflow.models.Model) for m in acquisition.optimizable_models())
+
+
+@pytest.mark.parametrize('acquisition', aggregations)
+def test_data(acquisition):
+    with tf.Session(graph=acquisition.graph):
+        np.testing.assert_allclose(acquisition.data[0], acquisition[0].data[0])
+        np.testing.assert_allclose(acquisition.data[0], acquisition[1].data[0])
+        Y = np.hstack(map(lambda model: model.Y.value, acquisition.models))
+        np.testing.assert_allclose(acquisition.data[1], Y)
 #
 #
 # @pytest.mark.parametrize('acquisition', aggregations)

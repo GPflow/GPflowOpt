@@ -15,6 +15,7 @@
 from ..scaling import DataScaler
 from ..domain import UnitCube
 from ..models import ModelWrapper
+from ..misc import randomize_model
 
 from gpflow import Parameterized, autoflow, ParamList, settings, params_as_tensors
 from gpflow.core import TensorConverter
@@ -86,10 +87,13 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
         assert all(isinstance(model, (Model, ModelWrapper)) for model in models)
 
         self.optimize_restarts = optimize_restarts
-        #self.models = ParamList(models.tolist())
-        self.models = ParamList([DataScaler(m) for m in models])
+        if len(models) > 0:
+            self.models = ParamList(self._wrap_models(models))
         self._model_optimizer = model_optimizer or ScipyOptimizer()
         self._needs_setup = True
+
+    def _wrap_models(self, models):
+        return [DataScaler(m) for m in models]
 
     def _optimize_models(self):
         """
@@ -110,11 +114,21 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
 
         # TODO: javdrher what with randomize() & restarts ?
         # Got rid of restart > 1 for now...
-        for model in self.models:
-            try:
-                self._model_optimizer.minimize(model.wrapped)
-            except tf.errors.InvalidArgumentError:  # pragma: no cover
-                print("Warning: optimization restart {0}/{1} failed".format(1, self.optimize_restarts))
+        for model in self.optimizable_models():
+            for i in range(self.optimize_restarts):
+                runs = []
+                if i > 0:
+                    randomize_model(model)
+                try:
+                    self._model_optimizer.minimize(model)
+                    run_info = dict(score=model.compute_log_prior() + model.compute_log_likelihood(),
+                                    state=copy.deepcopy(model.read_trainables()))
+                    runs.append(run_info)
+                except tf.errors.InvalidArgumentError:  # pragma: no cover
+                    print("Warning: optimization restart {0}/{1} failed".format(1, self.optimize_restarts))
+
+                best_idx = np.argmax([r['score'] for r in runs])
+                model.assign(runs[best_idx]['state'])
 
     @abstractmethod
     @params_as_tensors
@@ -165,14 +179,8 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
         self.root._needs_setup = True
         return num_outputs_sum
 
-    #@property
-    #def models(self):
-    #    """
-    #    The GPflow models representing our beliefs of the optimization problem.
-    #
-    #    :return: list of GPflow models
-    #    """
-    #    return list(self.orig_models.params)
+    def optimizable_models(self):
+        return [m.wrapped for m in self.models]
 
     @property
     def data(self):
@@ -184,8 +192,6 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
 
         :return: tuple X, Y of tensors (if in tf_mode) or numpy arrays.
         """
-
-        # @TODO javdrher: can we maintain the data property in "tf_mode": e.g., for when @params_as_tensors is applied?
         if TensorConverter.tensor_mode(self):
             print(self.models[0].wrapped.Y)
             print(TensorConverter.tensor_mode(self.models))
@@ -323,6 +329,9 @@ class AcquisitionAggregation(Acquisition):
     @property
     def models(self):
         return [model for acq in self.operands for model in acq.models]
+
+    def optimizable_models(self):
+        return [model for acq in self.operands for model in acq.optimizable_models()]
 
     def enable_scaling(self, domain):
         for oper in self.operands:

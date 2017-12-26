@@ -54,7 +54,7 @@ def plane_model(session, domain):
 @pytest.fixture(scope="session")
 def vlmop2_data():
     path = os.path.dirname(os.path.realpath(__file__))
-    return np.load(os.path.join(path, '..', 'data', 'vlmop.npz'))
+    return np.load(os.path.join(path, 'data', 'vlmop.npz'))
 
 @pytest.fixture()
 def vlmop2_models(session, vlmop2_data):
