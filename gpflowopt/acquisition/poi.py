@@ -57,7 +57,7 @@ class ProbabilityOfImprovement(Acquisition):
         self.fmin.assign(np.min(samples_mean, axis=0))
 
     @params_as_tensors
-    def build_acquisition(self, Xcand):
+    def _build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0]._build_predict(Xcand)
         candidate_var = tf.maximum(candidate_var, settings.jitter)
         normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))

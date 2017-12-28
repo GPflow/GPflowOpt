@@ -52,7 +52,7 @@ class LowerConfidenceBound(Acquisition):
         self.sigma = DataHolder(np.array(sigma))
 
     @params_as_tensors
-    def build_acquisition(self, Xcand):
+    def _build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0]._build_predict(Xcand)
         candidate_var = tf.maximum(candidate_var, 0)
         return tf.subtract(candidate_mean, self.sigma * tf.sqrt(candidate_var), name=self.__class__.__name__)

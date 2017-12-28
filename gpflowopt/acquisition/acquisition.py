@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..scaling import DataScaler
+from ..core import ICriterion
 from ..domain import UnitCube
-from ..models import ModelWrapper
 from ..misc import randomize_model
+from ..models import ModelWrapper
+from ..scaling import DataScaler
 
 from gpflow import Parameterized, autoflow, ParamList, settings, params_as_tensors
 from gpflow.core import TensorConverter
@@ -24,8 +25,8 @@ from gpflow.training import ScipyOptimizer
 
 import numpy as np
 import tensorflow as tf
-from abc import ABCMeta, abstractmethod
 
+import abc
 import copy
 from functools import wraps
 
@@ -55,7 +56,7 @@ def setup_required(method):
     return runnable
 
 
-class Acquisition(Parameterized, metaclass=ABCMeta):
+class Acquisition(Parameterized, ICriterion):
     """
     An acquisition function maps the belief represented by a Bayesian model into a
     score indicating how promising a point is for evaluation.
@@ -128,9 +129,9 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
                 best_idx = np.argmax([r['score'] for r in runs])
                 model.assign(runs[best_idx]['state'])
 
-    @abstractmethod
+    @abc.abstractmethod
     @params_as_tensors
-    def build_acquisition(self, Xcand):
+    def _build_acquisition(self, Xcand):
         pass
 
     def enable_scaling(self, domain):
@@ -258,7 +259,7 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
         :return: acquisition scores, size N x 1
             the gradients of the acquisition scores, size N x D 
         """
-        acq = self.build_acquisition(Xcand)
+        acq = self._build_acquisition(Xcand)
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
     @setup_required
@@ -269,7 +270,7 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
         
         :return: acquisition scores, size N x 1
         """
-        return self.build_acquisition(Xcand)
+        return self._build_acquisition(Xcand)
 
     def __add__(self, other):
         """
@@ -367,8 +368,8 @@ class AcquisitionAggregation(Acquisition):
         return np.all(np.vstack(map(lambda o: o.feasible_data_index(), self.operands)), axis=0)
 
     @params_as_tensors
-    def build_acquisition(self, Xcand):
-        return self._oper(tf.concat(list(map(lambda operand: operand.build_acquisition(Xcand), self.operands)), 1),
+    def _build_acquisition(self, Xcand):
+        return self._oper(tf.concat(list(map(lambda operand: operand._build_acquisition(Xcand), self.operands)), 1),
                           axis=1, keep_dims=True, name=self.__class__.__name__)
 
     def __getitem__(self, item):
@@ -454,9 +455,9 @@ class MCMCAcquistion(AcquisitionSum):
         return offset
 
     @params_as_tensors
-    def build_acquisition(self, Xcand):
+    def _build_acquisition(self, Xcand):
         # Average the predictions of the copies.
-        return 1. / len(self.operands) * super(MCMCAcquistion, self).build_acquisition(Xcand)
+        return 1. / len(self.operands) * super(MCMCAcquistion, self)._build_acquisition(Xcand)
 
     def _kill_autoflow(self):
         """

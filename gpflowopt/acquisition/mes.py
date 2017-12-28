@@ -91,7 +91,7 @@ class MinValueEntropySearch(Acquisition):
         self.samples.assign(mins)
 
     @params_as_tensors
-    def build_acquisition(self, Xcand):
+    def _build_acquisition(self, Xcand):
         fmean, fvar = self.models[0]._build_predict(Xcand)
         norm = tf.contrib.distributions.Normal(tf.constant(0.0, dtype=settings.tf_float),
                                                tf.constant(1.0, dtype=settings.tf_float))

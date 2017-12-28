@@ -20,7 +20,7 @@ class SimpleAcquisition(gpflowopt.acquisition.Acquisition):
         super(SimpleAcquisition, self)._setup()
         self.counter += 1
 
-    def build_acquisition(self, Xcand):
+    def _build_acquisition(self, Xcand):
         return self.models[0]._build_predict(Xcand)[0]
 
 
@@ -103,7 +103,7 @@ class TestAcquisition(GPflowTestCase):
         # Verify the returned shape of evaluate
         with self.test_context():
             x_tf = tf.placeholder(tf.float64, shape=(50, 2))
-            tens = self.acquisition.build_acquisition(x_tf)
+            tens = self.acquisition._build_acquisition(x_tf)
             self.assertTrue(isinstance(tens, tf.Tensor), msg="no Tensor was returned")
 
     def test_result_shape_np(self):

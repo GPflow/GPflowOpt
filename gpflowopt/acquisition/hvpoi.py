@@ -92,7 +92,7 @@ class HVProbabilityOfImprovement(Acquisition):
         self.reference = self._estimate_reference()
 
     @params_as_tensors
-    def build_acquisition(self, Xcand):
+    def _build_acquisition(self, Xcand):
         outdim = tf.shape(self.data[1])[1]
         num_cells = tf.shape(self.pareto.bounds.lb)[0]
         N = tf.shape(Xcand)[0]
