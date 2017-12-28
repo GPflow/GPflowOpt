@@ -112,8 +112,6 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
         if self.optimize_restarts == 0:
             return
 
-        # TODO: javdrher what with randomize() & restarts ?
-        # Got rid of restart > 1 for now...
         for model in self.optimizable_models():
             for i in range(self.optimize_restarts):
                 runs = []
@@ -193,8 +191,6 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
         :return: tuple X, Y of tensors (if in tf_mode) or numpy arrays.
         """
         if TensorConverter.tensor_mode(self):
-            print(self.models[0].wrapped.Y)
-            print(TensorConverter.tensor_mode(self.models))
             return self.models[0].X, tf.concat(list(map(lambda model: model.Y, self.models)), 1)
         else:
             X = self.models[0].X.read_value()
@@ -285,7 +281,7 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
         <type 'gpflowopt.acquisition.AcquisitionSum'>
         """
         if isinstance(other, AcquisitionSum):
-            return AcquisitionSum([self] + other.operands.sorted_params)
+            return AcquisitionSum([self] + list(other.operands.params))
         return AcquisitionSum([self, other])
 
     def __mul__(self, other):
@@ -298,7 +294,7 @@ class Acquisition(Parameterized, metaclass=ABCMeta):
         <type 'gpflowopt.acquisition.AcquisitionProduct'>
         """
         if isinstance(other, AcquisitionProduct):
-            return AcquisitionProduct([self] + other.operands.sorted_params)
+            return AcquisitionProduct([self] + list(other.operands.params))
         return AcquisitionProduct([self, other])
 
     def __setattr__(self, key, value):
@@ -355,6 +351,7 @@ class AcquisitionAggregation(Acquisition):
     def _setup(self):
         # Important: First setup acquisitions involving constraints
         self._setup_constraints()
+
         # Then objectives as these might depend on the constraint acquisition
         self._setup_objectives()
 
@@ -387,9 +384,9 @@ class AcquisitionSum(AcquisitionAggregation):
 
     def __add__(self, other):
         if isinstance(other, AcquisitionSum):
-            return AcquisitionSum(self.operands.sorted_params + other.operands.sorted_params)
+            return AcquisitionSum(list(self.operands.params) + list(other.operands.params))
         else:
-            return AcquisitionSum(self.operands.sorted_params + [other])
+            return AcquisitionSum(list(self.operands.params) + [other])
 
 
 class AcquisitionProduct(AcquisitionAggregation):
@@ -401,9 +398,9 @@ class AcquisitionProduct(AcquisitionAggregation):
 
     def __mul__(self, other):
         if isinstance(other, AcquisitionProduct):
-            return AcquisitionProduct(self.operands.sorted_params + other.operands.sorted_params)
+            return AcquisitionProduct(list(self.operands.params) + list(other.operands.params))
         else:
-            return AcquisitionProduct(self.operands.sorted_params + [other])
+            return AcquisitionProduct(list(self.operands.params) + [other])
 
 
 class MCMCAcquistion(AcquisitionSum):

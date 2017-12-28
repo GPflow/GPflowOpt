@@ -65,17 +65,13 @@ class DataScaler(ModelWrapper):
         n_inputs = model.X.shape[1]
         t1 = (domain or UnitCube(n_inputs)) >> UnitCube(n_inputs)
         t1.compile()
-        print(model.X.read_value())
-        print(t1.forward(model.X.read_value()))
         model.X.assign(t1.forward(model.X.read_value()))
-        print(model.X.read_value())
         t2 = DataScaler._compute_output_transform(model.Y, normalize_Y)
         t2.compile()
         model.Y.assign(t2.forward(model.Y.read_value()))
 
         # Final setup
         super(DataScaler, self).__init__(model)
-        print(model.X.read_value())
         self.itf = t1
         self.otf = t2
         self._normalize_Y = normalize_Y

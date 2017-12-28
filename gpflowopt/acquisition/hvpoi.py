@@ -111,9 +111,6 @@ class HVProbabilityOfImprovement(Acquisition):
 
         # tf.gather_nd indices for bound points
         col_idx = tf.tile(tf.range(outdim, dtype=settings.tf_int), (num_cells,))
-        print(settings.tf_int)
-        print(tf.reshape(self.pareto.bounds.ub, [-1]))
-        print(col_idx)
         ub_idx = tf.stack((tf.reshape(self.pareto.bounds.ub, [-1]), col_idx), axis=1)  # (num_cells*outdim x 2)
         lb_idx = tf.stack((tf.reshape(self.pareto.bounds.lb, [-1]), col_idx), axis=1)  # (num_cells*outdim x 2)
 
