@@ -18,7 +18,7 @@ def test_randomize_model_prior(parabola_model):
 
     parabola_model.compile()
     gpflowopt.misc.randomize_model(parabola_model)
-    for param_name, value in parabola_model.read_trainables().items():
+    for value in parabola_model.read_trainables().values():
         assert np.all(0.2 <= value)
         assert np.all(value <= 0.3)
 
@@ -27,3 +27,9 @@ def test_randomize_model_not_trainable(parabola_model):
     parabola_model.kern.variance.trainable = False
     gpflowopt.misc.randomize_model(parabola_model)
     assert np.allclose(parabola_model.kern.variance.read_value(), 1.)
+
+
+def test_randomize_model_non_negative(parabola_model):
+    gpflowopt.misc.randomize_model(parabola_model)
+    for value in parabola_model.read_trainables().values():
+        assert np.all(0 < value)

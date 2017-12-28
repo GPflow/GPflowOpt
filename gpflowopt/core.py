@@ -11,17 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import gpflow
-import numpy as np
+import abc
 
 
-def randomize_model(model):
-    assert isinstance(model, gpflow.models.Model)
-    for p in model.parameters:
-        if p.trainable:
-            prior = p.prior or gpflow.priors.Gaussian(0., 1.)  # if undefined, use standard normal
-            rvalue = np.array(prior.sample(p.shape or (1,))) # Return values of GPflow priors sample() aren't consistent
-            if not p.prior:
-                rvalue = p.transform.forward(rvalue)
-            p.assign(rvalue if len(p.shape) > 0 else rvalue.squeeze())
+class ICriterion(metaclass=abc.ABCMeta):
+
+    @abc.abstractmethod
+    def _setup(self):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def evaluate(self, candidates):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def evaluate_with_gradients(self, candidates):
+        raise NotImplementedError()

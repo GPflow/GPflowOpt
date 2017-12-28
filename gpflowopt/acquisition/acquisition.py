@@ -114,8 +114,8 @@ class Acquisition(Parameterized, ICriterion):
             return
 
         for model in self.optimizable_models():
+            runs = []
             for i in range(self.optimize_restarts):
-                runs = []
                 if i > 0:
                     randomize_model(model)
                 try:
@@ -126,8 +126,8 @@ class Acquisition(Parameterized, ICriterion):
                 except tf.errors.InvalidArgumentError:  # pragma: no cover
                     print("Warning: optimization restart {0}/{1} failed".format(1, self.optimize_restarts))
 
-                best_idx = np.argmax([r['score'] for r in runs])
-                model.assign(runs[best_idx]['state'])
+            best_idx = np.argmax([r['score'] for r in runs])
+            model.assign(runs[best_idx]['state'])
 
     @abc.abstractmethod
     @params_as_tensors
