@@ -9,8 +9,11 @@ from ..utility import parabola2d, KeyboardRaiser, vlmop2
 class TestBayesianOptimizer(object):
 
     @pytest.fixture()
-    def optimizer(self, domain, parabola_model):
-        acquisition = gpflowopt.acquisition.ExpectedImprovement(parabola_model)
+    def acquisition(self, parabola_model):
+        yield gpflowopt.acquisition.ExpectedImprovement(parabola_model)
+
+    @pytest.fixture()
+    def optimizer(self, domain, acquisition):
         yield gpflowopt.BayesianOptimizer(domain, acquisition)
 
     def test_default_initial(self, optimizer):
@@ -19,16 +22,16 @@ class TestBayesianOptimizer(object):
     def test_set_domain(self, domain, optimizer):
         with pytest.raises(AssertionError):
             optimizer.domain = gpflowopt.domain.UnitCube(3)
-        domain = gpflowopt.domain.ContinuousParameter("x1", -2.0, 2.0) + \
-                 gpflowopt.domain.ContinuousParameter("x2", -2.0, 2.0)
-        optimizer.domain = domain
+        target_domain = gpflowopt.domain.ContinuousParameter("x1", -2.0, 2.0) + \
+                        gpflowopt.domain.ContinuousParameter("x2", -2.0, 2.0)
+        optimizer.domain = target_domain
         expected = gpflowopt.design.LatinHyperCube(16, domain).generate() / 4 + 0.5
         np.testing.assert_allclose(expected, optimizer.acquisition.models[0].wrapped.X.read_value())
 
     def test_optimize(self, optimizer):
-        result = optimizer.optimize(lambda X: parabola2d(X), n_iter=20)
+        result = optimizer.optimize(lambda X: parabola2d(X), n_iter=5)
         assert result.success
-        assert result.nfev == 20
+        assert result.nfev == 5
         np.testing.assert_allclose(result.x, 0)
         np.testing.assert_allclose(result.fun, 0)
 
@@ -61,10 +64,54 @@ class TestBayesianOptimizer(object):
             with optimizer.failsafe():
                 optimizer.acquisition._optimize_models()
 
-        fname = 'failed_bopt_{0}.npz'.format(id(e.exception))
+        fname = 'failed_bopt_{0}.npz'.format(id(e.value))
         assert os.path.isfile(fname)
         with np.load(fname) as data:
             np.testing.assert_almost_equal(data['X'], X)
             np.testing.assert_almost_equal(data['Y'], Y)
         os.remove(fname)
 
+    def test_initial_design(self, domain, acquisition):
+        design = gpflowopt.design.RandomDesign(5, domain)
+        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, initial=design)
+
+        result = optimizer.optimize(lambda X: parabola2d(X), n_iter=0)
+        assert result.success
+        assert result.nfev == 5
+        assert optimizer.acquisition.data[0].shape == (21, 2)
+        assert optimizer.acquisition.data[1].shape == (21, 1)
+
+        result = optimizer.optimize(lambda X: parabola2d(X), n_iter=0)
+        assert result.success
+        assert result.nfev == 0
+        assert optimizer.acquisition.data[0].shape == (21, 2)
+        assert optimizer.acquisition.data[1].shape == (21, 1)
+
+    def test_callback(self, domain, acquisition):
+        class DummyCallback(object):
+            def __init__(self):
+                self.counter = 0
+
+            def __call__(self, models, opt):
+                self.counter += 1
+
+        c = DummyCallback()
+        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, callback=c)
+        _ = optimizer.optimize(lambda X: parabola2d(X), n_iter=2)
+        assert c.counter == 2
+
+    def test_mcmc(self, domain, acquisition):
+        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, hyper_draws=2)
+        result = optimizer.optimize(lambda X: parabola2d(X), n_iter=2)
+        assert result.success
+        np.testing.assert_allclose(result.x, 0)
+        np.testing.assert_allclose(result.fun, 0)
+
+    def test_nongpr_model(self, domain):
+        design = gpflowopt.design.LatinHyperCube(16, domain)
+        X, Y = design.generate(), parabola2d(design.generate())
+        m = gpflow.models.VGP(X, Y, gpflow.kernels.RBF(2, ARD=True), likelihood=gpflow.likelihoods.Gaussian())
+        acq = gpflowopt.acquisition.ExpectedImprovement(m)
+        optimizer = gpflowopt.BayesianOptimizer(domain, acq)
+        result = optimizer.optimize(lambda X: parabola2d(X), n_iter=1)
+        assert result.success

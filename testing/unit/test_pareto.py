@@ -3,6 +3,11 @@ import gpflowopt
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def context(request, session):
+    yield
+
+
 def _objective_scores():
     return np.array([[0.9575, 0.4218], [0.9649, 0.9157], [0.1576, 0.7922], [0.9706, 0.9595], [0.9572, 0.6557],
                      [0.4854, 0.0357], [0.8003, 0.8491], [0.1419, 0.9340]])

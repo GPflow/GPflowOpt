@@ -41,26 +41,24 @@ def default_callback(models, opt):
 
     Performs no actions on other models other types are ignored.
     """
+
     for m in np.atleast_1d(models):
-        if isinstance(m, ModelWrapper):
-            default_callback(m.wrapped)  # pragma: no cover
-
         if isinstance(m, VGP):  # VGP requires recompilation
-            m.clear()
-            m.compile()
+            m.root.clear()
+            m.root.compile()
+            break
 
-        if not isinstance(m, GPR):
-            continue
-
-        s = m.read_trainables()
-        eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.read_value())))
-        for e in [0] + [10**ex for ex in range(-6,-1)]:
-            try:
-                m.likelihood.variance = m.likelihood.variance.value + e * eKdiag
-                opt.minimize(m, maxiter=5)
-                break
-            except tf.errors.InvalidArgumentError:  # pragma: no cover
-                m.assign(s)
+    for m in np.atleast_1d(models):
+        if isinstance(m, GPR):
+            s = m.read_trainables()
+            eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.read_value())))
+            for e in [0] + [10**ex for ex in range(-6,-1)]:
+                try:
+                    m.likelihood.variance = m.likelihood.variance.value + e * eKdiag
+                    opt.minimize(m, maxiter=5)
+                    break
+                except tf.errors.InvalidArgumentError:  # pragma: no cover
+                    m.assign(s)
 
 
 class BayesianOptimizer(Optimizer):

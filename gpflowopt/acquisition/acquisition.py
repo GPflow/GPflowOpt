@@ -22,7 +22,7 @@ from ..scaling import DataScaler
 from gpflow import Parameterized, autoflow, ParamList, settings, params_as_tensors
 from gpflow.core import TensorConverter
 from gpflow.models import Model
-from gpflow.training import AdamOptimizer
+from gpflow.training import ScipyOptimizer
 
 import numpy as np
 import tensorflow as tf
@@ -53,7 +53,7 @@ class Acquisition(Parameterized, ICriterion):
     objectives.
     """
 
-    def __init__(self, models=[], model_optimizer=None, optimize_restarts=5, maximize=True):
+    def __init__(self, models=[], model_optimizer=None, optimize_restarts=1, maximize=True):
         """
         :param models: list of GPflow models representing our beliefs about the problem
         :param optimize_restarts: number of optimization restarts to use when training the models
@@ -66,8 +66,7 @@ class Acquisition(Parameterized, ICriterion):
         self.optimize_restarts = optimize_restarts
         if len(models) > 0:
             self.models = ParamList(self._wrap_models(models))
-        #self._model_optimizer = model_optimizer or ScipyOptimizer()
-        self._model_optimizer = AdamOptimizer(0.01)
+        self._model_optimizer = model_optimizer or ScipyOptimizer()
         self._needs_setup = True
         self.maximize = maximize
 
@@ -101,8 +100,12 @@ class Acquisition(Parameterized, ICriterion):
                     run_info = dict(score=model.compute_log_prior() + model.compute_log_likelihood(),
                                     state=copy.deepcopy(model.read_trainables()))
                     runs.append(run_info)
-                except tf.errors.InvalidArgumentError:  # pragma: no cover
+                except tf.errors.InvalidArgumentError as e:  # pragma: no cover
+                    print(e)
                     print("Warning: optimization restart {0}/{1} failed".format(1, self.optimize_restarts))
+
+            if not runs:
+                raise RuntimeError("All model hyperparameter optimization restarts failed, exiting.")
 
             best_idx = np.argmax([r['score'] for r in runs])
             model.assign(runs[best_idx]['state'])

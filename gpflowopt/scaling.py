@@ -147,7 +147,7 @@ class DataScaler(ModelWrapper):
         if TensorConverter.tensor_mode(self):
             return self.itf.build_backward(self.wrapped.X)
         else:
-            return DataHolder(self.itf.backward(self.wrapped.X.read_value()))
+            return DataHolder(self.itf.backward(self.wrapped.X.read_value()), autobuild=False)
 
     @property
     def Y(self):
@@ -159,7 +159,7 @@ class DataScaler(ModelWrapper):
         if TensorConverter.tensor_mode(self):
             return self.otf.build_backward(self.wrapped.Y)
         else:
-            return DataHolder(self.otf.backward(self.wrapped.Y.read_value()))
+            return DataHolder(self.otf.backward(self.wrapped.Y.read_value()), autobuild=False)
 
     @X.setter
     def X(self, x):

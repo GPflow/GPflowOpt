@@ -8,9 +8,6 @@ import numpy as np
 @pytest.fixture(params=[gpflowopt.acquisition.AcquisitionSum, gpflowopt.acquisition.AcquisitionProduct])
 def acquisition(request, parabola_model):
     cls = request.param
-    # if cls is gpflowopt.acquisition.MCMCAcquistion:
-    #   yield cls(SimpleAcquisition(parabola_model, 5)
-    # else:
     yield cls([SimpleAcquisition(parabola_model), SimpleAcquisition(parabola_model)])
 
 
@@ -18,7 +15,6 @@ def test_object_integrity(acquisition):
     for oper in acquisition.operands:
         assert isinstance(oper, gpflowopt.acquisition.Acquisition)
     assert all(isinstance(m, gpflowopt.params.ModelWrapper) for m in acquisition.models)
-    assert all(isinstance(m, gpflow.models.Model) for m in acquisition.optimizable_models())
 
 
 def test_data(acquisition):
@@ -38,7 +34,7 @@ def test_enable_scaling(acquisition, domain):
 
 
 def test_sum_validity(acquisition, domain):
-    if not isinstance(acquisition, gpflowopt.acquisition.AcquisitionSum)  or isinstance(acquisition, gpflowopt.acquisition.MCMCAcquistion):
+    if not isinstance(acquisition, gpflowopt.acquisition.AcquisitionSum):
         pytest.skip()
     design = gpflowopt.design.FactorialDesign(4, domain)
     p1 = acquisition.evaluate(design.generate())
@@ -56,8 +52,6 @@ def test_product_validity(acquisition, domain):
 
 
 def test_indices(acquisition):
-    if isinstance(acquisition, gpflowopt.acquisition.MCMCAcquistion):
-        pytest.skip()
     np.testing.assert_allclose(acquisition.objective_indices(), np.arange(2, dtype=int))
     np.testing.assert_allclose(acquisition.constraint_indices(), np.arange(0, dtype=int))
 
