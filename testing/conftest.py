@@ -6,6 +6,9 @@ import pytest
 import tensorflow as tf
 
 
+#pytest_plugins = ['pytest_profiling']
+
+
 def parabola2d(X):
     return np.atleast_2d(np.sum(X ** 2, axis=1)).T
 

@@ -17,39 +17,50 @@ from contextlib import contextmanager
 import numpy as np
 from scipy.optimize import OptimizeResult
 import tensorflow as tf
-from gpflow.models import GPR
+from gpflow.models import GPR, VGP
 
-from .acquisition import Acquisition, MCMCAcquistion
+from .acquisition import Acquisition
 from .design import Design, EmptyDesign
 from .objective import ObjectiveWrapper
 from .optim import Optimizer, SciPyOptimizer
 from .pareto import non_dominated_sort
-from .models import ModelWrapper
+from .params import ModelWrapper
+from .misc import hmc_eval
 
 
-def jitchol_callback(models):
+def default_callback(models, opt):
     """
-    Increase the likelihood in case of Cholesky failures.
+    Default model callback
 
-    This is similar to the use of jitchol in GPy. Default callback for BayesianOptimizer.
-    Only usable on GPR models, other types are ignored.
+    For GPR:
+        Increase the likelihood in case of Cholesky failures. This is similar to the use of jitchol in GPy.
+        Default callback for BayesianOptimizer.
+
+    For VGP:
+        Perform recompilation
+
+    Performs no actions on other models other types are ignored.
     """
     for m in np.atleast_1d(models):
         if isinstance(m, ModelWrapper):
-            jitchol_callback(m.wrapped)  # pragma: no cover
+            default_callback(m.wrapped)  # pragma: no cover
+
+        if isinstance(m, VGP):  # VGP requires recompilation
+            m.clear()
+            m.compile()
 
         if not isinstance(m, GPR):
             continue
 
-        s = m.get_free_state()
-        eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.value)))
+        s = m.read_trainables()
+        eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.read_value())))
         for e in [0] + [10**ex for ex in range(-6,-1)]:
             try:
                 m.likelihood.variance = m.likelihood.variance.value + e * eKdiag
-                m.optimize(maxiter=5)
+                opt.minimize(m, maxiter=5)
                 break
             except tf.errors.InvalidArgumentError:  # pragma: no cover
-                m.set_state(s)
+                m.assign(s)
 
 
 class BayesianOptimizer(Optimizer):
@@ -60,8 +71,8 @@ class BayesianOptimizer(Optimizer):
     Additionally, it is configured with a separate optimizer for the acquisition function.
     """
 
-    def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=None,
-                 callback=jitchol_callback):
+    def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=1,
+                 callback=default_callback):
         """
         :param Domain domain: The optimization space.
         :param Acquisition acquisition: The acquisition function to optimize over the domain.
@@ -96,17 +107,16 @@ class BayesianOptimizer(Optimizer):
         super(BayesianOptimizer, self).__init__(domain, exclude_gradient=True)
 
         self._scaling = scaling
+        self._model_callback = callback
+        self._slices = hyper_draws
         if self._scaling:
             acquisition.enable_scaling(domain)
 
-        self.acquisition = acquisition if hyper_draws is None else MCMCAcquistion(acquisition, hyper_draws)
-
+        self.acquisition = acquisition
         self.optimizer = optimizer or SciPyOptimizer(domain)
         self.optimizer.domain = domain
         initial = initial or EmptyDesign(domain)
         self.set_initial(initial.generate())
-
-        self._model_callback = callback
 
     @Optimizer.domain.setter
     def domain(self, dom):
@@ -152,6 +162,18 @@ class BayesianOptimizer(Optimizer):
         else:
             return np.empty((0, self.acquisition.data[1].shape[1])), np.zeros((0, 0))
 
+    def _evaluate_acquisition(self, X):
+        X = np.atleast_2d(X)
+        if self._slices > 1:
+            res = hmc_eval(self.acquisition, X, num_samples=self._slices)
+        else:
+            res = self.acquisition.evaluate_with_gradients(X)
+
+        if self.acquisition.maximize:
+            res = tuple(map(lambda r: -r, res))
+
+        return res
+
     def _create_bo_result(self, success, message):
         """
         Analyzes all data evaluated during the optimization, and return an OptimizeResult. Outputs of constraints
@@ -186,6 +208,39 @@ class BayesianOptimizer(Optimizer):
                               fun=valid_Yo[idx, :],
                               message=message)
 
+    def _optimize(self, fx, n_iter):
+        """
+        Internal optimization function. Receives an ObjectiveWrapper as input. As exclude_gradient is set to true,
+        the placeholder created by :meth:`_evaluate_objectives` will not be returned.
+
+        :param fx: :class:`.objective.ObjectiveWrapper` object wrapping expensive black-box objective and constraint functions
+        :param n_iter: number of iterations to run
+        :return: OptimizeResult object
+        """
+        assert isinstance(fx, ObjectiveWrapper)
+
+        # Evaluate and add the initial design (if any)
+        initial = self.get_initial()
+        values = fx(initial)
+        self._update_model_data(initial, values)
+
+        # Remove initial design for additional calls to optimize to proceed optimization
+        self.set_initial(EmptyDesign(self.domain).generate())
+
+        # Optimization loop
+        unwrapped = map(ModelWrapper.unwrap, self.acquisition.models)
+        for i in range(n_iter):
+            print(i)
+            # If a callback is specified, and acquisition has the setup flag enabled (indicating an upcoming
+            # compilation), run the callback.
+            if self._model_callback and self.acquisition._needs_setup:
+                self._model_callback(unwrapped, self.acquisition._model_optimizer)
+            result = self.optimizer.optimize(self._evaluate_acquisition)
+            print(result)
+            self._update_model_data(result.x, fx(result.x))
+
+        return self._create_bo_result(True, "OK")
+
     def optimize(self, objectivefx, n_iter=20):
         """
         Run Bayesian optimization for a number of iterations.
@@ -205,39 +260,6 @@ class BayesianOptimizer(Optimizer):
         """
         fxs = np.atleast_1d(objectivefx)
         return super(BayesianOptimizer, self).optimize(lambda x: self._evaluate_objectives(x, fxs), n_iter=n_iter)
-
-    def _optimize(self, fx, n_iter):
-        """
-        Internal optimization function. Receives an ObjectiveWrapper as input. As exclude_gradient is set to true,
-        the placeholder created by :meth:`_evaluate_objectives` will not be returned.
-       
-        :param fx: :class:`.objective.ObjectiveWrapper` object wrapping expensive black-box objective and constraint functions
-        :param n_iter: number of iterations to run
-        :return: OptimizeResult object
-        """
-        assert isinstance(fx, ObjectiveWrapper)
-
-        # Evaluate and add the initial design (if any)
-        initial = self.get_initial()
-        values = fx(initial)
-        self._update_model_data(initial, values)
-
-        # Remove initial design for additional calls to optimize to proceed optimization
-        self.set_initial(EmptyDesign(self.domain).generate())
-
-        def inverse_acquisition(x):
-            return tuple(map(lambda r: -r, self.acquisition.evaluate_with_gradients(np.atleast_2d(x))))
-
-        # Optimization loop
-        for i in range(n_iter):
-            # If a callback is specified, and acquisition has the setup flag enabled (indicating an upcoming
-            # compilation), run the callback.
-            if self._model_callback and self.acquisition._needs_setup:
-                self._model_callback([m.wrapped for m in self.acquisition.models])
-            result = self.optimizer.optimize(inverse_acquisition)
-            self._update_model_data(result.x, fx(result.x))
-
-        return self._create_bo_result(True, "OK")
 
     @contextmanager
     def failsafe(self):

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Framework components and interfaces
-from .acquisition import Acquisition, AcquisitionAggregation, AcquisitionProduct, AcquisitionSum, MCMCAcquistion
+from .acquisition import Acquisition, AcquisitionAggregation, AcquisitionProduct, AcquisitionSum
 
 # Single objective
 from .ei import ExpectedImprovement

@@ -10,6 +10,7 @@ designs_to_test = [(gpflowopt.design.RandomDesign, (200,)),
                    (gpflowopt.design.FactorialDesign, (4,)),
                    (gpflowopt.design.LatinHyperCube, (20,))]
 
+
 @pytest.fixture(scope='module',
                 params=range(1, 6))
 def domain(request):

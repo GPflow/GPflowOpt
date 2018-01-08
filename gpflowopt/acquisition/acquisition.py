@@ -13,51 +13,27 @@
 # limitations under the License.
 
 from ..core import ICriterion
+from ..decors import setup_required
 from ..domain import UnitCube
 from ..misc import randomize_model
-from ..models import ModelWrapper
+from ..params import ModelWrapper
 from ..scaling import DataScaler
 
 from gpflow import Parameterized, autoflow, ParamList, settings, params_as_tensors
 from gpflow.core import TensorConverter
 from gpflow.models import Model
-from gpflow.training import ScipyOptimizer
+from gpflow.training import AdamOptimizer
 
 import numpy as np
 import tensorflow as tf
 
 import abc
 import copy
-from functools import wraps
-
-
-def setup_required(method):
-    """
-    Decorator function to mark methods in Acquisition classes which require running setup if indicated by _needs_setup
-    :param method: acquisition method
-    """
-    @wraps(method)
-    def runnable(instance, *args, **kwargs):
-        assert isinstance(instance, Acquisition)
-        hp = instance.root
-        if hp._needs_setup:
-            # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
-            # e.g. through feasible_data_index.
-            hp._needs_setup = False
-
-            # 1 - optimize
-            hp._optimize_models()
-
-            # 2 - setup
-            hp._setup()
-        results = method(instance, *args, **kwargs)
-        return results
-
-    return runnable
 
 
 class Acquisition(Parameterized, ICriterion):
     """
+
     An acquisition function maps the belief represented by a Bayesian model into a
     score indicating how promising a point is for evaluation.
 
@@ -77,7 +53,7 @@ class Acquisition(Parameterized, ICriterion):
     objectives.
     """
 
-    def __init__(self, models=[], model_optimizer=None, optimize_restarts=5):
+    def __init__(self, models=[], model_optimizer=None, optimize_restarts=5, maximize=True):
         """
         :param models: list of GPflow models representing our beliefs about the problem
         :param optimize_restarts: number of optimization restarts to use when training the models
@@ -90,8 +66,10 @@ class Acquisition(Parameterized, ICriterion):
         self.optimize_restarts = optimize_restarts
         if len(models) > 0:
             self.models = ParamList(self._wrap_models(models))
-        self._model_optimizer = model_optimizer or ScipyOptimizer()
+        #self._model_optimizer = model_optimizer or ScipyOptimizer()
+        self._model_optimizer = AdamOptimizer(0.01)
         self._needs_setup = True
+        self.maximize = maximize
 
     def _wrap_models(self, models):
         return [DataScaler(m) for m in models]
@@ -113,7 +91,7 @@ class Acquisition(Parameterized, ICriterion):
         if self.optimize_restarts == 0:
             return
 
-        for model in self.optimizable_models():
+        for model in map(ModelWrapper.unwrap, self.models):
             runs = []
             for i in range(self.optimize_restarts):
                 if i > 0:
@@ -177,9 +155,6 @@ class Acquisition(Parameterized, ICriterion):
 
         self.root._needs_setup = True
         return num_outputs_sum
-
-    def optimizable_models(self):
-        return [m.wrapped for m in self.models]
 
     @property
     def data(self):
@@ -327,9 +302,6 @@ class AcquisitionAggregation(Acquisition):
     def models(self):
         return [model for acq in self.operands for model in acq.models]
 
-    def optimizable_models(self):
-        return [model for acq in self.operands for model in acq.optimizable_models()]
-
     def enable_scaling(self, domain):
         for oper in self.operands:
             oper.enable_scaling(domain)
@@ -403,68 +375,3 @@ class AcquisitionProduct(AcquisitionAggregation):
         else:
             return AcquisitionProduct(list(self.operands.params) + [other])
 
-
-class MCMCAcquistion(AcquisitionSum):
-    """
-    Apply MCMC over the hyperparameters of an acquisition function (= over the hyperparameters of the contained models).
-    
-    The models passed into an object of this class are optimized with MLE (fast burn-in), and then further sampled with
-    HMC. These hyperparameter samples are then set in copies of the acquisition.
-
-    For evaluating the underlying acquisition function, the predictions of the acquisition copies are averaged.
-    """
-
-    def __init__(self, acquisition, n_slices, **kwargs):
-        assert isinstance(acquisition, Acquisition)
-        assert n_slices > 0
-        # the call to the constructor of the parent classes, will optimize acquisition, so it obtains the MLE solution.
-        super(MCMCAcquistion, self).__init__([acquisition]*n_slices)
-        self._needs_new_copies = True
-        self._sample_opt = kwargs
-
-    def _optimize_models(self):
-        # Optimize model #1
-        self.operands[0]._optimize_models()
-
-        # Copy it again if needed due to changed free state
-        if self._needs_new_copies:
-            new_copies = [copy.deepcopy(self.operands[0]) for _ in range(len(self.operands) - 1)]
-            for c in new_copies:
-                c.optimize_restarts = 0
-            self.operands = ParamList([self.operands[0]] + new_copies)
-            self._needs_new_copies = False
-
-        # Draw samples using HMC
-        # Sample each model of the acquisition function - results in a list of 2D ndarrays.
-        hypers = np.hstack([model.sample(len(self.operands), **self._sample_opt) for model in self.models])
-
-        # Now visit all acquisition copies, and set state
-        for idx, draw in enumerate(self.operands):
-            draw.set_state(hypers[idx, :])
-
-    @property
-    def models(self):
-        # Only return the models of the first operand, the copies remain hidden.
-        return self.operands[0].models
-
-    def set_data(self, X, Y):
-        for operand in self.operands:
-            # This triggers model.optimize() on self.operands[0]
-            # All copies have optimization disabled, but must have update data.
-            offset = operand.set_data(X, Y)
-        return offset
-
-    @params_as_tensors
-    def _build_acquisition(self, Xcand):
-        # Average the predictions of the copies.
-        return 1. / len(self.operands) * super(MCMCAcquistion, self)._build_acquisition(Xcand)
-
-    def _kill_autoflow(self):
-        """
-        Flag for recreation on next optimize.
-
-        Following the recompilation of models, the free state might have changed. This means updating the samples can
-        cause inconsistencies and errors.
-        """
-        super(MCMCAcquistion, self)._kill_autoflow()
-        self._needs_new_copies = True

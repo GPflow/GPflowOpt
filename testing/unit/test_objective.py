@@ -18,42 +18,42 @@ def _check_reference(f, g, X):
 
 
 # Some versions
-@gpflowopt.objective.to_args
+@gpflowopt.decors.to_args
 def add_to_args(x, y):
     return _ref_function(np.vstack((x, y)).T)
 
 
-@gpflowopt.objective.to_kwargs(domain)
+@gpflowopt.decors.to_kwargs(domain)
 def add_to_kwargs(x=None, y=None):
     return _ref_function(np.vstack((x, y)).T)
 
 
-@gpflowopt.objective.batch_apply
+@gpflowopt.decors.batch_apply
 def add_batch_apply(Xflat):
     f, g = _ref_function(Xflat)
     return f, g[0, :]
 
 
-@gpflowopt.objective.batch_apply
+@gpflowopt.decors.batch_apply
 def add_batch_apply_no_dims(Xflat):
     return np.sum(Xflat), Xflat
 
 
-@gpflowopt.objective.batch_apply
-@gpflowopt.objective.to_args
+@gpflowopt.decors.batch_apply
+@gpflowopt.decors.to_args
 def add_batch_apply_to_args(x, y):
     f, g = _ref_function(np.vstack((x, y)).T)
     return f, g[0, :]
 
 
-@gpflowopt.objective.batch_apply
-@gpflowopt.objective.to_kwargs(domain)
+@gpflowopt.decors.batch_apply
+@gpflowopt.decors.to_kwargs(domain)
 def add_batch_apply_to_kwargs(x=None, y=None):
     f, g = _ref_function(np.vstack((x, y)).T)
     return f, g[0, :]
 
 
-@gpflowopt.objective.batch_apply
+@gpflowopt.decors.batch_apply
 def triple_objective(Xflat):
     f1, g1 = _ref_function(Xflat)
     f2, g2 = _ref_function(2 * Xflat)
@@ -61,7 +61,7 @@ def triple_objective(Xflat):
     return np.hstack((f1, f2, f3)), np.vstack((g1, g2, g3)).T
 
 
-@gpflowopt.objective.batch_apply
+@gpflowopt.decors.batch_apply
 def add_batch_apply_no_grad(Xflat):
     f, g = _ref_function(Xflat)
     return f

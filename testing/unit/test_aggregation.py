@@ -17,7 +17,7 @@ def acquisition(request, parabola_model):
 def test_object_integrity(acquisition):
     for oper in acquisition.operands:
         assert isinstance(oper, gpflowopt.acquisition.Acquisition)
-    assert all(isinstance(m, gpflowopt.models.ModelWrapper) for m in acquisition.models)
+    assert all(isinstance(m, gpflowopt.params.ModelWrapper) for m in acquisition.models)
     assert all(isinstance(m, gpflow.models.Model) for m in acquisition.optimizable_models())
 
 
@@ -120,51 +120,3 @@ def test_hierarchy(parabola_model):
             (SimpleConstraintAcquisition(parabola_model) + SimpleAcquisition(parabola_model))
     np.testing.assert_allclose(joint.objective_indices(), np.array([0, 2], dtype=int))
     np.testing.assert_allclose(joint.constraint_indices(), np.array([1], dtype=int))
-
-
-# @pytest.mark.parametrize('acquisition', aggregations[2:3])
-# def test_hyper_updates(acquisition):
-#     acquisition._kill_autoflow()
-#     with tf.Session(graph=tf.Graph()):
-#         orig_hypers = [c.get_free_state() for c in acquisition.operands[1:]]
-#         lik_start = acquisition.operands[0].models[0].compute_log_likelihood()
-#         acquisition._optimize_models()
-#         assert acquisition.operands[0].models[0].compute_log_likelihood() > lik_start
-#
-#         for co, cn in zip(orig_hypers, [c.get_free_state() for c in acquisition.operands[1:]]):
-#             assert not np.allclose(co, cn)
-#
-#
-# @pytest.mark.parametrize('acquisition', aggregations[2:3])
-# def test_marginalized_score(acquisition):
-#     for m in acquisition.models:
-#         m._needs_recompile = True
-#
-#     with tf.Session(graph=tf.Graph()):
-#         Xt = np.random.rand(20, 2) * 2 - 1
-#         ei_mle = acquisition.operands[0].evaluate(Xt)
-#         ei_mcmc = acquisition.evaluate(Xt)
-#         np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
-#
-#
-# def test_mcmc_acq():
-#     acquisition = gpflowopt.acquisition.MCMCAcquistion(
-#         gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(domain)), 10)
-#     for oper in acquisition.operands:
-#         assert acquisition.models == oper.models
-#         assert acquisition.operands[0] == oper
-#     assert acquisition._needs_new_copies
-#
-#     acquisition._optimize_models()
-#     assert acquisition.models == acquisition.operands[0].models
-#     for oper in acquisition.operands[1:]:
-#         assert acquisition.operands[0] != oper
-#     assert not acquisition._needs_new_copies
-#
-#     acquisition._setup()
-#     Xt = np.random.rand(20, 2) * 2 - 1
-#     ei_mle = acquisition.operands[0].evaluate(Xt)
-#     ei_mcmc = acquisition.evaluate(Xt)
-#     np.testing.assert_almost_equal(ei_mle, ei_mcmc, decimal=5)
-#
-#

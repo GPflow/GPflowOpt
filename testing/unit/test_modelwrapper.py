@@ -6,7 +6,7 @@ import contextlib
 from ..utility import create_parabola_model
 
 
-class MethodOverride(gpflowopt.models.ModelWrapper):
+class MethodOverride(gpflowopt.params.ModelWrapper):
 
     def __init__(self, m):
         super(MethodOverride, self).__init__(m)
@@ -48,14 +48,14 @@ class TestModelWrapper(GPflowTestCase):
         yield super(TestModelWrapper, self).test_context(graph=self.m.graph)
 
     def test_object_integrity(self):
-        w = gpflowopt.models.ModelWrapper(self.m)
+        w = gpflowopt.params.ModelWrapper(self.m)
         assert w.wrapped == self.m
         assert self.m._parent == w
         assert w.compile == self.m.compile
 
     def test_optimize(self):
         with self.test_context():
-            w = gpflowopt.models.ModelWrapper(self.m)
+            w = gpflowopt.params.ModelWrapper(self.m)
             logL = self.m.compute_log_likelihood()
             self.assertTrue(np.allclose(logL, w.compute_log_likelihood()))
 
@@ -79,7 +79,7 @@ class TestModelWrapper(GPflowTestCase):
 
     def test_set_wrapped_attributes(self):
         # Regression test for setting certain keys in the right object
-        w = gpflowopt.models.ModelWrapper(self.m)
+        w = gpflowopt.params.ModelWrapper(self.m)
         w.num_latent = 5
         assert 'num_latent' not in w.__dict__
         assert 'num_latent' in self.m.__dict__
@@ -88,14 +88,14 @@ class TestModelWrapper(GPflowTestCase):
 
     def test_double_wrap(self):
         with self.test_context():
-            n = gpflowopt.models.ModelWrapper(MethodOverride(self.m))
+            n = gpflowopt.params.ModelWrapper(MethodOverride(self.m))
             Xt = np.random.rand(10, 2)
             n.predict_f(Xt)
             assert '_autoflow_predict_f' not in n.__dict__
             assert '_autoflow_predict_f' in n.wrapped.__dict__
             assert '_autoflow_predict_f' not in n.wrapped.wrapped.__dict__
 
-            n = MethodOverride(gpflowopt.models.ModelWrapper(self.m))
+            n = MethodOverride(gpflowopt.params.ModelWrapper(self.m))
             n.clear()
             Xn = np.random.rand(10, 2)
             Yn = np.random.rand(10, 1)
@@ -113,7 +113,7 @@ class TestModelWrapper(GPflowTestCase):
 
     def test_name(self):
         with self.test_context():
-            n = gpflowopt.models.ModelWrapper(self.m)
+            n = gpflowopt.params.ModelWrapper(self.m)
             assert n.name == 'ModelWrapper.modelwrapper'
             p = Parameterized()
             p.model = n

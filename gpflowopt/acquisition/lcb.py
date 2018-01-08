@@ -48,7 +48,7 @@ class LowerConfidenceBound(Acquisition):
         :param model: GPflow model (single output) representing our belief of the objective 
         :param sigma: See formula, the higher the more exploration
         """
-        super(LowerConfidenceBound, self).__init__(model)
+        super(LowerConfidenceBound, self).__init__(model, maximize=False)
         self.sigma = DataHolder(np.array(sigma))
 
     @params_as_tensors

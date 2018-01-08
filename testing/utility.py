@@ -18,8 +18,29 @@ class GPflowOptTestCase(tf.test.TestCase):
         super(GPflowOptTestCase, self).tearDown()
 
 
+class KeyboardRaiser:
+    """
+    This wraps a function and makes it raise a KeyboardInterrupt after some number of calls
+    """
+
+    def __init__(self, iters_to_raise, f):
+        self.iters_to_raise, self.f = iters_to_raise, f
+        self.count = 0
+
+    def __call__(self, X):
+        if self.count >= self.iters_to_raise:
+            raise KeyboardInterrupt
+        val = self.f(X)
+        self.count += X.shape[0]
+        return val
+
+
 def parabola2d(X):
     return np.atleast_2d(np.sum(X ** 2, axis=1)).T
+
+
+def parabola2d_grad(X):
+    return parabola2d(X), 2 * X
 
 
 def plane(X):

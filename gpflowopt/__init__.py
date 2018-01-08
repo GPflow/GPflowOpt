@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from . import acquisition
+from . import decors
 from . import domain
 from .bo import BayesianOptimizer
 from . import optim
@@ -21,7 +22,7 @@ from . import transforms
 from . import scaling
 from . import objective
 from . import pareto
-from . import models
+from . import params
 from . import misc
 
 from ._version import __version__

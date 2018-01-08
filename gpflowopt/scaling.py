@@ -17,7 +17,7 @@ from gpflow.core import TensorConverter
 import numpy as np
 from .transforms import LinearTransform, DataTransform
 from .domain import UnitCube
-from .models import ModelWrapper
+from .params import ModelWrapper
 
 
 class DataScaler(ModelWrapper):

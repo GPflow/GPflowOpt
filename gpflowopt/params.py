@@ -96,3 +96,10 @@ class ModelWrapper(Parameterized):
     def name(self):
         name = super(ModelWrapper, self).name
         return ".".join([name, str.lower(self.__class__.__name__)])
+
+    @classmethod
+    def unwrap(cls, item):
+        if isinstance(item, ModelWrapper):
+            return cls.unwrap(item.wrapped)
+        return item
+
