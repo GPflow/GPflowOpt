@@ -107,8 +107,9 @@ class Acquisition(Parameterized, ICriterion):
             if not runs:
                 raise RuntimeError("All model hyperparameter optimization restarts failed, exiting.")
 
-            best_idx = np.argmax([r['score'] for r in runs])
-            model.assign(runs[best_idx]['state'])
+            if len(runs) > 1:
+                best_idx = np.argmax([r['score'] for r in runs])
+                model.assign(runs[best_idx]['state'])
 
     @abc.abstractmethod
     @params_as_tensors

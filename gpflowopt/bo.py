@@ -41,14 +41,14 @@ def default_callback(models, opt):
 
     Performs no actions on other models other types are ignored.
     """
-
-    for m in np.atleast_1d(models):
+    for m in models:
         if isinstance(m, VGP):  # VGP requires recompilation
             m.root.clear()
             m.root.compile()
             break
-
-    for m in np.atleast_1d(models):
+    print(list(models))
+    for m in models:
+        print(m.__class__.__name__)
         if isinstance(m, GPR):
             s = m.read_trainables()
             eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.read_value())))
@@ -226,15 +226,13 @@ class BayesianOptimizer(Optimizer):
         self.set_initial(EmptyDesign(self.domain).generate())
 
         # Optimization loop
-        unwrapped = map(ModelWrapper.unwrap, self.acquisition.models)
+        unwrapped = list(map(ModelWrapper.unwrap, self.acquisition.models))
         for i in range(n_iter):
-            print(i)
             # If a callback is specified, and acquisition has the setup flag enabled (indicating an upcoming
             # compilation), run the callback.
             if self._model_callback and self.acquisition._needs_setup:
                 self._model_callback(unwrapped, self.acquisition._model_optimizer)
             result = self.optimizer.optimize(self._evaluate_acquisition)
-            print(result)
             self._update_model_data(result.x, fx(result.x))
 
         return self._create_bo_result(True, "OK")
