@@ -114,7 +114,7 @@ class Acquisition(Parameterized, ICriterion):
     @abc.abstractmethod
     @params_as_tensors
     def _build_acquisition(self, Xcand):
-        pass
+        raise NotImplementedError
 
     def enable_scaling(self, domain):
         """

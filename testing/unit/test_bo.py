@@ -29,6 +29,7 @@ class TestBayesianOptimizer(object):
         np.testing.assert_allclose(expected, optimizer.acquisition.models[0].wrapped.X.read_value())
 
     def test_optimize(self, optimizer):
+        optimizer.acquisition.optimize_restarts = 2
         result = optimizer.optimize(lambda X: parabola2d(X), n_iter=5)
         assert result.success
         assert result.nfev == 5

@@ -15,17 +15,6 @@ from functools import wraps
 import numpy as np
 
 
-def recompile_models(fun):
-    @wraps(fun)
-    def recompile_wrapper(models, opt):
-        for m in models:
-            m.clear()
-        fun(models, opt)
-        for m in models:
-            m.compile()
-    return recompile_wrapper
-
-
 def setup_required(method):
     """
     Decorator function to mark methods in Acquisition classes which require running setup if indicated by _needs_setup
