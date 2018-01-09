@@ -2,10 +2,11 @@ sudo: required
 dist: trusty
 language: python
 python:
-  - 3.5
   - 3.6
 cache: pip
 install:
   - pip install -U pip wheel codecov nox-automation
 script:
-  - echo 1
+  - nox -s unit implementations cover
+after_success:
+  - codecov
