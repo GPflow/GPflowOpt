@@ -1,9 +1,12 @@
 import gpflow
 import gpflowopt
 import numpy as np
+import pytest
 
 
-def test_vgp(session):
+@pytest.mark.xfail("gpflow.__version__ <= '1.1.0'")
+@pytest.mark.usefixture("session")
+def test_vgp():
     """
     Regression test for #37
     """

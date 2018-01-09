@@ -4,9 +4,7 @@ import gpflow
 import gpflowopt
 import pytest
 import tensorflow as tf
-
-
-#pytest_plugins = ['pytest_profiling']
+from .utility import parabola2d
 
 
 def parabola2d(X):
@@ -39,7 +37,8 @@ def session():
 
 
 @pytest.fixture()
-def parabola_model(session, domain):
+@pytest.mark.usefixtures("session")
+def parabola_model(domain):
     design = gpflowopt.design.LatinHyperCube(16, domain)
     X, Y = design.generate(), parabola2d(design.generate())
     m = gpflow.models.GPR(X, Y, gpflow.kernels.RBF(2, ARD=True))
@@ -47,7 +46,8 @@ def parabola_model(session, domain):
 
 
 @pytest.fixture()
-def plane_model(session, domain):
+@pytest.mark.usefixtures("session")
+def plane_model(domain):
     design = gpflowopt.design.LatinHyperCube(25, domain)
     X, Y = design.generate(), plane(design.generate())
     m = gpflow.models.GPR(X, Y, gpflow.kernels.RBF(2, ARD=True))
@@ -59,8 +59,10 @@ def vlmop2_data():
     path = os.path.dirname(os.path.realpath(__file__))
     return np.load(os.path.join(path, 'data', 'vlmop.npz'))
 
+
 @pytest.fixture()
-def vlmop2_models(session, vlmop2_data):
+@pytest.mark.usefixtures("session")
+def vlmop2_models(vlmop2_data):
     m1 = gpflow.models.GPR(vlmop2_data['X'], vlmop2_data['Y'][:, [0]], kern=gpflow.kernels.Matern32(2))
     m2 = gpflow.models.GPR(vlmop2_data['X'], vlmop2_data['Y'][:, [1]], kern=gpflow.kernels.Matern32(2))
     yield [m1, m2]

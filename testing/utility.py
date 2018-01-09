@@ -5,19 +5,6 @@ import os
 import tensorflow as tf
 
 
-class GPflowOptTestCase(tf.test.TestCase):
-    """
-    Wrapper for TestCase to avoid massive duplication of resetting
-    Tensorflow Graph.
-    """
-
-    _multiprocess_can_split_ = True
-
-    def tearDown(self):
-        tf.reset_default_graph()
-        super(GPflowOptTestCase, self).tearDown()
-
-
 class KeyboardRaiser:
     """
     This wraps a function and makes it raise a KeyboardInterrupt after some number of calls
@@ -56,11 +43,6 @@ def vlmop2(x):
     return np.hstack((y1, y2))
 
 
-def load_data(file):
-    path = os.path.dirname(os.path.realpath(__file__))
-    return np.load(os.path.join(path, 'data', file))
-
-
 def create_parabola_model(domain, design=None):
     if design is None:
         design = gpflowopt.design.LatinHyperCube(16, domain)
@@ -68,17 +50,3 @@ def create_parabola_model(domain, design=None):
     m = gpflow.models.GPR(X, Y, gpflow.kernels.RBF(2, ARD=True))
     return m
 
-
-def create_plane_model(domain, design=None):
-    if design is None:
-        design = gpflowopt.design.LatinHyperCube(25, domain)
-    X, Y = design.generate(), plane(design.generate())
-    m = gpflow.models.GPR(X, Y, gpflow.kernels.RBF(2, ARD=True))
-    return m
-
-
-def create_vlmop2_model():
-    data = load_data('vlmop.npz')
-    m1 = gpflow.models.GPR(data['X'], data['Y'][:, [0]], kern=gpflow.kernels.Matern32(2))
-    m2 = gpflow.models.GPR(data['X'], data['Y'][:, [1]], kern=gpflow.kernels.Matern32(2))
-    return [m1, m2]

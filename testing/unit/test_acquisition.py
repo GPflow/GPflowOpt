@@ -3,9 +3,7 @@ import numpy as np
 import gpflow
 import tensorflow as tf
 import pytest
-from gpflow.test_util import GPflowTestCase
-from ..utility import create_parabola_model, parabola2d, plane
-import contextlib
+from ..utility import parabola2d
 import copy
 
 

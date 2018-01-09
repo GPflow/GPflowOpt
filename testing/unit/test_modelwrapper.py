@@ -1,8 +1,6 @@
 import gpflowopt
 from gpflow import DataHolder, Parameterized, settings, params_as_tensors, autoflow, train
-from gpflow.test_util import GPflowTestCase
 import numpy as np
-import contextlib
 from ..utility import create_parabola_model
 
 

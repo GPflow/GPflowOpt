@@ -17,7 +17,8 @@ def design(domain):
 class TestCandidateOptimizer(object):
 
     @pytest.fixture()
-    def optimizer(self, session, domain, design):
+    @pytest.mark.usefixtures("session")
+    def optimizer(self, domain, design):
         yield gpflowopt.optim.CandidateOptimizer(domain, design.generate())
 
     def test_default_initial(self, optimizer):
@@ -104,7 +105,8 @@ class TestSciPyOptimizer(object):
 class TestStagedOptimizer(object):
 
     @pytest.fixture()
-    def optimizer(self, session, domain):
+    @pytest.mark.usefixtures("session")
+    def optimizer(self, domain):
         yield gpflowopt.optim.StagedOptimizer([gpflowopt.optim.MCOptimizer(domain, 5),
                                                gpflowopt.optim.MCOptimizer(domain, 5),
                                                gpflowopt.optim.SciPyOptimizer(domain, maxiter=10)])
