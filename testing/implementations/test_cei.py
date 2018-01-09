@@ -1,10 +1,12 @@
 import numpy as np
 import gpflowopt
 import gpflow
+import pytest
 from ..utility import parabola2d
 
 
-def test_constrained_ei(domain, session):
+@pytest.mark.usefixtures("session")
+def test_constrained_ei(domain):
     design = gpflowopt.design.LatinHyperCube(16, domain)
     X = design.generate()
     Yo = parabola2d(X)

@@ -3,10 +3,20 @@ dist: trusty
 language: python
 python:
   - 3.6
-cache: pip
+
+before_install:
+  - sudo apt-get update -qq
+
 install:
   - pip install -U pip wheel codecov nox-automation
+
 script:
   - nox -s unit implementations cover
-after_success:
   - codecov
+
+cache:
+  apt: true
+  pip: true
+  directories:
+    - $HOME/.cache/pip
+    - $HOME/download

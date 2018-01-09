@@ -1,8 +1,6 @@
 import numpy as np
 import gpflow
 import gpflowopt
-import os
-import tensorflow as tf
 
 
 class KeyboardRaiser:

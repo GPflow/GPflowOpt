@@ -4,24 +4,7 @@ import gpflow
 import gpflowopt
 import pytest
 import tensorflow as tf
-from .utility import parabola2d
-
-
-def parabola2d(X):
-    return np.atleast_2d(np.sum(X ** 2, axis=1)).T
-
-
-def plane(X):
-    return X[:, [0]] - 0.5
-
-
-def vlmop2(x):
-    transl = 1 / np.sqrt(2)
-    part1 = (x[:, [0]] - transl) ** 2 + (x[:, [1]] - transl) ** 2
-    part2 = (x[:, [0]] + transl) ** 2 + (x[:, [1]] + transl) ** 2
-    y1 = 1 - np.exp(-1 * part1)
-    y2 = 1 - np.exp(-1 * part2)
-    return np.hstack((y1, y2))
+from .utility import parabola2d, plane
 
 
 @pytest.fixture(scope="session")
