@@ -23,7 +23,7 @@ To cite GPflowOpt, please reference the preliminary arXiv paper. Sample Bibtex i
 ```
 @ARTICLE{GPflowOpt2017,
    author = {Knudde, Nicolas and {van der Herten}, Joachim and Dhaene, Tom and Couckuyt, Ivo},
-    title = "{{GP}flow: A {G}aussian process library using {T}ensor{F}low}",
+    title = "{{GP}flow{O}pt: A {G}aussian process library using {T}ensor{F}low}",
   journal = {arXiv preprint -- arXiv:1711.03845},
   year    = {2017},
   url     = {https://arxiv.org/abs/1711.03845}
