@@ -46,9 +46,8 @@ def default_callback(models, opt):
             m.root.clear()
             m.root.compile()
             break
-    print(list(models))
+
     for m in models:
-        print(m.__class__.__name__)
         if isinstance(m, GPR):
             s = m.read_trainables()
             eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.read_value())))

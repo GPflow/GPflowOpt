@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import tensorflow as tf
 from itertools import chain
 from gpflow.core.parentable import Parentable
 

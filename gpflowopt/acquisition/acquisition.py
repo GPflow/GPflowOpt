@@ -100,8 +100,7 @@ class Acquisition(Parameterized, ICriterion):
                     run_info = dict(score=model.compute_log_prior() + model.compute_log_likelihood(),
                                     state=copy.deepcopy(model.read_trainables()))
                     runs.append(run_info)
-                except tf.errors.InvalidArgumentError as e:  # pragma: no cover
-                    print(e)
+                except tf.errors.InvalidArgumentError:  # pragma: no cover
                     print("Warning: optimization restart {0}/{1} failed".format(1, self.optimize_restarts))
 
             if not runs:
