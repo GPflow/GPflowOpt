@@ -61,7 +61,7 @@ class BayesianOptimizer(Optimizer):
     """
 
     def __init__(self, domain, acquisition, optimizer=None, initial=None, scaling=True, hyper_draws=None,
-                 callback=jitchol_callback):
+                 callback=jitchol_callback, verbose=False):
         """
         :param Domain domain: The optimization space.
         :param Acquisition acquisition: The acquisition function to optimize over the domain.
@@ -107,6 +107,7 @@ class BayesianOptimizer(Optimizer):
         self.set_initial(initial.generate())
 
         self._model_callback = callback
+        self.verbose = verbose
 
     @Optimizer.domain.setter
     def domain(self, dom):
@@ -166,16 +167,20 @@ class BayesianOptimizer(Optimizer):
         # Filter on constraints
         valid = self.acquisition.feasible_data_index()
 
-        if not np.any(valid):
-            return OptimizeResult(success=False,
-                                  message="No evaluations satisfied the constraints")
+        # Extract the samples that satisfies all constraints
+        if np.any(valid):
+            valid_X = X[valid, :]
+            valid_Y = Y[valid, :]
+        else:
+            success = False
+            message = "No evaluations satisfied the constraints"
 
-        valid_X = X[valid, :]
-        valid_Y = Y[valid, :]
+        # Split between objectives and constraints
         valid_Yo = valid_Y[:, self.acquisition.objective_indices()]
+        valid_Yc = valid_Y[:, self.acquisition.constraint_indices()]
 
         # Differentiate between single- and multiobjective optimization results
-        if valid_Y.shape[1] > 1:
+        if valid_Yo.shape[1] > 1:
             _, dom = non_dominated_sort(valid_Yo)
             idx = dom == 0  # Return the non-dominated points
         else:
@@ -184,6 +189,7 @@ class BayesianOptimizer(Optimizer):
         return OptimizeResult(x=valid_X[idx, :],
                               success=success,
                               fun=valid_Yo[idx, :],
+                              constraints=valid_Yc[idx, :],
                               message=message)
 
     def optimize(self, objectivefx, n_iter=20):
@@ -232,10 +238,27 @@ class BayesianOptimizer(Optimizer):
         for i in range(n_iter):
             # If a callback is specified, and acquisition has the setup flag enabled (indicating an upcoming
             # compilation), run the callback.
-            if self._model_callback and self.acquisition._needs_setup:
-                self._model_callback([m.wrapped for m in self.acquisition.models])
-            result = self.optimizer.optimize(inverse_acquisition)
-            self._update_model_data(result.x, fx(result.x))
+            with self.silent():
+                if self._model_callback and self.acquisition._needs_setup:
+                    self._model_callback([m.wrapped for m in self.acquisition.models])
+
+                result = self.optimizer.optimize(inverse_acquisition)
+                self._update_model_data(result.x, fx(result.x))
+
+            if self.verbose:
+                with self.silent():
+                    bo_result = self._create_bo_result(True, 'Monitor')
+                    mlls = [model.compute_log_likelihood() for model in self.acquisition.models]
+
+                print('iter #{0:>3} - MLL [{1}] - fmin [{2}]{3} - alpha [{4}]{5}{6}'.format(
+                    i,
+                    ', '.join('{:.3}'.format(mll) for mll in mlls),
+                    ', '.join('{:.3}'.format(fun) for fun in bo_result.fun),
+                    ' - constraints [' + ', '.join('{:.3}'.format(constraint) for constraint in bo_result.constraints) + ']'
+                    if bo_result.constraints else '',
+                    ', '.join('{:.3}'.format(fun) for fun in result.fun),
+                    '' if bo_result.success else ' - ' + bo_result.message,
+                    '' if result.success else ' - ' + result.message.decode('utf-8')))
 
         return self._create_bo_result(True, "OK")
 
