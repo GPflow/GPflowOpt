@@ -155,8 +155,13 @@ class BayesianOptimizer(Optimizer):
 
     def _create_bo_result(self, success, message):
         """
-        Analyzes all data evaluated during the optimization, and return an OptimizeResult. Outputs of constraints
-        are used to remove all infeasible points.
+        Analyzes all data evaluated during the optimization, and return an `OptimizeResult`. Constraints are taken
+        into account. The contents of x, fun, and constraints depend on the detected scenario:
+        - single-objective: the best optimum of the feasible samples (if none, optimum of the infeasible samples)
+        - multi-objective: the Pareto set of the feasible samples
+        - only constraints: all the feasible samples (can be empty)
+
+        In all cases, if not one sample satisfies all the constraints a message will be given and success=False
        
         :param success: Optimization successful? (True/False)
         :param message: return message
@@ -169,27 +174,29 @@ class BayesianOptimizer(Optimizer):
 
         # Extract the samples that satisfies all constraints
         if np.any(valid):
-            valid_X = X[valid, :]
-            valid_Y = Y[valid, :]
+            X = X[valid, :]
+            Y = Y[valid, :]
         else:
             success = False
-            message = "No evaluations satisfied the constraints"
+            message = "No evaluations satisfied all the constraints"
 
         # Split between objectives and constraints
-        valid_Yo = valid_Y[:, self.acquisition.objective_indices()]
-        valid_Yc = valid_Y[:, self.acquisition.constraint_indices()]
+        Yo = Y[:, self.acquisition.objective_indices()]
+        Yc = Y[:, self.acquisition.constraint_indices()]
 
-        # Differentiate between single- and multiobjective optimization results
-        if valid_Yo.shape[1] > 1:
-            _, dom = non_dominated_sort(valid_Yo)
-            idx = dom == 0  # Return the non-dominated points
-        else:
-            idx = np.argmin(valid_Yo)
+        # Differentiate between different scenarios
+        if Yo.shape[1] == 1:  # Single-objective: minimum
+            idx = np.argmin(Yo)
+        elif Yo.shape[1] > 1:  # Multi-objective: Pareto set
+            _, dom = non_dominated_sort(Yo)
+            idx = dom == 0
+        else:  # Constraint satisfaction problem: all samples satisfying the constraints
+            idx = np.ones(Yo.shape[0])
 
-        return OptimizeResult(x=valid_X[idx, :],
+        return OptimizeResult(x=X[idx, :],
                               success=success,
-                              fun=valid_Yo[idx, :],
-                              constraints=valid_Yc[idx, :],
+                              fun=Yo[idx, :],
+                              constraints=Yc[idx, :],
                               message=message)
 
     def optimize(self, objectivefx, n_iter=20):
@@ -246,19 +253,32 @@ class BayesianOptimizer(Optimizer):
                 self._update_model_data(result.x, fx(result.x))
 
             if self.verbose:
+                metrics = []
+
                 with self.silent():
                     bo_result = self._create_bo_result(True, 'Monitor')
-                    mlls = [model.compute_log_likelihood() for model in self.acquisition.models]
+                    metrics += ['MLL [' + ', '.join('{:.3}'.format(model.compute_log_likelihood()) for model in self.acquisition.models) + ']']
 
-                print('iter #{0:>3} - MLL [{1}] - fmin [{2}]{3} - alpha [{4}]{5}{6}'.format(
+                # fmin
+                n_points = bo_result.fun.shape[0]
+                if n_points > 0:
+                    funs = np.atleast_1d(np.min(bo_result.fun, axis=0))
+                    fmin = 'fmin [' + ', '.join('{:.3}'.format(fun) for fun in funs) + ']'
+                    if n_points > 1:
+                        fmin += ' (size {0})'.format(n_points)
+
+                    metrics += [fmin]
+
+                # constraints
+                if bo_result.constraints:
+                    metrics += ['constraints [' + ', '.join('{:.3}'.format(constraint) for constraint in bo_result.constraints) + ']']
+
+                # error messages
+                metrics += [r.message.decode('utf-8') if isinstance(r.message, bytes) else r.message for r in [bo_result, result] if not r.success]
+
+                print('iter #{0:>3} - {1}'.format(
                     i,
-                    ', '.join('{:.3}'.format(mll) for mll in mlls),
-                    ', '.join('{:.3}'.format(fun) for fun in bo_result.fun),
-                    ' - constraints [' + ', '.join('{:.3}'.format(constraint) for constraint in bo_result.constraints) + ']'
-                    if bo_result.constraints else '',
-                    ', '.join('{:.3}'.format(fun) for fun in result.fun),
-                    '' if bo_result.success else ' - ' + bo_result.message,
-                    '' if result.success else ' - ' + result.message.decode('utf-8')))
+                    ' - '.join(metrics)))
 
         return self._create_bo_result(True, "OK")
 
