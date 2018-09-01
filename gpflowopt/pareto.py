@@ -43,6 +43,7 @@ class BoundedVolumes(Parameterized):
         self.lb = DataHolder(np.atleast_2d(lb))
         self.ub = DataHolder(np.atleast_2d(ub))
 
+
     def append(self, lb, ub):
         """
         Add new bounded volumes.
