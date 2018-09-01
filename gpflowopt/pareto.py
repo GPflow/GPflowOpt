@@ -44,7 +44,7 @@ class BoundedVolumes(Parameterized):
         :param ub: the upperbounds of the volumes
         """
         super(BoundedVolumes, self).__init__()
-        assert np.all(lb.shape == lb.shape)
+        assert np.all(lb.shape == ub.shape)
         self.lb = DataHolder(np.atleast_2d(lb), 'pass')
         self.ub = DataHolder(np.atleast_2d(ub), 'pass')
 
