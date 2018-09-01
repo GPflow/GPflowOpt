@@ -257,7 +257,7 @@ class Pareto(Parameterized):
         :return: hypervolume indicator (the higher the better)
         """
 
-        min_pf = tf.reduce_min(self.front, 0, keep_dims=True)
+        min_pf = tf.reduce_min(self.front, 0, keepdims=True)
         R = tf.expand_dims(reference, 0)
         pseudo_pf = tf.concat((min_pf, self.front, R), 0)
         D = tf.shape(pseudo_pf)[1]

@@ -70,8 +70,8 @@ def test_backward_variance_full_cov():
         scaled = t.build_backward_variance(x)
         Bs = session.run(scaled, feed_dict={x: B})
 
-        np.testing.assert_allclose(Bs[:, :, 0] / 4.0, B1)
-        np.testing.assert_allclose(Bs[:, :, 1], B2)
+        np.testing.assert_allclose(Bs[0, :, :] / 4.0, B1)
+        np.testing.assert_allclose(Bs[1, :, :], B2)
 
 
 def test_backward_variance():

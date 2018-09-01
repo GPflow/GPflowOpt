@@ -98,4 +98,4 @@ class MinValueEntropySearch(Acquisition):
         gamma = (fmean - tf.expand_dims(self.samples, axis=0)) / tf.sqrt(fvar)
 
         return tf.reduce_sum(gamma * norm.prob(gamma) / (2. * norm.cdf(gamma)) - norm.log_cdf(gamma),
-                          axis=1, keep_dims=True) / self.num_samples
+                          axis=1, keepdims=True) / self.num_samples

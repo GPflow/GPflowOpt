@@ -134,7 +134,14 @@ class LinearTransform(DataTransform):
             lambda: tf.matrix_diag(tf.transpose(Yvar)),
             lambda: Yvar
         )
-        Yvar = tf.transpose(Yvar, perm=[1, 2, 0])
+        Yvar = tf.cond(
+            tf.equal(rank, 2),
+            lambda: tf.transpose(Yvar, perm=[1, 2, 0]),
+            lambda: tf.transpose(Yvar, perm=[1, 2, 0])
+        )
+
+        # Anyone has a clue why this simply wont work?
+        #Yvar = tf.transpose(Yvar, perm=[1, 2, 0])
 
         N = tf.shape(Yvar)[0]
         D = tf.shape(Yvar)[2]

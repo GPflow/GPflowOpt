@@ -118,7 +118,7 @@ class HVProbabilityOfImprovement(Acquisition):
         P1 = tf.transpose(tf.gather_nd(tf.transpose(Phi, perm=[1, 2, 0]), ub_idx))  # N x num_cell*outdim
         P2 = tf.transpose(tf.gather_nd(tf.transpose(Phi, perm=[1, 2, 0]), lb_idx))  # N x num_cell*outdim
         P = tf.reshape(P1 - P2, [N, num_cells, outdim])
-        PoI = tf.reduce_sum(tf.reduce_prod(P, axis=2), axis=1, keep_dims=True)  # N x 1
+        PoI = tf.reduce_sum(tf.reduce_prod(P, axis=2), axis=1, keepdims=True)  # N x 1
 
         # Calculate Hypervolume contribution of points Y
         ub_points = tf.reshape(tf.gather_nd(pf_ext, ub_idx), [num_cells, outdim])
@@ -131,7 +131,7 @@ class HVProbabilityOfImprovement(Acquisition):
         splus_lb = tf.maximum(splus_lb, candidate_mean)  # num_cells x N x outdim
         splus_ub = tf.tile(tf.expand_dims(ub_points, 1), [1, N, 1])  # num_cells x N x outdim
         splus = tf.concat([splus_idx, splus_ub - splus_lb], axis=2)  # num_cells x N x (outdim+1)
-        Hv = tf.transpose(tf.reduce_sum(tf.reduce_prod(splus, axis=2), axis=0, keep_dims=True))  # N x 1
+        Hv = tf.transpose(tf.reduce_sum(tf.reduce_prod(splus, axis=2), axis=0, keepdims=True))  # N x 1
 
         # return HvPoI
         return tf.multiply(Hv, PoI)

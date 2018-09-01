@@ -23,12 +23,35 @@ from gpflow import Parameterized, autoflow, ParamList, settings, params_as_tenso
 from gpflow.core import TensorConverter
 from gpflow.models import Model
 from gpflow.training import ScipyOptimizer
+from gpflow.training.optimizer import Optimizer
 
 import numpy as np
 import tensorflow as tf
 
 import abc
 import copy
+
+
+class ModelTrainer(Optimizer):
+    def __init__(self, optimizer):
+        assert isinstance(optimizer, Optimizer)
+        super(ModelTrainer, self).__init__()
+        self._optimizer = optimizer
+        self._opt_op = None
+
+    def minimize(self, model, session=None, anchor=True, maxiter=1000, disp=False):
+        session = model.enquire_session(session)
+        if not self._opt_op:
+            self._opt_op = self._optimizer.make_optimize_tensor(model, session=session, maxiter=maxiter, disp=disp)
+
+        feed_dict = self._optimizer._gen_feed_dict(model, {})
+        self._opt_op.minimize(session=session, feed_dict=feed_dict)
+
+        if anchor:
+            model.anchor(session)
+
+    def clear(self):
+        self._opt_op = None
 
 
 class Acquisition(Parameterized, ICriterion):
@@ -66,7 +89,7 @@ class Acquisition(Parameterized, ICriterion):
         self.optimize_restarts = optimize_restarts
         if len(models) > 0:
             self.models = ParamList(self._wrap_models(models))
-        self._model_optimizer = model_optimizer or ScipyOptimizer()
+        self._model_optimizer = ModelTrainer(model_optimizer or ScipyOptimizer())
         self._needs_setup = True
         self.maximize = maximize
 
@@ -93,8 +116,7 @@ class Acquisition(Parameterized, ICriterion):
         for model in map(ModelWrapper.unwrap, self.models):
             runs = []
             for i in range(self.optimize_restarts):
-                if i > 0:
-                    randomize_model(model)
+                randomize_model(model)
                 try:
                     self._model_optimizer.minimize(model)
                     run_info = dict(score=model.compute_log_prior() + model.compute_log_likelihood(),
@@ -345,7 +367,7 @@ class AcquisitionAggregation(Acquisition):
     @params_as_tensors
     def _build_acquisition(self, Xcand):
         return self._oper(tf.concat(list(map(lambda operand: operand._build_acquisition(Xcand), self.operands)), 1),
-                          axis=1, keep_dims=True, name=self.__class__.__name__)
+                          axis=1, keepdims=True, name=self.__class__.__name__)
 
     def __getitem__(self, item):
         return self.operands[item]
