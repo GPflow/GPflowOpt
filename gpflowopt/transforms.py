@@ -121,22 +121,31 @@ class LinearTransform(DataTransform):
         Additional method for scaling variance backward (used in :class:`.Normalizer`). Can process both the diagonal
         variances returned by predict_f, as well as full covariance matrices.
 
-        :param Yvar: size N x N x P or size N x P
+        :param Yvar: size P x N x N or size N x P
         :return: Yvar scaled, same rank and size as input
         """
         rank = tf.rank(Yvar)
+
         # Because TensorFlow evaluates both fn1 and fn2, the transpose can't be in the same line. If a full cov
         # matrix is provided fn1 turns it into a rank 4, then tries to transpose it as a rank 3.
         # Splitting it in two steps however works fine.
-        Yvar = tf.cond(tf.equal(rank, 2), lambda: tf.matrix_diag(tf.transpose(Yvar)), lambda: Yvar)
-        Yvar = tf.cond(tf.equal(rank, 2), lambda: tf.transpose(Yvar, perm=[1, 2, 0]), lambda: Yvar)
+        Yvar = tf.cond(
+            tf.equal(rank, 2),
+            lambda: tf.matrix_diag(tf.transpose(Yvar)),
+            lambda: Yvar
+        )
+        Yvar = tf.transpose(Yvar, perm=[1, 2, 0])
 
         N = tf.shape(Yvar)[0]
         D = tf.shape(Yvar)[2]
         L = tf.cholesky(tf.square(tf.transpose(self.A)))
         Yvar = tf.reshape(Yvar, [N * N, D])
         scaled_var = tf.reshape(tf.transpose(tf.cholesky_solve(L, tf.transpose(Yvar))), [N, N, D])
-        return tf.cond(tf.equal(rank, 2), lambda: tf.reduce_sum(scaled_var, axis=1), lambda: scaled_var)
+        return tf.cond(
+            tf.equal(rank, 2),
+            lambda: tf.reduce_sum(scaled_var, axis=1),
+            lambda: tf.transpose(scaled_var, perm=[2, 0, 1])
+        )
 
     def assign(self, other):
         """

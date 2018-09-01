@@ -107,6 +107,6 @@ def test_name(parabola_model):
     assert n.name == 'ModelWrapper.modelwrapper'
     p = Parameterized()
     p.model = n
-    assert n.name == 'model.modelwrapper'
+    assert n.name == 'ModelWrapper.modelwrapper'
     n = MethodOverride(create_parabola_model(gpflowopt.domain.UnitCube(2)))
     assert n.name == 'MethodOverride.methodoverride'

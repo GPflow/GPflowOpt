@@ -60,13 +60,13 @@ def test_invert_np(transform, args):
 def test_backward_variance_full_cov():
     with tf.Session(graph=tf.Graph()) as session:
         t = ~gpflowopt.transforms.LinearTransform([2.0, 1.0], [1.2, 0.7])
-        x = tf.placeholder(float_type, [10, 10, 2])
+        x = tf.placeholder(float_type, [2, 10, 10])
 
         A = np.random.rand(10, 10)
         B1 = np.dot(A, A.T)
         A = np.random.rand(10, 10)
         B2 = np.dot(A, A.T)
-        B = np.dstack((B1, B2))
+        B = np.stack((B1, B2), axis=0)
         scaled = t.build_backward_variance(x)
         Bs = session.run(scaled, feed_dict={x: B})
 

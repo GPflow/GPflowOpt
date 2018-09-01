@@ -205,7 +205,7 @@ class SciPyOptimizer(Optimizer):
 
     def __init__(self, domain, method='L-BFGS-B', tol=None, maxiter=1000):
         super(SciPyOptimizer, self).__init__(domain)
-        options = dict(disp=settings.verbosity.optimisation_verb,
+        options = dict(disp=settings.verbosity.tf_compile_verb,
                        maxiter=maxiter)
         self.config = dict(tol=tol,
                            method=method,

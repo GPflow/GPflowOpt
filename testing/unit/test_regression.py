@@ -21,5 +21,5 @@ def test_vgp():
     Ynew = np.sin(Xnew[:,[0]])
     acq.set_data(np.vstack((X, Xnew)), np.vstack((Y, Ynew)))
 
-    gpflowopt.bo.default_callback(m, gpflow.train.ScipyOptimizer())
+    gpflowopt.bo.default_callback([m], gpflow.train.ScipyOptimizer())
     acq.evaluate(gpflowopt.design.RandomDesign(10, domain).generate())
