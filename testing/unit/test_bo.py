@@ -93,7 +93,7 @@ class TestBayesianOptimizer(object):
             def __init__(self):
                 self.counter = 0
 
-            def __call__(self, models, opt):
+            def __call__(self, trainables):
                 self.counter += 1
 
         c = DummyCallback()

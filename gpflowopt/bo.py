@@ -17,6 +17,7 @@ from contextlib import contextmanager
 import numpy as np
 from scipy.optimize import OptimizeResult
 import tensorflow as tf
+import gpflow
 from gpflow.models import GPR, VGP
 
 from .acquisition import Acquisition
@@ -28,7 +29,7 @@ from .params import ModelWrapper
 from .misc import hmc_eval
 
 
-def default_callback(models, opt):
+def default_callback(trainables):
     """
     Default model callback
 
@@ -41,20 +42,25 @@ def default_callback(models, opt):
 
     Performs no actions on other models other types are ignored.
     """
-    for m in models:
+
+    for m in trainables.keys():
         if isinstance(m, VGP):  # VGP requires recompilation
             m.root.clear()
+            # this part of the code comes from VGP.compile, where its just broken
+            # (incorrect param shape, and compile isn't called when not top of GPflow tree)
+            m.num_data = m.X.shape[0]
+            m.q_mu = gpflow.Param(np.zeros((m.num_data, m.num_latent)))
+            m.q_sqrt = gpflow.Param(np.stack([np.eye(m.num_data)]*m.num_latent))
             m.root.compile()
-            break
 
-    for m in models:
+    for m, opt in trainables.items():
         if isinstance(m, GPR):
             s = m.read_trainables()
             eKdiag = np.mean(np.diag(m.kern.compute_K_symm(m.X.read_value())))
             for e in [0] + [10**ex for ex in range(-6,-1)]:
                 try:
                     m.likelihood.variance = m.likelihood.variance.value + e * eKdiag
-                    opt.minimize(m, maxiter=5)
+                    opt.minimize(maxiter=5, randomize=False)
                     break
                 except tf.errors.InvalidArgumentError:  # pragma: no cover
                     m.assign(s)
@@ -225,12 +231,12 @@ class BayesianOptimizer(Optimizer):
         self.set_initial(EmptyDesign(self.domain).generate())
 
         # Optimization loop
-        unwrapped = list(map(ModelWrapper.unwrap, self.acquisition.models))
+        trainables = dict(zip(map(ModelWrapper.unwrap, self.acquisition.models), self.acquisition.trainers))
         for i in range(n_iter):
             # If a callback is specified, and acquisition has the setup flag enabled (indicating an upcoming
             # compilation), run the callback.
             if self._model_callback and self.acquisition._needs_setup:
-                self._model_callback(unwrapped, self.acquisition._model_optimizer)
+                self._model_callback(trainables)
             result = self.optimizer.optimize(self._evaluate_acquisition)
             self._update_model_data(result.x, fx(result.x))
 

@@ -22,10 +22,12 @@ def randomize_model(model):
     assert isinstance(model, gpflow.models.Model)
     for p in model.parameters:
         if p.trainable:
-            prior = p.prior or gpflow.priors.Gaussian(0., 1.)  # if undefined, use standard normal
+            prior = p.prior or gpflow.priors.Gamma(2., 2.)  # if undefined, use a Gamma prior
             rvalue = np.array(prior.sample(p.shape or (1,))) # Return values of GPflow priors sample() aren't consistent
-            if not p.prior:
-                rvalue = p.transform.forward(rvalue)
+            #if not p.prior:
+            #    print(p.shape)
+            #    print(rvalue.shape)
+            #    rvalue = p.transform.forward(rvalue)
             p.assign(rvalue if len(p.shape) > 0 else rvalue.squeeze())
 
 

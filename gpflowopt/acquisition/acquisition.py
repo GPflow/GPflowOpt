@@ -33,22 +33,29 @@ import copy
 
 
 class ModelTrainer(Optimizer):
-    def __init__(self, optimizer):
+    def __init__(self, optimizer, model):
         assert isinstance(optimizer, Optimizer)
         super(ModelTrainer, self).__init__()
         self._optimizer = optimizer
         self._opt_op = None
+        self.model = model
 
-    def minimize(self, model, session=None, anchor=True, maxiter=1000, disp=False):
-        session = model.enquire_session(session)
+    def minimize(self, session=None, maxiter=1000, disp=False, randomize=True):
+        if randomize:
+            randomize_model(self.model)
+
+        session = self.model.enquire_session(session)
         if not self._opt_op:
-            self._opt_op = self._optimizer.make_optimize_tensor(model, session=session, maxiter=maxiter, disp=disp)
+            self._opt_op = self._optimizer.make_optimize_tensor(self.model, session=session, maxiter=maxiter, disp=disp)
 
-        feed_dict = self._optimizer._gen_feed_dict(model, {})
+        feed_dict = self._optimizer._gen_feed_dict(self.model, {})
         self._opt_op.minimize(session=session, feed_dict=feed_dict)
+        self.model.anchor(session)
 
-        if anchor:
-            model.anchor(session)
+        return {
+            'score': self.model.compute_log_prior() + self.model.compute_log_likelihood(),
+            'state': copy.deepcopy(self.model.read_trainables())
+        }
 
     def clear(self):
         self._opt_op = None
@@ -86,15 +93,13 @@ class Acquisition(Parameterized, ICriterion):
         assert (optimize_restarts >= 0)
         assert all(isinstance(model, (Model, ModelWrapper)) for model in models)
 
+        self.maximize = maximize
         self.optimize_restarts = optimize_restarts
         if len(models) > 0:
-            self.models = ParamList(self._wrap_models(models))
-        self._model_optimizer = ModelTrainer(model_optimizer or ScipyOptimizer())
-        self._needs_setup = True
-        self.maximize = maximize
+            self.models = ParamList([DataScaler(m) for m in models])
+            self.trainers = [ModelTrainer(model_optimizer or ScipyOptimizer(), m) for m in models]
 
-    def _wrap_models(self, models):
-        return [DataScaler(m) for m in models]
+        self._needs_setup = True
 
     def _optimize_models(self):
         """
@@ -113,29 +118,32 @@ class Acquisition(Parameterized, ICriterion):
         if self.optimize_restarts == 0:
             return
 
-        for model in map(ModelWrapper.unwrap, self.models):
+        for opt in self.trainers:
             runs = []
             for i in range(self.optimize_restarts):
-                randomize_model(model)
                 try:
-                    self._model_optimizer.minimize(model)
-                    run_info = dict(score=model.compute_log_prior() + model.compute_log_likelihood(),
-                                    state=copy.deepcopy(model.read_trainables()))
-                    runs.append(run_info)
-                except tf.errors.InvalidArgumentError:  # pragma: no cover
+                    train_info = opt.minimize(randomize=True)
+                    runs.append(train_info)
+                except tf.errors.InvalidArgumentError as e:  # pragma: no cover
+                    print(str(e))
                     print("Warning: optimization restart {0}/{1} failed".format(1, self.optimize_restarts))
 
             if not runs:
-                raise RuntimeError("All model hyperparameter optimization restarts failed, exiting.")
+                raise RuntimeError("All model hyperparameter optimization restarts failed.")
 
             if len(runs) > 1:
-                best_idx = np.argmax([r['score'] for r in runs])
-                model.assign(runs[best_idx]['state'])
+                best = max(runs, key=lambda r: r['score'])
+                opt.model.assign(best['state'])
 
     @abc.abstractmethod
     @params_as_tensors
     def _build_acquisition(self, Xcand):
         raise NotImplementedError
+
+    def _clear(self):
+        super(Acquisition, self)._clear()
+        for opt in self.trainers:
+            opt.clear()
 
     def enable_scaling(self, domain):
         """
@@ -326,6 +334,10 @@ class AcquisitionAggregation(Acquisition):
     @property
     def models(self):
         return [model for acq in self.operands for model in acq.models]
+
+    @property
+    def trainers(self):
+        return [opt for acq in self.operands for opt in acq.trainers]
 
     def enable_scaling(self, domain):
         for oper in self.operands:
