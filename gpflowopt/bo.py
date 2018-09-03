@@ -161,7 +161,10 @@ class BayesianOptimizer(Optimizer):
         - multi-objective: the Pareto set of the feasible samples
         - only constraints: all the feasible samples (can be empty)
 
-        In all cases, if not one sample satisfies all the constraints a message will be given and success=False
+        In all cases, if not one sample satisfies all the constraints a message will be given and success=False.
+
+        Do note that the feasibility check is based on the model predictions, but the constrained field contains
+        actual data values.
        
         :param success: Optimization successful? (True/False)
         :param message: return message
@@ -191,7 +194,7 @@ class BayesianOptimizer(Optimizer):
             _, dom = non_dominated_sort(Yo)
             idx = dom == 0
         else:  # Constraint satisfaction problem: all samples satisfying the constraints
-            idx = np.ones(Yo.shape[0])
+            idx = np.arange(Yc.shape[0])
 
         return OptimizeResult(x=X[idx, :],
                               success=success,
@@ -270,8 +273,10 @@ class BayesianOptimizer(Optimizer):
                     metrics += [fmin]
 
                 # constraints
-                if bo_result.constraints:
-                    metrics += ['constraints [' + ', '.join('{:.3}'.format(constraint) for constraint in bo_result.constraints) + ']']
+                n_points = bo_result.constraints.shape[0]
+                if n_points > 0:
+                    constraints = np.atleast_1d(np.min(bo_result.constraints, axis=0))
+                    metrics += ['constraints [' + ', '.join('{:.3}'.format(constraint) for constraint in constraints) + ']']
 
                 # error messages
                 metrics += [r.message.decode('utf-8') if isinstance(r.message, bytes) else r.message for r in [bo_result, result] if not r.success]
