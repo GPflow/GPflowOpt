@@ -1,5 +1,6 @@
 import gpflowopt
 import numpy as np
+import pytest
 import gpflow
 import six
 import sys
@@ -192,6 +193,7 @@ class TestStagedOptimizer(_TestOptimizer, GPflowOptTestCase):
 class TestBayesianOptimizer(_TestOptimizer, GPflowOptTestCase):
     def setUp(self):
         super(TestBayesianOptimizer, self).setUp()
+
         acquisition = gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(self.domain))
         self.optimizer = gpflowopt.BayesianOptimizer(self.domain, acquisition)
 
@@ -199,31 +201,57 @@ class TestBayesianOptimizer(_TestOptimizer, GPflowOptTestCase):
         self.assertTupleEqual(self.optimizer._initial.shape, (0, 2), msg="Invalid shape of initial points array")
 
     def test_optimize(self):
-        with self.test_session():
-            result = self.optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=20)
-            self.assertTrue(result.success)
-            self.assertEqual(result.nfev, 20, "Only 20 evaluations permitted")
-            self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
-            self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
+        for verbose in [False, True]:
+            with self.test_session():
+                acquisition = gpflowopt.acquisition.ExpectedImprovement(create_parabola_model(self.domain))
+                optimizer = gpflowopt.BayesianOptimizer(self.domain, acquisition, verbose=verbose)
+                result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=20)
+                self.assertTrue(result.success)
+                self.assertEqual(result.nfev, 20, "Only 20 evaluations permitted")
+                self.assertTrue(np.allclose(result.x, 0), msg="Optimizer failed to find optimum")
+                self.assertTrue(np.allclose(result.fun, 0), msg="Incorrect function value returned")
 
     def test_optimize_multi_objective(self):
-        with self.test_session():
-            m1, m2 = create_vlmop2_model()
-            acquisition = gpflowopt.acquisition.ExpectedImprovement(m1) + gpflowopt.acquisition.ExpectedImprovement(m2)
-            optimizer = gpflowopt.BayesianOptimizer(self.domain, acquisition)
-            result = optimizer.optimize(vlmop2, n_iter=2)
-            self.assertTrue(result.success)
-            self.assertEqual(result.nfev, 2, "Only 2 evaluations permitted")
-            self.assertTupleEqual(result.x.shape, (7, 2))
-            self.assertTupleEqual(result.fun.shape, (7, 2))
-            _, dom = gpflowopt.pareto.non_dominated_sort(result.fun)
-            self.assertTrue(np.all(dom==0))
+        for verbose in [False, True]:
+            with self.test_session():
+                m1, m2 = create_vlmop2_model()
+                acquisition = gpflowopt.acquisition.ExpectedImprovement(m1) + gpflowopt.acquisition.ExpectedImprovement(m2)
+                optimizer = gpflowopt.BayesianOptimizer(self.domain, acquisition, verbose=verbose)
+                result = optimizer.optimize(vlmop2, n_iter=2)
+                self.assertTrue(result.success)
+                self.assertEqual(result.nfev, 2, "Only 2 evaluations permitted")
+                self.assertTupleEqual(result.x.shape, (7, 2))
+                self.assertTupleEqual(result.fun.shape, (7, 2))
+                _, dom = gpflowopt.pareto.non_dominated_sort(result.fun)
+                self.assertTrue(np.all(dom == 0))
+
+    def test_optimize_constraint(self):
+        for verbose in [False, True]:
+            with self.test_session():
+                acquisition = gpflowopt.acquisition.ProbabilityOfFeasibility(create_parabola_model(self.domain), threshold=-1)
+                optimizer = gpflowopt.BayesianOptimizer(self.domain, acquisition, verbose=verbose)
+                result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+                self.assertFalse(result.success)
+                self.assertEqual(result.message, 'No evaluations satisfied all the constraints')
+                self.assertEqual(result.nfev, 1, "Only 1 evaluations permitted")
+                self.assertTupleEqual(result.x.shape, (17, 2))
+                self.assertTupleEqual(result.fun.shape, (17, 0))
+                self.assertTupleEqual(result.constraints.shape, (17, 1))
+
+                acquisition = gpflowopt.acquisition.ProbabilityOfFeasibility(create_parabola_model(self.domain), threshold=0.3)
+                optimizer = gpflowopt.BayesianOptimizer(self.domain, acquisition, verbose=verbose)
+                result = optimizer.optimize(lambda X: parabola2d(X)[0], n_iter=1)
+                self.assertTrue(result.success)
+                self.assertEqual(result.nfev, 1, "Only 1 evaluation permitted")
+                self.assertTupleEqual(result.x.shape, (5, 2))
+                self.assertTupleEqual(result.fun.shape, (5, 0))
+                self.assertTupleEqual(result.constraints.shape, (5, 1))
 
     def test_optimizer_interrupt(self):
         with self.test_session():
             result = self.optimizer.optimize(KeyboardRaiser(3, lambda X: parabola2d(X)[0]), n_iter=20)
             self.assertFalse(result.success, msg="After 2 evaluations, a keyboard interrupt is raised, "
-                                                 "non-succesfull result expected.")
+                                                 "failed result expected.")
             self.assertTrue(np.allclose(result.x, 0.0), msg="The optimum will not be identified nonetheless")
 
     def test_failsafe(self):
