@@ -14,7 +14,7 @@
 
 from .acquisition import Acquisition
 
-from gpflow import settings
+from gpflow import settings, DataHolder, params_as_tensors
 
 import numpy as np
 import tensorflow as tf
@@ -51,7 +51,7 @@ class ProbabilityOfFeasibility(Acquisition):
             For more information, see docstring of feasible_data_index
         """
         super(ProbabilityOfFeasibility, self).__init__(model)
-        self.threshold = threshold
+        self.threshold = DataHolder(threshold)
         self.minimum_pof = minimum_pof
 
     def constraint_indices(self):
@@ -75,8 +75,9 @@ class ProbabilityOfFeasibility(Acquisition):
         pred = self.evaluate(self.data[0])
         return pred.ravel() > self.minimum_pof
 
+    @params_as_tensors
     def _build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0]._build_predict(Xcand)
         candidate_var = tf.maximum(candidate_var, settings.jitter)
         normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        return normal.cdf(tf.constant(self.threshold, dtype=settings.tf_float), name=self.__class__.__name__)
+        return normal.cdf(self.threshold, name=self.__class__.__name__)

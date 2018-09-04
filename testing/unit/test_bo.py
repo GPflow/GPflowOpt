@@ -12,9 +12,9 @@ class TestBayesianOptimizer(object):
     def acquisition(self, parabola_model):
         yield gpflowopt.acquisition.ExpectedImprovement(parabola_model)
 
-    @pytest.fixture()
-    def optimizer(self, domain, acquisition):
-        yield gpflowopt.BayesianOptimizer(domain, acquisition)
+    @pytest.fixture(params=(False, True))
+    def optimizer(self, request, domain, acquisition):
+        yield gpflowopt.BayesianOptimizer(domain, acquisition, verbose=request.param)
 
     def test_default_initial(self, optimizer):
         assert optimizer._initial.shape == (0, 2)
@@ -52,6 +52,25 @@ class TestBayesianOptimizer(object):
         assert result.fun.shape == (7, 2)
         _, dom = gpflowopt.pareto.non_dominated_sort(result.fun)
         assert np.all(dom == 0)
+
+    def test_optimize_constraint(self, domain, parabola_model):
+        acquisition = gpflowopt.acquisition.ProbabilityOfFeasibility(parabola_model, threshold=-1.0)
+        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, verbose=True)
+        result = optimizer.optimize(lambda X: parabola2d(X), n_iter=1)
+        assert not result.success
+        assert result.message == 'No evaluations satisfied all the constraints'
+        assert result.nfev == 1
+        assert result.x.shape == (17, 2)
+        assert result.fun.shape == (17, 0)
+        assert result.constraints.shape == (17, 1)
+
+        acquisition.threshold.assign(0.4)
+        result = optimizer.optimize(lambda X: parabola2d(X), n_iter=1)
+        assert result.success
+        assert result.nfev == 1
+        assert result.x.shape == (6, 2)
+        assert result.fun.shape == (6, 0)
+        assert result.constraints.shape == (6, 1)
 
     def test_failsafe(self, optimizer):
         X, Y = optimizer.acquisition.data
