@@ -17,10 +17,10 @@
 
 import re
 
-from setuptools import setup
 from pkg_resources import parse_version
+from setuptools import setup
 
-VERSIONFILE="gpflowopt/_version.py"
+VERSIONFILE = "gpflowopt/_version.py"
 verstrline = open(VERSIONFILE, "rt").read()
 VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
 mo = re.search(VSRE, verstrline, re.M)
@@ -39,6 +39,7 @@ min_tf_version = '1.0.0'
 try:
     # If tf not installed, import raises ImportError
     import tensorflow as tf
+
     if parse_version(tf.__version__) < parse_version(min_tf_version):
         # TF pre-installed, but below the minimum required version
         raise DeprecationWarning("TensorFlow version below minimum requirement")
@@ -62,9 +63,10 @@ setup(name='gpflowopt',
       py_modules=['gpflowopt.__init__'],
       test_suite='testing',
       install_requires=dependencies,
-      extras_require={'gpu': ['tensorflow-gpu>=1.0.0'],
-                      'docs': ['sphinx', 'sphinx_rtd_theme', 'numpydoc', 'nbsphinx', 'jupyter'],
-                      },
+      extras_require={
+          'gpu': ['tensorflow-gpu>=1.0.0'],
+          'docs': ['sphinx==1.7.8', 'sphinx_rtd_theme', 'numpydoc==0.8.0', 'nbsphinx==0.3.4', 'jupyter'],
+      },
       dependency_links=['https://github.com/GPflow/GPflow/archive/0.5.0.tar.gz#egg=GPflow-0.5.0'],
       classifiers=['License :: OSI Approved :: Apache Software License',
                    'Natural Language :: English',
