@@ -14,7 +14,7 @@ class TestBayesianOptimizer(object):
 
     @pytest.fixture(params=(False, True))
     def optimizer(self, request, domain, acquisition):
-        yield gpflowopt.BayesianOptimizer(domain, acquisition, verbose=request.param)
+        yield gpflowopt.BayesianOptimizer(domain, acquisition, optimizer=gpflowopt.optim.SciPyOptimizer(domain), verbose=request.param)
 
     def test_default_initial(self, optimizer):
         assert optimizer._initial.shape == (0, 2)
@@ -44,7 +44,7 @@ class TestBayesianOptimizer(object):
     def test_optimize_multi_objective(self, domain, vlmop2_models):
         m1, m2 = vlmop2_models
         acquisition = gpflowopt.acquisition.ExpectedImprovement(m1) + gpflowopt.acquisition.ExpectedImprovement(m2)
-        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition)
+        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, optimizer=gpflowopt.optim.SciPyOptimizer(domain))
         result = optimizer.optimize(vlmop2, n_iter=2)
         assert result.success
         assert result.nfev == 2
@@ -55,7 +55,7 @@ class TestBayesianOptimizer(object):
 
     def test_optimize_constraint(self, domain, parabola_model):
         acquisition = gpflowopt.acquisition.ProbabilityOfFeasibility(parabola_model, threshold=-1.0)
-        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, verbose=True)
+        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, optimizer=gpflowopt.optim.SciPyOptimizer(domain), verbose=True)
         result = optimizer.optimize(lambda X: parabola2d(X), n_iter=1)
         assert not result.success
         assert result.message == 'No evaluations satisfied all the constraints'
@@ -93,7 +93,8 @@ class TestBayesianOptimizer(object):
 
     def test_initial_design(self, domain, acquisition):
         design = gpflowopt.design.RandomDesign(5, domain)
-        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, initial=design)
+        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, optimizer=gpflowopt.optim.SciPyOptimizer(domain),
+                                                initial=design)
 
         result = optimizer.optimize(lambda X: parabola2d(X), n_iter=0)
         assert result.success
@@ -116,12 +117,14 @@ class TestBayesianOptimizer(object):
                 self.counter += 1
 
         c = DummyCallback()
-        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, callback=c)
+        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, optimizer=gpflowopt.optim.SciPyOptimizer(domain),
+                                                callback=c)
         _ = optimizer.optimize(lambda X: parabola2d(X), n_iter=2)
         assert c.counter == 2
 
     def test_mcmc(self, domain, acquisition):
-        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, hyper_draws=2)
+        optimizer = gpflowopt.BayesianOptimizer(domain, acquisition, optimizer=gpflowopt.optim.SciPyOptimizer(domain),
+                                                hyper_draws=2)
         result = optimizer.optimize(lambda X: parabola2d(X), n_iter=2)
         assert result.success
         np.testing.assert_allclose(result.x, 0)
@@ -132,6 +135,6 @@ class TestBayesianOptimizer(object):
         X, Y = design.generate(), parabola2d(design.generate())
         m = gpflow.models.VGP(X, Y, gpflow.kernels.RBF(2, ARD=True), likelihood=gpflow.likelihoods.Gaussian())
         acq = gpflowopt.acquisition.ExpectedImprovement(m)
-        optimizer = gpflowopt.BayesianOptimizer(domain, acq)
+        optimizer = gpflowopt.BayesianOptimizer(domain, acq, optimizer=gpflowopt.optim.SciPyOptimizer(domain))
         result = optimizer.optimize(lambda X: parabola2d(X), n_iter=1)
         assert result.success
