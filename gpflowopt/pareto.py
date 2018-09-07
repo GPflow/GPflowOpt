@@ -205,13 +205,11 @@ class Pareto(Parameterized):
             ub  = pf_ext[pf_ext_idx[cell[1], arr], arr]
 
             # Acceptance test:
-            # if self._is_test_required((cell[1] - 0.5) < pseudo_pf):
             if self._is_test_required((ub - 1e-6) < self.front.value):
                 # Cell is a valid integral bound: store
                 self.bounds.append(pf_ext_idx[cell[0], np.arange(outdim)],
                                    pf_ext_idx[cell[1], np.arange(outdim)])
             # Reject test:
-            # elif self._is_test_required((cell[0] + 0.5) < pseudo_pf):
             elif self._is_test_required((lb + 1e-6) < self.front.value):
                 # Cell can not be discarded: calculate the size of the cell
                 dc_dist = cell[1] - cell[0]
@@ -280,18 +278,3 @@ class Pareto(Parameterized):
         lb = tf.reshape(tf.gather_nd(pseudo_pf, lb_idx), [D, N])
         hv = tf.reduce_sum(tf.reduce_prod(ub - lb, 0))
         return tf.reduce_prod(R - min_pf) - hv
-
-if __name__ == '__main__':
-    r0  = np.array([4.0, 4.0, 4.0])
-
-    d21 = np.array([[2.0, 2.0, 0.0],
-                    [2.0, 0.0, 1.0],
-                    [3.0, 1.0, 0.0]])  # 29 v.s. 28
-    prt = Pareto(d21)
-    print prt.hypervolume(r0)  # should be 29
-
-    d21 = np.array([[2.0, 0.0, 1.0],
-                    [2.0, 2.0, 0.0],
-                    [3.0, 1.0, 0.0]])  # 29 v.s. 32
-    prt = Pareto(d21)
-    print prt.hypervolume(r0)  # should be 29
