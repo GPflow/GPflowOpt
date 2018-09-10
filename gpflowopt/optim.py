@@ -233,6 +233,7 @@ class StagedOptimizer(Optimizer):
     """
 
     def __init__(self, optimizers):
+        assert len(optimizers) > 1, 'StagedOptimizer requires a list of at least two optimizers'
         assert all(map(lambda opt: optimizers[0].domain == opt.domain, optimizers))
         no_gradient = any(map(lambda opt: not opt.gradient_enabled(), optimizers))
         super(StagedOptimizer, self).__init__(optimizers[0].domain, exclude_gradient=no_gradient)
