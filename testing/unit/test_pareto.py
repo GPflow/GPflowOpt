@@ -28,6 +28,17 @@ class TestPareto(GPflowOptTestCase):
         self.p_generic = gpflowopt.pareto.Pareto(np.zeros((1, 2)))
         self.p_generic.update(objective_scores, generic_strategy=True)
 
+        scores_3d_set1 = np.array([[2.0, 2.0, 0.0],
+                                   [2.0, 0.0, 1.0],
+                                   [3.0, 1.0, 0.0]])
+        scores_3d_set2 = np.array([[2.0, 0.0, 1.0],
+                                   [2.0, 2.0, 0.0],
+                                   [3.0, 1.0, 0.0]])
+        self.p_3d_set1 = gpflowopt.pareto.Pareto(np.zeros((1, 3)))
+        self.p_3d_set1.update(scores_3d_set1)
+        self.p_3d_set2 = gpflowopt.pareto.Pareto(np.zeros((1, 3)))
+        self.p_3d_set2.update(scores_3d_set2)
+
     def test_update(self):
         np.testing.assert_almost_equal(self.p_2d.bounds.lb.value, np.array([[0, 0], [1, 0], [2, 0], [3, 0]]),
                                        err_msg='LBIDX incorrect.')
@@ -54,3 +65,6 @@ class TestPareto(GPflowOptTestCase):
 
         np.testing.assert_almost_equal(self.p_2d.hypervolume([1, 1]), self.p_generic.hypervolume([1, 1]), decimal=20,
                                        err_msg='hypervolume of different strategies incorrect.')
+
+        np.testing.assert_equal(self.p_3d_set1.hypervolume([4, 4, 4]), 29.0, err_msg='3D hypervolume incorrect.')
+        np.testing.assert_equal(self.p_3d_set2.hypervolume([4, 4, 4]), 29.0, err_msg='3D hypervolume incorrect.')

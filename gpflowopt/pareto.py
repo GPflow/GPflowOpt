@@ -20,6 +20,7 @@ import tensorflow as tf
 
 np_int_type = np_float_type = np.int32 if settings.dtypes.int_type is tf.int32 else np.int64
 float_type = settings.dtypes.float_type
+stability = settings.numerics.jitter_level
 
 
 class BoundedVolumes(Parameterized):
@@ -193,6 +194,7 @@ class Pareto(Parameterized):
         # Start with one cell covering the whole front
         dc = [(np.zeros(outdim, dtype=np_int_type),
                (int(pf_ext_idx.shape[0]) - 1) * np.ones(outdim, dtype=np_int_type))]
+        
         total_size = np.prod(max_pf - min_pf)
 
         # Start divide and conquer until we processed all cells
@@ -200,13 +202,17 @@ class Pareto(Parameterized):
             # Process test cell
             cell = dc.pop()
 
+            arr = np.arange(outdim)
+            lb  = pf_ext[pf_ext_idx[cell[0], arr], arr]
+            ub  = pf_ext[pf_ext_idx[cell[1], arr], arr]
+
             # Acceptance test:
-            if self._is_test_required((cell[1] - 0.5) < pseudo_pf):
+            if self._is_test_required((ub - stability) < self.front.value):
                 # Cell is a valid integral bound: store
                 self.bounds.append(pf_ext_idx[cell[0], np.arange(outdim)],
                                    pf_ext_idx[cell[1], np.arange(outdim)])
             # Reject test:
-            elif self._is_test_required((cell[0] + 0.5) < pseudo_pf):
+            elif self._is_test_required((lb + stability) < self.front.value):
                 # Cell can not be discarded: calculate the size of the cell
                 dc_dist = cell[1] - cell[0]
                 hc = BoundedVolumes(pf_ext[pf_ext_idx[cell[0], np.arange(outdim)], np.arange(outdim)],
