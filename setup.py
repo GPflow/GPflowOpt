@@ -30,7 +30,7 @@ else:
     raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
 
 # Dependencies of GPflowOpt
-dependencies = ['numpy>=1.9', 'scipy>=0.16', 'GPflow==0.5.0']
+dependencies = ['numpy>=1.9', 'scipy>=0.16', 'gpflow @ http://github.com/GPflow/GPflow/tarball/develop-2.0']
 min_tf_version = '1.0.0'
 
 # Detect if TF is installed or outdated.
@@ -67,7 +67,6 @@ setup(name='gpflowopt',
           'gpu': ['tensorflow-gpu>=1.0.0'],
           'docs': ['sphinx==1.7.8', 'sphinx_rtd_theme', 'numpydoc==0.8.0', 'nbsphinx==0.3.4', 'jupyter'],
       },
-      dependency_links=['https://github.com/GPflow/GPflow/archive/0.5.0.tar.gz#egg=GPflow-0.5.0'],
       classifiers=['License :: OSI Approved :: Apache Software License',
                    'Natural Language :: English',
                    'Operating System :: POSIX :: Linux',

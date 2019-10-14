@@ -13,7 +13,6 @@
 # limitations under the License.
 import numpy as np
 from functools import wraps
-from gpflow import model
 
 
 def batch_apply(fun):
@@ -93,22 +92,57 @@ class to_kwargs(object):
         return kwargs_wrapper
 
 
-class ObjectiveWrapper(model.ObjectiveWrapper):
+class ObjectiveWrapper:
     """
     A wrapper for objective functions.
     
     Filters out gradient information if necessary and keeps a count of the number of function evaluations.
     """
     def __init__(self, objective, exclude_gradient):
-        super(ObjectiveWrapper, self).__init__(objective)
+        super().__init__()
+        self._objective = np.atleast_1d(objective)
+        self._previous_x = None
         self._no_gradient = exclude_gradient
         self.counter = 0
 
+    @staticmethod
+    def _tuplify(val):
+        return (val,) if not isinstance(val, tuple) else val
+
+    def _eval_objectives(self, X):
+        """
+        Evaluates a list of n functions on X.
+
+        Returns a matrix, size N x sum(Q0,...Qn-1)
+        with Qi the number of columns obtained by evaluating the i-th function.
+
+        :param X: input points, size N x D
+        :param fxs: functions, size n
+        :return: tuple:
+            (0) the evaluations Y, size N x sum(Q0,...Qn-1).
+        """
+        evaluations = map(np.hstack, zip(*map(lambda f: self._tuplify(f(X)), self._objective)))
+        return tuple(evaluations)
+
+    def _eval_no_grad(self, x):
+        evaluations = self._eval_objectives(x)
+        self._previous_x = x
+        return evaluations[0]
+
+    def _eval_with_grad(self, x):
+        evaluations = self._eval_objectives(x)
+        assert len(evaluations) == 2
+        f, g = evaluations[0], evaluations[1]
+        g_is_fin = np.isfinite(g)
+        if np.all(g_is_fin):
+            self._previous_x = x  # store the last known good value
+        else:
+            print("Warning: inf or nan in gradient: replacing with zeros")
+            g = np.where(g_is_fin, g, 0.)
+        return f, g
+
     def __call__(self, x):
         x = np.atleast_2d(x)
-        f, g = super(ObjectiveWrapper, self).__call__(x)
         self.counter += x.shape[0]
-        if self._no_gradient:
-            return f
-        return f, g
+        return self._eval_no_grad(x) if self._no_gradient else self._eval_with_grad(x)
 

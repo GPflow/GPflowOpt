@@ -12,20 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
-import os
-import sys
 import warnings
 
 import numpy as np
-from gpflow import settings
 from scipy.optimize import OptimizeResult, minimize
+from gpflow.base import Module
 
 from .design import RandomDesign
 from .objective import ObjectiveWrapper
 
 
-class Optimizer(object):
+class Optimizer(Module):
     """
     An optimization algorithm.
 
@@ -111,22 +108,6 @@ class Optimizer(object):
         """
         return not self._wrapper_args['exclude_gradient']
 
-    @contextlib.contextmanager
-    def silent(self):
-        """
-        Context for performing actions on an optimizer (such as optimize) with all stdout discarded.
-        Usage example:
-
-        >>> opt = BayesianOptimizer(domain, acquisition, optimizer)
-        >>> with opt.silent():
-        >>>     # Run without printing anything
-        >>>     opt.optimize(fx, n_iter=2)
-        """
-        save_stdout = sys.stdout
-        sys.stdout = open(os.devnull, 'w')
-        yield
-        sys.stdout = save_stdout
-
 
 class MCOptimizer(Optimizer):
     """
@@ -205,7 +186,7 @@ class SciPyOptimizer(Optimizer):
 
     def __init__(self, domain, method='L-BFGS-B', tol=None, maxiter=1000):
         super(SciPyOptimizer, self).__init__(domain)
-        options = dict(disp=settings.verbosity.optimisation_verb,
+        options = dict(disp=True,
                        maxiter=maxiter)
         self.config = dict(tol=tol,
                            method=method,

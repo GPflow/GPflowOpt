@@ -14,16 +14,9 @@
 
 import numpy as np
 from scipy.spatial.distance import cdist, pdist
-import tensorflow as tf
+from gpflow.config import default_float
 
-from gpflow import settings
-
-from .domain import ContinuousParameter
-
-
-float_type = settings.dtypes.float_type
-stability = settings.numerics.jitter_level
-np_float_type = np.float32 if float_type is tf.float32 else np.float64
+from .domain import UnitCube, ContinuousParameter
 
 
 class Design(object):
@@ -50,7 +43,7 @@ class Design(object):
         :return: Domain object representing the domain associated with the points generated in create_design().
             Defaults to [0,1]^D, can be overwritten by subclasses
         """
-        return np.sum([ContinuousParameter('d{0}'.format(i), 0, 1) for i in np.arange(self.domain.size)])
+        return UnitCube(self.domain.size)
 
     def generate(self):
         """
@@ -91,7 +84,7 @@ class RandomDesign(Design):
         super(RandomDesign, self).__init__(size, domain)
 
     def create_design(self):
-        return np.random.rand(self.size, self.domain.size).astype(np_float_type)
+        return np.random.rand(self.size, self.domain.size).astype(default_float())
 
 
 class FactorialDesign(Design):

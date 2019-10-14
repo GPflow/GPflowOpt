@@ -13,13 +13,12 @@
 # limitations under the License.
 
 import numpy as np
+from gpflow.base import Module
 from itertools import chain
-from gpflow.param import Parentable
-
-from .transforms import LinearTransform
+import tensorflow_probability as tfp
 
 
-class Domain(Parentable):
+class Domain(Module):
     """
     A domain representing the mathematical space over which is optimized.
     """
@@ -53,15 +52,6 @@ class Domain(Parentable):
         """
         return sum(map(lambda param: param.size, self._parameters))
 
-    def __setattr__(self, key, value):
-        super(Domain, self).__setattr__(key, value)
-        if key is not '_parent':
-            if isinstance(value, Parentable):
-                value._parent = self
-            if isinstance(value, list):
-                for val in (x for x in value if isinstance(x, Parentable)):
-                    val._parent = self
-
     def __eq__(self, other):
         return self._parameters == other._parameters
 
@@ -90,7 +80,7 @@ class Domain(Parentable):
         assert(self.size == other.size)
         A = (other.upper - other.lower) / (self.upper - self.lower)
         b = -self.upper * A + other.upper
-        return LinearTransform(A, b)
+        return tfp.bijectors.Affine(shift=b, scale_diag=A)
 
     @property
     def value(self):

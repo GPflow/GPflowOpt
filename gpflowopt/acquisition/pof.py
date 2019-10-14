@@ -57,10 +57,7 @@ class ProbabilityOfFeasibility(Acquisition):
         self.threshold = threshold
         self.minimum_pof = minimum_pof
 
-    def constraint_indices(self):
-        return np.arange(self.data[1].shape[1])
-
-    def feasible_data_index(self):
+    def feasible_data_index(self, X):
         """
         Returns a boolean array indicating which points are feasible (True) and which are not (False).
         
@@ -75,8 +72,8 @@ class ProbabilityOfFeasibility(Acquisition):
     
         :return: boolean ndarray (size N)
         """
-        pred = self.evaluate(self.data[0])
-        return pred.ravel() > self.minimum_pof
+        pred = self.evaluate(X)
+        return tf.squeeze(pred) > self.minimum_pof
 
     def build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
