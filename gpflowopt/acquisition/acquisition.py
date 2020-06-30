@@ -21,8 +21,31 @@ from gpflow.models import BayesianModel
 from gpflow.utilities import parameter_dict, multiple_assign, to_default_float
 from gpflow.models.util import data_input_to_tensor
 import abc
+from functools import wraps
 import gpflow
 
+def setup_required(method):
+    """
+    Decorator function to mark methods in Acquisition classes which require running setup if indicated by _needs_setup
+    :param method: acquisition method
+    """
+    @wraps(method)
+    def runnable(instance, *args, **kwargs):
+        assert isinstance(instance, Acquisition)
+        if instance._needs_setup:
+            # Avoid infinite loops, caused by setup() somehow invoking the evaluate on another acquisition
+            # e.g. through feasible_data_index.
+            instance._needs_setup = False
+
+            # 1 - optimize
+            instance._optimize_models()
+
+            # 2 - setup
+            instance._setup()
+        results = method(instance, *args, **kwargs)
+        return results
+
+    return runnable
 
 class Acquisition(Module, metaclass=abc.ABCMeta):
     """
@@ -192,6 +215,7 @@ class Acquisition(Module, metaclass=abc.ABCMeta):
         if self.constraint_indices().size == 0:
             self._setup()
 
+    @setup_required
     @tf.function
     def evaluate_with_gradients(self, Xcand):
         """
@@ -203,6 +227,7 @@ class Acquisition(Module, metaclass=abc.ABCMeta):
         acq = self.build_acquisition(Xcand)
         return acq, tf.gradients(acq, [Xcand], name="acquisition_gradient")[0]
 
+    @setup_required
     @tf.function
     def evaluate(self, Xcand):
         """
