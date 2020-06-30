@@ -46,22 +46,24 @@ class qExpectedImprovement(ParallelBatchAcquisition):
         # Obtain predictive distributions for candidates
         N, D = tf.shape(args[0])[0], tf.shape(args[0])[1]
         q = self.batch_size
-
-        Xcand = tf.transpose(tf.stack(args, axis=0), perm=[1, 0, 2])
+        #Q x N x D
+        Xcand = tf.transpose(tf.stack(args, axis=0), perm=[1, 0, 2]) # N x Q x D
         m, sig = tf.map_fn(lambda x: self.models[0].build_predict(x, full_cov=True), Xcand,
                            dtype=(float_type, float_type))  # N x q x 1, N x q x q
 
         eye = tf.tile(tf.expand_dims(tf.eye(q, dtype=float_type), 0), [q, 1, 1])
         A = eye
         A = A - tf.transpose(eye, perm=[1, 2, 0])
-        A = A - tf.transpose(eye, perm=[2, 0, 1])  # q x q x q     (k x q x q)
+        A = A - tf.transpose(eye, perm=[2, 0, 1])  # q x q x q     (q(k) x q x q)
 
-        mk = tf.tensordot(A, m, [[2], [1]])  # N x q(k) x q  Mean of Zk   (k x q)
-        sigk = tf.tensordot(A, sig, [[2], [1]])  # N x q x q x q
+        mk = tf.squeeze(tf.tensordot(m, A, [[1], [2]]), 1)  # N x q(k) x q  Mean of Zk   (k x q)
+        mk = tf.reshape(mk, [N, q, q])
+        sigk = tf.transpose(tf.tensordot(sig, A, [[1], [2]]), [0, 2, 3, 1])  # N x q(k) x q x q
         sigk = tf.reduce_sum(tf.expand_dims(sigk, 3) * tf.expand_dims(tf.expand_dims(A, 0), 2), axis=-1)# N x q(k) x q x q
+        sigk = tf.reshape(sigk, [N, q, q, q])
 
-        a = tf.tile(tf.expand_dims(tf.eye(self.batch_size, self.batch_size, dtype=float_type), 0), [self.batch_size, 1, 1])
-        A1 = tf.gather_nd(a, [[[i, j + (j >= i)] for j in range(self.batch_size)] for i in range(self.batch_size)])
+        a = tf.tile(tf.expand_dims(tf.eye(q, q, dtype=float_type), 0), [q, 1, 1])
+        A1 = tf.gather_nd(a, [[[i, j + (j >= i)] for j in range(q)] for i in range(q-1)])
         # q(i) x (q-1) x q
 
         bk = -self.fmin * tf.eye(q, dtype=float_type)  # q(k) x q
@@ -69,17 +71,22 @@ class qExpectedImprovement(ParallelBatchAcquisition):
         Sigk_t = tf.expand_dims(tf.transpose(tf.tensordot(sigk, A1, [[-2], [2]]), [0, 1, 3, 4, 2]), -2)  # N x q(k) x q(i) x (q-1) x 1 x q
         Sigk = tf.reduce_sum(tf.expand_dims(tf.expand_dims(tf.expand_dims(A1, 0), 0), -3)* Sigk_t, axis=-1)
         #Sigk = tf.einsum('ijklm,lnk->ijlmn', Sigk_t, A1)  # N x q(k) x q(i) x q-1 x q-1
-        c = tf.tensordot(tf.expand_dims(bk, 0) - mk, A1, [[2], [2]])
         c = tf.tensordot(tf.expand_dims(bk, 0) - mk, A1, [[2], [2]])  # N x q(k) x q(i) x q-1
-        F = tf.expand_dims(tf.expand_dims(tf.expand_dims(bk, 0) - mk, -1) / tf.matrix_diag_part(sigk),
+        F = tf.expand_dims((tf.expand_dims(bk, 0) - mk) / tf.matrix_diag_part(sigk),
                            -1)  # N x q(k) x q(i) x 1
-        F *= tf.transpose(tf.squeeze(tf.matrix_diag_part(tf.transpose(Sigk_t, [0, 1, 3, 4, 5, 2])), 4), [0, 1, 3, 2])
+        F *= tf.transpose(tf.squeeze(tf.matrix_diag_part(tf.transpose(Sigk_t, [0, 1, 3, 4, 5, 2])), 3), [0, 1, 3, 2])
         c -= F
+
+        bk = tf.tile(tf.expand_dims(bk, 0), [N, 1, 1])
 
         MVN = ds.MultivariateNormalFullCovariance(loc=mk, covariance_matrix=sigk)
         MVN2 = ds.MultivariateNormalFullCovariance(loc=tf.zeros(tf.shape(c), dtype=float_type), covariance_matrix=Sigk)
+        MVN._is_maybe_event_override = False
+        MVN2._is_maybe_event_override = False
+
+
         UVN = ds.MultivariateNormalDiag(loc=mk, scale_diag=tf.sqrt(tf.matrix_diag_part(sigk)))
         t1 = tf.reduce_sum((self.fmin - m) * MVN.cdf(bk), axis=1)
         sigkk = tf.transpose(tf.matrix_diag_part(tf.transpose(sigk, perm=[0, 3, 1, 2])), perm=[0, 2, 1])
-        t2 = tf.reduce_sum(sigkk * UVN.pdf(-tf.expand_dims(bk, 0)) * MVN2.cdf(c), axis=[1, 2])
+        t2 = tf.reduce_sum(sigkk * UVN.prob(-tf.expand_dims(bk, 0)) * MVN2.cdf(c), axis=[1, 2])
         return tf.add(t1, t2, name=self.__class__.__name__)
