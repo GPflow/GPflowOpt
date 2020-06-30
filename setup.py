@@ -30,8 +30,8 @@ else:
     raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
 
 # Dependencies of GPflowOpt
-dependencies = ['numpy>=1.9', 'scipy>=0.16', 'GPflow==0.5.0']
-min_tf_version = '1.0.0'
+dependencies = ['numpy>=1.9', 'scipy>=0.16', 'GPflow>=2.0.0']
+min_tf_version = '2.1.0'
 
 # Detect if TF is installed or outdated.
 # If the right version is installed, do not list as requirement to avoid installing over e.g. tensorflow-gpu
