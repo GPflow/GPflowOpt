@@ -14,14 +14,13 @@
 
 from .acquisition import Acquisition
 
-from gpflow.model import Model
-from gpflow.param import DataHolder
-from gpflow import settings
+from gpflow.models import GPModel
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 
-stability = settings.numerics.jitter_level
+from gpflow.config import default_jitter
 
 
 class ExpectedImprovement(Acquisition):
@@ -57,7 +56,7 @@ class ExpectedImprovement(Acquisition):
         :param model: GPflow model (single output) representing our belief of the objective
         """
         super(ExpectedImprovement, self).__init__(model)
-        self.fmin = DataHolder(np.zeros(1))
+        self.fmin = tf.Variable(1.)
         self._setup()
 
     def _setup(self):
@@ -65,15 +64,15 @@ class ExpectedImprovement(Acquisition):
         # Obtain the lowest posterior mean for the previous - feasible - evaluations
         feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
         samples_mean, _ = self.models[0].predict_f(feasible_samples)
-        self.fmin.set_data(np.min(samples_mean, axis=0))
+        self.fmin.assign(tf.reduce_min(samples_mean, axis=0))
 
     def build_acquisition(self, Xcand):
         # Obtain predictive distributions for candidates
         candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
+        candidate_var = tf.maximum(candidate_var, default_jitter)
 
         # Compute EI
-        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
+        normal = tfp.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
         t1 = (self.fmin - candidate_mean) * normal.cdf(self.fmin)
         t2 = candidate_var * normal.prob(self.fmin)
         return tf.add(t1, t2, name=self.__class__.__name__)
