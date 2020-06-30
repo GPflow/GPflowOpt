@@ -13,10 +13,6 @@
 # limitations under the License.
 
 from .acquisition import Acquisition
-
-from gpflow.models import GPModel
-
-import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
