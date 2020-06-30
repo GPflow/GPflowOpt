@@ -14,13 +14,10 @@
 
 from .acquisition import Acquisition
 
-from gpflow.param import DataHolder
-from gpflow import settings
-
-import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
+from gpflow.config import default_jitter, default_float
 
-stability = settings.numerics.jitter_level
 
 
 class ProbabilityOfImprovement(Acquisition):
@@ -51,17 +48,17 @@ class ProbabilityOfImprovement(Acquisition):
         :param model: GPflow model (single output) representing our belief of the objective 
         """
         super(ProbabilityOfImprovement, self).__init__(model)
-        self.fmin = DataHolder(np.zeros(1))
+        self.fmin = tf.Variable([1.,], dtype=default_float())
         self._setup()
 
-    def _setup(self):
+    def _setup(self, feasible_data_index=None):
         super(ProbabilityOfImprovement, self)._setup()
-        feasible_samples = self.data[0][self.highest_parent.feasible_data_index(), :]
+        feasible_samples = self.data[0][feasible_data_index, :]
         samples_mean, _ = self.models[0].predict_f(feasible_samples)
-        self.fmin.set_data(np.min(samples_mean, axis=0))
+        self.fmin.set_data(tf.reduce_min(samples_mean, axis=0))
 
     def build_acquisition(self, Xcand):
         candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
-        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
+        candidate_var = tf.maximum(candidate_var, default_jitter())
+        normal = tfp.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
         return normal.cdf(self.fmin, name=self.__class__.__name__)
