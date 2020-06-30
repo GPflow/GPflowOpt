@@ -8,7 +8,7 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.F_setup
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
@@ -80,6 +80,7 @@ class Acquisition(Module, metaclass=abc.ABCMeta):
 
         assert (optimize_restarts >= 0)
         self.optimize_restarts = optimize_restarts
+        self._needs_setup = True
 
     def _optimize_models(self):
         """
@@ -107,7 +108,7 @@ class Acquisition(Module, metaclass=abc.ABCMeta):
                 try:
                     opt = gpflow.optimizers.Scipy()
                     result = opt.minimize(model.training_loss, model.trainable_variables, options=dict(maxiter=1000))
-                    loss.append(result)
+                    loss.append(result.fun)
                     hypers.append(parameter_dict(model))
                 except tf.errors.InvalidArgumentError:  # pragma: no cover
                     print("Warning: optimization restart {0}/{1} failed".format(i + 1, self.optimize_restarts))
@@ -140,6 +141,7 @@ class Acquisition(Module, metaclass=abc.ABCMeta):
             num_outputs_sum += num_outputs
 
             model.data = data_input_to_tensor((X, Ypart))
+        self._needs_setup = True
         return num_outputs_sum
 
     @property
@@ -191,7 +193,7 @@ class Acquisition(Module, metaclass=abc.ABCMeta):
         """
         return np.ones(self.data[0].shape[0], dtype=bool)
 
-    def _setup(self):
+    def _setup(self, feasible_data_index=None):
         """
         Pre-calculation of quantities used later in the evaluation of the acquisition function for candidate points.
         
@@ -208,12 +210,12 @@ class Acquisition(Module, metaclass=abc.ABCMeta):
         if self.constraint_indices().size > 0:
             self._setup()
 
-    def _setup_objectives(self):
+    def _setup_objectives(self, feasible_data_index=None):
         """
         Run only if all outputs handled by this acquisition are objectives. Used in aggregation.
         """
         if self.constraint_indices().size == 0:
-            self._setup()
+            self._setup(feasible_data_index)
 
     @setup_required
     @tf.function
@@ -265,8 +267,6 @@ class Acquisition(Module, metaclass=abc.ABCMeta):
 
     def __setattr__(self, key, value):
         super(Acquisition, self).__setattr__(key, value)
-        if key is '_parent':
-            self.highest_parent._needs_setup = True
 
 
 class AcquisitionAggregation(Acquisition):
@@ -292,6 +292,10 @@ class AcquisitionAggregation(Acquisition):
     def models(self):
         return [model for acq in self.operands for model in acq.models]
 
+    @property
+    def _needs_setup(self):
+        return np.any([o._needs_setup for o in self.operands])
+
     def set_data(self, X, Y):
         offset = 0
         for operand in self.operands:
@@ -303,15 +307,16 @@ class AcquisitionAggregation(Acquisition):
             if oper.constraint_indices().size > 0:  # Small optimization, skip subtrees with objectives only
                 oper._setup_constraints()
 
-    def _setup_objectives(self):
+    def _setup_objectives(self, feasible_data_index=None):
         for oper in self.operands:
-            oper._setup_objectives()
+            oper._setup_objectives(feasible_data_index)
 
-    def _setup(self):
+    def _setup(self, feasible_data_index=None):
         # Important: First setup acquisitions involving constraints
         self._setup_constraints()
+
         # Then objectives as these might depend on the constraint acquisition
-        self._setup_objectives()
+        self._setup_objectives(self.feasible_data_index())
 
     def constraint_indices(self):
         offset = [0]
