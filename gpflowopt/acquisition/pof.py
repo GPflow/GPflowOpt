@@ -14,13 +14,11 @@
 
 from .acquisition import Acquisition
 
-from gpflow import settings
-
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 
-float_type = settings.dtypes.float_type
-stability = settings.numerics.jitter_level
+from gpflow.config import default_jitter, default_float
 
 
 class ProbabilityOfFeasibility(Acquisition):
@@ -76,10 +74,10 @@ class ProbabilityOfFeasibility(Acquisition):
         :return: boolean ndarray (size N)
         """
         pred = self.evaluate(self.data[0])
-        return pred.ravel() > self.minimum_pof
+        return tf.reduce_all(pred > self.minimum_pof, 1)
 
     def build_acquisition(self, Xcand):
-        candidate_mean, candidate_var = self.models[0].build_predict(Xcand)
-        candidate_var = tf.maximum(candidate_var, stability)
-        normal = tf.contrib.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
-        return normal.cdf(tf.constant(self.threshold, dtype=float_type), name=self.__class__.__name__)
+        candidate_mean, candidate_var = self.models[0].predict_f(Xcand)
+        candidate_var = tf.maximum(candidate_var, default_jitter())
+        normal = tfp.distributions.Normal(candidate_mean, tf.sqrt(candidate_var))
+        return normal.cdf(tf.constant(self.threshold, dtype=default_float()), name=self.__class__.__name__)
